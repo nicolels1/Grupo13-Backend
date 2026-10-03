@@ -18,9 +18,9 @@ O Supabase fornece identidade (Auth), banco (PostgreSQL) e arquivos (Storage). A
 | Uvicorn | servidor local | em uso |
 | Supabase Auth + PyJWT | autenticação | em uso |
 | python-dotenv | variáveis de ambiente | em uso |
-| SQLAlchemy | ORM | dependência no `requirements.txt`, ainda não usada no código |
-| Alembic | migrations | estrutura inicial criada (`alembic.ini`, `src/alembic/`), sem conexão com o banco e sem migrations |
-| PostgreSQL (Supabase) | banco de dados | planejado |
+| SQLAlchemy + psycopg | ORM e driver do PostgreSQL | conexão configurada (`src/database/`), ainda sem models |
+| Alembic | migrations | conectado ao banco e aos models, ainda sem migrations |
+| PostgreSQL (Supabase) | banco de dados | conexão configurada, ainda sem tabelas |
 | Supabase Storage | fotos e anexos | planejado |
 | Render | deploy | planejado |
 
@@ -30,17 +30,17 @@ O Supabase fornece identidade (Auth), banco (PostgreSQL) e arquivos (Storage). A
 src/
 ├── app.py          # cria o app FastAPI e define as rotas
 ├── middlewares/    # auth.py: valida o token do Supabase
-├── config/         # configurações e variáveis de ambiente
+├── config/         # settings.py: lê as variáveis do .env
 ├── entities/       # schemas de entrada e saída
 ├── models/         # modelos SQLAlchemy (tabelas)
-├── database/       # conexão e sessão com o PostgreSQL
+├── database/       # base.py: classe Base dos models; session.py: engine, sessão e get_db
 ├── repositories/   # consultas e escritas no banco
 ├── use_cases/      # regras de negócio
 ├── utils/          # funções auxiliares
-└── alembic/        # configuração de migrations
+└── alembic/        # configuração de migrations (versions/ guarda as migrations)
 ```
 
-Hoje só `app.py` e `middlewares/auth.py` têm código. As demais pastas estão vazias e foram criadas para as próximas camadas.
+Hoje têm código `app.py`, `middlewares/auth.py`, `config/` e `database/`. As demais pastas estão vazias e foram criadas para as próximas camadas.
 
 ## Autenticação e banco
 
@@ -55,7 +55,26 @@ def exemplo(user_id: str = Depends(get_current_user)):
     ...
 ```
 
-**Banco.** O backend ainda não se conecta ao PostgreSQL. Ainda não existem modelos, sessão ou migrations; o `alembic.ini` mantém a URL de exemplo gerada pelo `alembic init`.
+**Banco.** O backend usa duas conexões com o PostgreSQL do Supabase:
+
+- a API usa `DATABASE_URL` (Transaction pooler, porta 6543);
+- o Alembic usa `DATABASE_URL_DIRECT` (Direct connection, porta 5432). O `alembic.ini` não guarda URL: o `src/alembic/env.py` lê do `.env`.
+
+Para uma rota acessar o banco, use a dependência `get_db`, que abre uma sessão por requisição:
+
+```python
+from fastapi import Depends
+from sqlalchemy.orm import Session
+from src.database.session import get_db
+
+@app.get("/exemplo")
+def exemplo(db: Session = Depends(get_db)):
+    ...
+```
+
+Ainda não existem models nem migrations. Cada model novo herda de `Base` (`src/database/base.py`) e precisa ser importado em `src/models/__init__.py` para o Alembic enxergá-lo.
+
+O passo a passo para criar models e migrations, os comandos do Alembic e as regras do banco (RLS em todas as tabelas, FKs com `RESTRICT`, referência a `auth.users`) estão no [ALEMBIC_GUIDE.md](ALEMBIC_GUIDE.md).
 
 ## Configuração e execução
 
@@ -71,7 +90,7 @@ python -m venv .venv
 # 2. Instalar as dependências
 pip install -r requirements.txt
 
-# 3. Criar o .env a partir do exemplo e preencher SUPABASE_URL
+# 3. Criar o .env a partir do exemplo e preencher as variáveis
 Copy-Item .env.example .env         # macOS/Linux: cp .env.example .env
 
 # 4. Rodar a API
@@ -81,8 +100,12 @@ uvicorn src.app:app --reload
 | Variável | Descrição |
 |---|---|
 | `SUPABASE_URL` | URL do projeto Supabase (Project Settings → API → Project URL), no formato `https://<project-ref>.supabase.co` |
+| `DATABASE_URL` | conexão da API: botão **Connect** do Supabase → Transaction pooler (porta 6543) |
+| `DATABASE_URL_DIRECT` | conexão das migrations: botão **Connect** → Direct connection (porta 5432) |
 
-O `.env` está no `.gitignore` e não deve ser commitado. Sem `SUPABASE_URL`, a API não sobe.
+Nas duas URLs do banco, troque `[YOUR-PASSWORD]` pela senha do banco e codifique caracteres especiais (`@` vira `%40`, por exemplo). O `.env.example` mostra o formato completo.
+
+O `.env` está no `.gitignore` e não deve ser commitado. Sem `SUPABASE_URL`, a API não sobe; sem `DATABASE_URL_DIRECT`, o Alembic não roda.
 
 Com o servidor rodando:
 
@@ -104,9 +127,9 @@ curl.exe -H "Authorization: Bearer <access_token>" http://127.0.0.1:8000/protegi
 
 ## Estado atual
 
-- **Implementado:** API base e validação de tokens do Supabase Auth.
-- **Estrutura preparada:** pastas das camadas em `src/` e configuração inicial do Alembic.
-- **Próximos passos:** conexão com o PostgreSQL, modelos e migrations, e rotas de negócio.
+- **Implementado:** API base, validação de tokens do Supabase Auth e configuração da conexão com o PostgreSQL (API e Alembic).
+- **Estrutura preparada:** pastas das camadas em `src/`.
+- **Próximos passos:** models e migrations, e rotas de negócio.
 
 Não há testes automatizados no momento.
 
@@ -117,5 +140,7 @@ Não há testes automatizados no momento.
 | `ModuleNotFoundError` (fastapi, jwt…) | ambiente virtual não ativado ou dependências não instaladas |
 | `No module named 'src'` | Uvicorn executado fora da raiz do repositório |
 | `Invalid JWKS URI scheme` ao iniciar | `.env` ausente ou `SUPABASE_URL` vazia |
+| `DATABASE_URL não definida no .env` / `DATABASE_URL_DIRECT não definida no .env` | variável do banco ausente no `.env` |
+| Alembic trava ou não conecta pela conexão direta | a conexão direta do Supabase usa IPv6; se sua rede não tiver, use o Session pooler (porta 5432) em `DATABASE_URL_DIRECT` |
 | 401 `Token ausente` / `Token inválido: ...` | header `Authorization` não enviado, token expirado ou de outro projeto |
 | `DLL load failed ... nome do arquivo ou a extensão é muito grande` | caminho da pasta longo demais para o Windows; clone o repositório (ou crie o venv) em um caminho mais curto |

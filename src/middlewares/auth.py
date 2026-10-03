@@ -1,14 +1,8 @@
-import os
 import jwt
-from pathlib import Path
 from jwt import PyJWKClient
 from fastapi import Header, HTTPException
-from dotenv import load_dotenv
+from src.config.settings import SUPABASE_URL
 
-# aponta direto pro .env na raiz do Grupo13-Backend, não importa de onde é chamado
-load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
-
-SUPABASE_URL = os.getenv("SUPABASE_URL")
 JWKS_URL = f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json"
 
 # Busca e guarda em cache a chave pública do Supabase
