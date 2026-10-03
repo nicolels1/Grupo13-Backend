@@ -125,13 +125,29 @@ curl.exe http://127.0.0.1:8000/protegida            # 401 {"detail":"Token ausen
 curl.exe -H "Authorization: Bearer <access_token>" http://127.0.0.1:8000/protegida
 ```
 
+## Testes
+
+Os testes ficam em `tests/` e usam o pytest (já incluído no `requirements.txt`). Na raiz do repositório, com o venv ativo:
+
+```powershell
+pytest            # roda todos os testes
+pytest -v         # mostra o resultado de cada teste
+```
+
+Os testes atuais não precisam de banco nem de internet: a chave do Supabase é substituída por uma chave gerada no próprio teste.
+
+| Arquivo | O que cobre |
+|---|---|
+| `tests/test_auth.py` | `get_current_user`: sem token e sem `Bearer` (401), token válido (200 com o id do usuário), token malformado, expirado, com audience errada ou assinado por outra chave (401) |
+| `tests/test_database.py` | `session.py`: erro claro sem `DATABASE_URL`, uso do driver psycopg e fechamento da sessão do `get_db` |
+
+Rode os testes antes de cada commit. Toda função nova deve ganhar um teste.
+
 ## Estado atual
 
-- **Implementado:** API base, validação de tokens do Supabase Auth e configuração da conexão com o PostgreSQL (API e Alembic).
+- **Implementado:** API base, validação de tokens do Supabase Auth, configuração da conexão com o PostgreSQL (API e Alembic) e testes automatizados com pytest.
 - **Estrutura preparada:** pastas das camadas em `src/`.
 - **Próximos passos:** models e migrations, e rotas de negócio.
-
-Não há testes automatizados no momento.
 
 ## Problemas comuns
 
