@@ -1,0 +1,322 @@
+# Casa Lorenzi — Case de Tech (Trainee Insper Jr. 2026.2)
+
+Documento consolidado com o contexto do case, as decisões tomadas ao longo do projeto e o modelo de dados final da Entrega 1.
+
+---
+
+## 1. Contexto do case
+
+- **Programa:** última fase do Programa de Trainee da Insper Jr. (empresa júnior de consultoria do Insper), frente de Tech.
+- **Cenário:** PMI (Post-Merger Integration) fictício entre a **Casa Lorenzi**, rede tradicional de varejo de moda, e a **Vulto**, rede jovem e omnichannel.
+- **Estrutura:** 5 entregas sequenciais de Tech.
+- **Entrega 1 — Plano de Execução:** entrega em 08/09/2026, banca em 09/09/2026.
+- **Artefatos do projeto:**
+  - Diagrama do banco: `Diagrama_bancodedados_final.drawio` (referenciado no documento como `modelo_casa_lorenzi_v2.drawio`)
+  - Documento do modelo: "Casa Lorenzi — Modelo de Dados" (Claude Doc / .docx)
+  - Termos em `CONTEXT.md`; decisões difíceis de reverter em `docs/adr/`; tipos e restrições em `casa_lorenzi_modelo.json`
+  - Figma: `figma.com/design/XesoVjQIAf04Vu5I5A02CY`
+
+---
+
+## 2. Stack e arquitetura
+
+| Camada | Escolha |
+| --- | --- |
+| Banco | PostgreSQL no Supabase |
+| Autenticação | Supabase Auth |
+| Arquivos | Supabase Storage |
+| Backend | FastAPI + SQLAlchemy, migrations com Alembic |
+| Frontend | React + Tailwind, com shadcn/radix |
+| Deploy | Vercel (frontend) e Render (backend) |
+
+**Evolução:** o plano inicial era autenticação manual no backend e hospedagem do banco indefinida. Em out/2026 a arquitetura passou para Supabase (Postgres + Auth + Storage). Todo acesso a dados passa pelo FastAPI.
+
+### Segurança e infraestrutura
+
+- Todas as tabelas com RLS ligado e **sem regra de acesso**: nada sai pela API automática do Supabase.
+- O FastAPI usa um usuário de banco que não pode apagar dados (exceto endereços salvos do cliente) nem editar movimentações e histórico de chamados.
+- A chave de serviço do Supabase fica só no backend.
+- FastAPI conecta pelo pooler; migrations do Alembic usam conexão direta.
+- Nenhuma chamada externa (pagamento, e-mail, Storage) dentro de transação de banco.
+- Ao baixar várias peças, o estoque é travado sempre na mesma ordem (evita deadlock).
+- Fotos de produto em área pública do Storage; anexos de chamado em área privada, com link temporário.
+- E-mails do Auth saem por servidor de e-mail próprio (o padrão do Supabase envia pouquíssimos por hora).
+
+---
+
+## 3. Escopo
+
+- Duas plataformas com **entrada única**: interna (time da Casa Lorenzi) e do cliente.
+- A plataforma também **vende**: o cliente compra e abre chamado pelo mesmo lugar.
+- Vendas online e físicas são registradas na plataforma.
+- Rede com lojas e centros de distribuição (CD).
+- Sistema de avaliações de pedidos/produtos no estilo Shein.
+- **Fora do escopo da Entrega 1:** integração com a Vulto, promoções e resposta pública da loja a avaliações.
+
+---
+
+## 4. Histórico de decisões
+
+### Primeira versão do modelo (set/2026)
+
+- PRODUTO separado de VARIANTE (cor/tamanho, SKU na variante); preço na variante, sem variar por loja.
+- USUARIO dividido em base + FUNCIONARIO + CLIENTE → **revisado** para uma tabela USUARIO única.
+- ESTOQUE com chave composta, sem id próprio.
+- MOVIMENTACAO_ESTOQUE e MENSAGEM append-only.
+- Tipos de movimentação iniciais: recebimento, dano, furto, ajuste → **revisados** (ver regras de estoque).
+- Três tipos de usuário (cliente, funcionário, admin) → **revisado** para modelos de acesso.
+- Tabela LOJA renomeada para **UNIDADE**.
+
+### Revisão do modelo (out/2026)
+
+- Toda alteração de estoque gera movimentação, inclusive venda (antes eram só alterações manuais).
+- Transferência entre unidades com etapas: solicitada → enviada → recebida.
+- Vendas físicas registradas por funcionário.
+- Por sugestão do mentor, adotado o **centro de distribuição**: unidades são loja ou CD; o CD despacha primeiro e lojas marcadas como despachantes servem de reserva; retirada na loja escolhida pelo cliente.
+- Todo cliente precisa de conta para abrir chamado, tenha comprado online ou na loja.
+- Suporte a novas categorias de usuário: **modelos de acesso** (ex.: estoquista, atendente) com exceções por pessoa; admin sempre acima.
+- `id_unidade` do usuário é informativo e não limita a operação.
+
+### Revisão técnica final (out/2026)
+
+- Estoque de cada loja separado por **canal** (loja física e online), com realocação entre canais; CD só online.
+- **Reserva de estoque** no checkout online por 15 minutos.
+- **Estorno** como registro próprio (permite estorno parcial).
+- Ativação de conta criada no caixa exige confirmar o CPF.
+- Pedido devolvido continua **entregue**, com indicação de devolução.
+- Transferência pode ser cancelada antes do envio.
+
+### Decisões-chave e alternativas descartadas
+
+| Decisão | Alternativa descartada | Por quê |
+| --- | --- | --- |
+| Toda alteração de estoque gera movimentação | Registrar só ajustes manuais | O histórico explica sempre por que a quantidade mudou |
+| Transferência entre unidades com etapas | Mover estoque direto, sem registro | As lojas passam a conversar e a peça em trânsito não some |
+| CD como tipo de unidade | Tabela separada para CD | Um campo resolve; a transferência vira o fluxo normal de abastecimento |
+| Estoque por canal em cada loja | Saldo único; só o CD vender online | A vitrine não perde peça para o online (ADR 0004) |
+| Reserva no checkout por 15 min | Conferir estoque só na aprovação e estornar se faltar | O Pix chega pago e não pode ser recusado (ADR 0002) |
+| Estorno como lançamento próprio | Marcar o pagamento inteiro como estornado | Permite estorno parcial e mantém o histórico (ADR 0003) |
+| Login pelo Supabase Auth, permissões no banco | Senha e tokens em tabelas próprias | Não duplica o Auth; metadados do Auth são editáveis pelo usuário (ADR 0001) |
+| Modelos de acesso com exceções | Perfis fixos | Permite novas categorias sem mudar o banco |
+| Uma tabela de usuários | Tabelas separadas cliente/funcionário | Mensagens e histórico têm autores dos dois lados |
+| Avaliação ligada ao item do pedido | Qualquer cliente avaliar o produto | Só quem comprou avalia, uma vez por compra |
+| Pedido devolvido continua entregue | Novo status "devolvido" | O status não perde a informação de entrega |
+| Ativação do caixa exige confirmar CPF | Aceitar risco de e-mail errado | Quem recebeu o link por engano não vê os dados do cliente |
+
+---
+
+## 5. Regras de negócio
+
+### Catálogo
+
+- Produto tem variantes de cor e tamanho, únicas por produto. Peça sem cor ou tamanho usa "Única" e "U".
+- O preço fica na variante e não varia por loja.
+- A foto pertence ao produto, com cor opcional (sem cor, vale para todas) e ordem. O banco guarda o caminho do arquivo no Storage, não a URL.
+
+### Unidades e estoque
+
+- Unidade é **loja** ou **CD**. O CD não atende público, não faz venda física nem retirada, e sempre despacha online. Lojas despacham só se marcadas.
+- Estoque de cada variante em cada unidade dividido por canal: loja física e online. Toda loja tem os dois; o CD só o online. Quantidade nunca negativa.
+- Pedido online (inclusive retirada) usa o estoque online; venda física usa o de loja física.
+- **Disponível** = estoque − reservado para pedidos online aguardando pagamento. Venda, transferência e realocação só usam o disponível.
+- **Toda** alteração gera movimentação, nunca editada nem apagada. Quantidade com sinal (positiva entra, negativa sai). Tipos: recebimento, avaria, perda, ajuste, venda, retorno por cancelamento, devolução, saída por troca, saída e entrada por transferência, saída e entrada por realocação.
+- Motivo obrigatório em avaria, perda e ajuste. Movimentações automáticas apontam para a origem (pedido, transferência ou chamado) e podem não ter autor.
+- **Realocação:** passa peças disponíveis de um canal para o outro na mesma unidade, com saída e entrada registradas juntas. Usa a permissão de movimentar estoque.
+- Estoque mínimo por variante, unidade e canal. Abaixo dele, alerta de reposição; sem mínimo, lista de pendências.
+- Mercadoria entra preferencialmente pelo CD e abastece as lojas por transferência. No recebimento, quem registra escolhe o canal. Reabastecimento manual.
+
+### Transferência
+
+- Etapas: solicitada → enviada → recebida, com várias variantes por transferência. A solicitação não reserva estoque na origem.
+- Cada item informa canal de saída (sempre online quando sai do CD) e canal de entrada.
+- Envio gera saída na origem; recebimento gera entrada no destino. Origem ≠ destino.
+- Peças que não chegam: o destino registra a entrada do total enviado e, em seguida, a perda/avaria da diferença, com motivo.
+- Antes do envio, origem ou destino podem cancelar com motivo. Depois de enviada, não se cancela.
+
+### Vendas e pedidos
+
+- Toda venda vira pedido, com canal online ou loja física, saindo de uma única unidade.
+- **Venda física:** registrada por funcionário (gravado no pedido). Nasce entregue, com pagamento aprovado e baixa do estoque de loja física no ato.
+- **Venda online:** exige conta; modalidade entrega em casa ou retirada. Pagamento sempre online. O checkout reserva as peças no estoque online por 15 minutos; o estoque baixa quando o pagamento é aprovado. Reserva vencida cancela o pedido. A cobrança Pix expira junto, e pagamento tardio é estornado automaticamente.
+- **Entrega em casa:** sai de um CD com todos os itens disponíveis no online; se nenhum tiver, de uma loja que despacha, priorizando mesma cidade, depois mesmo estado, desempate pelo maior estoque. O pedido guarda cópia do endereço.
+- **Retirada:** o cliente escolhe uma loja com todos os itens no estoque online e tem 7 dias para retirar; senão, cancelamento com estorno e retorno ao estoque. Na retirada, mostra o código do pedido e um documento.
+- Status: aguardando pagamento → pago → enviado ou pronto para retirada → entregue; ou cancelado. O cliente cancela até o pedido estar pago.
+- Cancelamento sempre com motivo: cliente, reserva vencida, retirada vencida ou equipe (registra quem e a justificativa).
+- Após devolução, o pedido continua entregue e indica devolução parcial ou total. Troca não conta como devolução.
+- Valor total = itens + frete; frete zero na retirada e na venda física. O item guarda o preço do momento da compra.
+- Vários pagamentos por pedido; fica pago quando aprovados − estornos aprovados ≥ total. Métodos: Pix, crédito, débito e dinheiro (só loja física).
+- **Estorno:** lançamento próprio, ligado ao pagamento original e, em troca/devolução, ao chamado. Pode ser parcial e volta pelo mesmo método. Com vários pagamentos, o atendente escolhe de qual sai.
+
+### Clientes e contas
+
+- Uma tabela de usuários com tipo **interna** ou **cliente**; tela de entrada única decide o destino pelo tipo de conta.
+- O Supabase Auth guarda e-mail, senha, links e sessão. A tabela de usuários usa o mesmo id do Auth e guarda tipo de conta, CPF, modelo de acesso e status. Tipo de conta e permissões nunca ficam no Auth.
+- Toda conta é criada pelo backend; cadastro aberto no Auth desligado.
+- Cliente tem CPF único e obrigatório e entra com e-mail ou CPF (login por CPF feito pelo backend, sem expor o e-mail). Funcionário entra só com e-mail corporativo e usa conta pessoal para comprar.
+- Admin cria conta interna sem senha, por convite do Auth. Recuperação de senha pelo Auth. Links valem até 24h e podem ser reenviados.
+- Desativar uma conta bloqueia o login no Auth.
+- **Na loja física:** o vendedor pede o CPF (sem exigir). Na primeira compra, cadastra nome, CPF e e-mail (conta sem senha); nas próximas, basta o CPF.
+- **Ativação** de conta do caixa exige confirmar o CPF na página do link. Até ativar, a conta só faz isso. Após 5 erros, bloqueio; o link é reenviado numa loja, com documento.
+- Quem comprou sem CPF pode **reivindicar** a compra pelo código da venda no comprovante, uma única vez. Sem o código, não há troca nem devolução.
+- E-mail ou CPF errados são corrigidos em qualquer loja, com documento. Corrigir o CPF reinicia tentativas e reenvia o link. Se o CPF certo já tiver conta, os pedidos passam para ela e a errada é desativada.
+- Cliente pode ter vários endereços salvos e apagá-los (o pedido guarda sua cópia).
+
+### Atendimento
+
+- Só abre chamado quem tem conta. O chamado pode apontar para um pedido do próprio cliente, um item, uma variante (dúvida sem compra), uma unidade ou um chamado anterior.
+- Status: aberto, em andamento, concluído, sem reabertura. Motivo de conclusão: resolvido, desistência ou sem resposta.
+- Fila geral: quem tem permissão assume, define prioridade e pode repassar. Chamado assumido não pode ser assumido por outro ao mesmo tempo. Mudanças de status, responsável ou prioridade vão para o histórico, nunca editado.
+- Mensagens podem ser internas (invisíveis ao cliente). Toda mensagem tem texto ou anexo; anexo em área privada do Storage.
+- Troca e devolução: até 30 dias após a entrega, em qualquer loja. A peça devolvida entra no estoque de loja física daquela loja, e a peça nova da troca sai dele. Estorno ligado ao chamado.
+
+### Avaliações
+
+- Só quem recebeu a peça avalia: uma avaliação por item de pedido entregue, nota 1 a 5, texto opcional, até 5 fotos. Compra física sem CPF só depois de reivindicada.
+- Publicada na hora; o cliente edita por 7 dias e não apaga. A equipe pode ocultar, com motivo, e as fotos saem do ar.
+- Outros clientes votam "Útil" (um voto cada) e podem denunciar uma vez por avaliação. Ninguém vota nem denuncia a própria.
+
+---
+
+## 6. Permissões e modelos de acesso
+
+Cada funcionário está ligado a um modelo de acesso e pode ter exceções individuais que acrescentam ou retiram permissões. Mudar um modelo afeta todos os ligados; as exceções continuam valendo.
+
+| Área | Permissões | Admin | Funcionário | Estoquista | Atendente |
+| --- | --- | --- | --- | --- | --- |
+| Contas | gerenciar contas; gerenciar modelos de acesso | sim | — | — | — |
+| Catálogo | gerenciar produtos e categorias | sim | — | — | — |
+| Unidades | gerenciar unidades | sim | — | — | — |
+| Estoque | movimentar estoque; definir estoque mínimo | sim | sim | sim | — |
+| Transferência | solicitar; enviar; receber | sim | sim | sim | — |
+| Vendas | registrar venda física; preparar pedido; entregar na loja; cancelar pela equipe; corrigir cadastro de cliente | sim | sim | — | — |
+| Atendimento | atender chamado | sim | sim | — | sim |
+| Avaliações | moderar avaliações | sim | — | — | sim |
+
+- Existe um único modelo Admin, com todas as permissões (inclusive futuras), sem aceitar retirada.
+- Sempre há pelo menos uma conta ativa no Admin; modelo com pessoas ligadas não pode ser desativado.
+- Permissões lidas do banco a cada ação: mudanças valem na hora.
+
+---
+
+## 7. Modelo de dados (26 tabelas)
+
+Campos com `?` aceitam vazio. A chave primária vem primeiro. No banco, nomes ficam em minúsculas (`usuario`, `item_pedido`).
+
+### Catálogo
+
+| Tabela | Campos | Liga com |
+| --- | --- | --- |
+| CATEGORIA_PRODUTO | id_categoria, nome (único), ativo | PRODUTO (1:N) |
+| PRODUTO | id_produto, id_categoria, nome, descricao_tecnica, descricao_cliente, ativo | VARIANTE, IMAGEM_PRODUTO (1:N) |
+| VARIANTE | id_variante, id_produto, sku (único), cor, tamanho, preco, ativo — única por produto + cor + tamanho | ESTOQUE, ITEM_PEDIDO, ITEM_TRANSFERENCIA (1:N) |
+| IMAGEM_PRODUTO | id_imagem, id_produto, cor?, caminho_arquivo, ordem | PRODUTO |
+
+### Estoque e transferência
+
+| Tabela | Campos | Liga com |
+| --- | --- | --- |
+| UNIDADE | id_unidade, nome (único), tipo, despacha_online, rua, numero, complemento?, bairro, cidade, uf, cep, ativo | ESTOQUE, PEDIDO, TRANSFERENCIA (1:N) |
+| ESTOQUE | id_variante + id_unidade + canal, quantidade, quantidade_reservada, estoque_minimo?, minimo_alterado_por?, minimo_alterado_em?, atualizado_em | MOVIMENTACAO_ESTOQUE (1:N) |
+| MOVIMENTACAO_ESTOQUE | id_movimentacao, id_variante, id_unidade, canal, id_usuario?, tipo, quantidade, motivo?, id_pedido?, id_transferencia?, id_chamado?, criado_em | no máximo uma origem |
+| TRANSFERENCIA | id_transferencia, id_unidade_origem, id_unidade_destino, status, id_solicitante, id_enviado_por?, id_recebido_por?, id_cancelado_por?, motivo_cancelamento?, solicitada_em, enviada_em?, recebida_em?, cancelada_em? | ITEM_TRANSFERENCIA (1:N) |
+| ITEM_TRANSFERENCIA | id_item_transferencia, id_transferencia, id_variante, canal_saida, canal_entrada, quantidade_solicitada, quantidade_enviada?, quantidade_recebida? | TRANSFERENCIA, VARIANTE |
+
+### Vendas
+
+| Tabela | Campos | Liga com |
+| --- | --- | --- |
+| PEDIDO | id_pedido, codigo_venda (único), id_cliente?, id_unidade, id_registrado_por?, canal, modalidade?, status, motivo_cancelamento?, id_cancelado_por?, justificativa_cancelamento?, devolucao, valor_frete, valor_total, pronto_retirada_em?, reserva_expira_em?, entregue_em?, cancelado_em?, criado_em, atualizado_em | ITEM_PEDIDO, PAGAMENTO (1:N); ENDERECO_ENTREGA (1:0..1) |
+| ITEM_PEDIDO | id_item, id_pedido, id_variante, quantidade, preco_unitario | AVALIACAO (1:0..1) |
+| PAGAMENTO | id_pagamento, id_pedido, tipo, id_pagamento_original?, id_chamado?, metodo, id_transacao_gateway? (único), valor, status, criado_em, atualizado_em | PEDIDO; PAGAMENTO (estorno → original); CHAMADO |
+| ENDERECO_ENTREGA | id_pedido, rua, numero, complemento?, bairro, cidade, uf, cep | PEDIDO (só na entrega) |
+| ENDERECO_CLIENTE | id_endereco, id_cliente, rua, numero, complemento?, bairro, cidade, uf, cep | USUARIO |
+
+### Contas e acesso
+
+| Tabela | Campos | Liga com |
+| --- | --- | --- |
+| USUARIO | id_usuario (= id do Supabase Auth), nome, email (único, cópia do Auth), cpf? (único; obrigatório para cliente), tipo_conta, status_conta, tentativas_ativacao, id_modelo_acesso?, id_unidade?, criado_em, atualizado_em | auth.users (1:1); PEDIDO, CHAMADO, MENSAGEM (1:N) |
+| MODELO_ACESSO | id_modelo, nome (único), eh_admin, ativo | USUARIO (1:N) |
+| PERMISSAO | id_permissao, codigo (único), descricao | lista fixa do sistema |
+| MODELO_PERMISSAO | id_modelo + id_permissao | modelo ↔ permissão (N:N) |
+| USUARIO_PERMISSAO_EXCECAO | id_usuario + id_permissao, efeito | exceções individuais |
+
+### Atendimento
+
+| Tabela | Campos | Liga com |
+| --- | --- | --- |
+| CHAMADO | id_chamado, id_cliente, id_responsavel?, id_unidade?, id_pedido?, id_item_pedido?, id_variante?, id_chamado_anterior?, categoria, assunto, descricao, status, prioridade?, motivo_encerramento?, criado_em, atualizado_em, assumido_em?, concluido_em? | MENSAGEM, HISTORICO_CHAMADO, PAGAMENTO (1:N) |
+| MENSAGEM | id_mensagem, id_chamado, id_autor, conteudo?, anexo_caminho?, anexo_nome?, anexo_tamanho?, interna, lida_em?, criado_em | CHAMADO, USUARIO |
+| HISTORICO_CHAMADO | id_historico, id_chamado, id_autor, campo_alterado, valor_anterior?, valor_novo, criado_em | CHAMADO |
+
+### Avaliações
+
+| Tabela | Campos | Liga com |
+| --- | --- | --- |
+| AVALIACAO | id_avaliacao, id_item_pedido (único), nota, texto?, status, motivo_ocultacao?, id_ocultada_por?, ocultada_em?, criada_em, editada_em? | FOTO_AVALIACAO, VOTO_UTIL, DENUNCIA_AVALIACAO (1:N) |
+| FOTO_AVALIACAO | id_foto, id_avaliacao, caminho_arquivo, ordem (1 a 5) | AVALIACAO |
+| VOTO_UTIL | id_avaliacao + id_cliente, criado_em | AVALIACAO, USUARIO |
+| DENUNCIA_AVALIACAO | id_denuncia, id_avaliacao, id_cliente, motivo, status, id_analisada_por?, analisada_em?, criada_em — uma por cliente por avaliação | AVALIACAO, USUARIO |
+
+Campos de "quem fez" (minimo_alterado_por, id_registrado_por, id_cancelado_por, id_analisada_por etc.) apontam para USUARIO, mas não têm linha no diagrama para não poluí-lo. `auth.users` aparece só como referência.
+
+### Como ler o diagrama
+
+Cada linha liga duas tabelas uma única vez. A ponta encostada na tabela dá o máximo; a mais afastada, o mínimo.
+
+| Ponta | Significa | Exemplo |
+| --- | --- | --- |
+| Dois traços | exatamente um | cada item pertence a exatamente um pedido |
+| Traço com bolinha | zero ou um | um item tem no máximo uma avaliação |
+| Pé de galinha com bolinha | zero ou muitos | um pedido tem zero ou muitos pagamentos |
+
+Cores dos cabeçalhos: amarelo = catálogo, laranja = estoque, laranja-escuro = vendas, vermelho-escuro = contas, vinho = atendimento, roxo = avaliações.
+
+---
+
+## 8. Plataforma interna e design
+
+### Navegação
+
+- Barra no topo (não sidebar): **Visão Geral, Estoque, Transferências, Pedidos, Atendimento, Avaliações, Catálogo e Gestão**.
+- **Gestão** (Unidades + Usuários e acessos) é exclusiva do admin, sem exceção.
+- O que o funcionário não tem permissão nem aparece na tela dele.
+- Catálogo e unidades fazem parte da plataforma.
+
+### Visão Geral (antigo Dashboard)
+
+- Central analítica com seletor de unidade e subabas **Geral / Estoque / Atendimento**.
+- Identifica problemas; as páginas Estoque e Atendimento executam as ações.
+- Não há configuração de estoque mínimo na Visão Geral.
+- Com "Todas as unidades", as tabelas mostram a coluna Unidade; com uma unidade selecionada, a coluna some.
+- A subaba Geral é mais enxuta que as outras duas.
+
+### Figma
+
+- Arquivo: `figma.com/design/XesoVjQIAf04Vu5I5A02CY`
+- Páginas: Foundations, Componentes, Telas — Funcionário, Telas — Cliente.
+- Design system: variáveis de cor/layout, estilos de texto Inter, componentes Badge, Button, Nav Item, Tab, KPI, Field e Message.
+- 17 telas do protótipo: 13 internas + 4 do cliente.
+
+### Identidade visual
+
+- Paleta da plataforma integrada (Lorenzi + Vulto) em tons de vermelho, de preferência com degradê.
+- Estilização feita por etapas, começando pela dashboard; cores ficaram para uma fase posterior.
+
+---
+
+## 9. Em aberto
+
+### Integração com a Vulto (próximas entregas)
+
+O modelo já foi pensado para não travar nela:
+
+- Funcionários da Vulto entram como contas internas comuns (a entrada decide pelo tipo de conta, não pelo domínio do e-mail).
+- Lojas e CDs da Vulto entram como novas unidades.
+- **A decidir:** incluir campo de marca/empresa em UNIDADE, PRODUTO e talvez USUARIO; como unir clientes que existam nas duas bases.
+
+### Evoluções futuras
+
+- Reabastecimento automático (sugerir transferência do CD quando a loja fica abaixo do mínimo) — já suportado pelo modelo.
+- Completar uma retirada por transferência — exigiria ligar pedido a um envio.
+- Troca com envio para casa — exigiria ligar chamado a um envio.
