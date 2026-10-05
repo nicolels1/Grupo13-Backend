@@ -1,7 +1,22 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
+from src.database.session import get_db
 from src.middlewares.auth import get_current_user
+from src.middlewares.cors import configurar_cors
 
-app = FastAPI()
+app = FastAPI(title="Casa Lorenzi API")
+configurar_cors(app)
+
+# usada pelo serviço externo que mantém o Render e o banco acordados
+@app.get("/health")
+def health(db: Session = Depends(get_db)):
+    try:
+        db.execute(text("SELECT 1"))
+    except SQLAlchemyError:
+        raise HTTPException(status_code=503, detail="Banco indisponível")
+    return {"status": "ok"}
 
 #primeira rota pra testar
 @app.get("/categorias")
