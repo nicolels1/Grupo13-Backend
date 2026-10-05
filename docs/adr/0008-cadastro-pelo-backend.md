@@ -1,0 +1,7 @@
+# Cadastro passa pelo backend, que cria o login e a linha de usuário
+
+**Contexto:** cada login do Supabase Auth precisa de uma linha em USUARIO com o mesmo id, senão a pessoa entra mas o backend recusa todas as ações. As contas nascem de três jeitos: o cliente se cadastra sozinho, o vendedor cria a conta no caixa (sem senha, ativada depois por link) e o Admin cria contas internas. Um trigger em `auth.users` criaria a linha sozinho, mas teria que tirar o CPF dos metadados do cadastro, não poderia definir tipo de conta (ADR 0001) e devolveria um erro genérico do Supabase em caso de CPF repetido.
+
+**Decisão:** o front não cria login direto no Supabase. Todo cadastro chama um endpoint do backend, que valida os dados (inclusive CPF único), cria o login pela API de admin do Supabase e insere a linha em USUARIO. Se a inserção falhar, o backend apaga o login que acabou de criar. A chave `service_role` do Supabase fica só no `.env` do backend, nunca no front, e o cadastro público do Auth ("Allow new users to sign up") fica desligado no painel, para ninguém criar login sem passar pelo backend.
+
+**Por quê:** as regras do cadastro (CPF obrigatório para cliente, tipo de conta, conta do caixa sem senha) ficam num lugar só, com mensagens de erro claras. O custo é guardar a `service_role`, que dá acesso total ao projeto, e desfazer o login à mão quando a segunda etapa falha; uma falha entre as duas etapas pode deixar um login sem USUARIO, que o backend recusa com 403 até ser corrigido.
