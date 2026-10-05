@@ -21,7 +21,11 @@ def get_current_user(authorization: str = Header(None)):
             algorithms=["ES256"],
             audience="authenticated",
         )
-    except jwt.InvalidTokenError as e:
+    except jwt.PyJWKClientConnectionError:
+        # não conseguiu buscar a chave pública no Supabase: o problema é do servidor, não do token
+        raise HTTPException(status_code=503, detail="Serviço de autenticação indisponível")
+    except (jwt.InvalidTokenError, jwt.PyJWKClientError) as e:
+        # PyJWKClientError: token assinado por uma chave que o Supabase não publica (ex.: outro projeto)
         raise HTTPException(status_code=401, detail=f"Token inválido: {str(e)}")
 
     return payload["sub"]

@@ -78,3 +78,29 @@ def test_token_invalido_retorna_401(client, token):
 
     assert resposta.status_code == 401
     assert resposta.json()["detail"].startswith("Token inválido")
+
+
+def falhar_busca_da_chave(monkeypatch, erro):
+    def buscar(token):
+        raise erro
+
+    monkeypatch.setattr(auth.jwks_client, "get_signing_key_from_jwt", buscar)
+
+
+def test_chave_desconhecida_pelo_supabase_retorna_401(client, monkeypatch):
+    # ex.: token de outro projeto Supabase; antes do ajuste isso virava erro 500
+    falhar_busca_da_chave(monkeypatch, jwt.PyJWKClientError("Unable to find a signing key"))
+
+    resposta = client.get("/rota-protegida", headers={"Authorization": f"Bearer {gerar_token()}"})
+
+    assert resposta.status_code == 401
+    assert resposta.json()["detail"].startswith("Token inválido")
+
+
+def test_supabase_fora_do_ar_retorna_503(client, monkeypatch):
+    falhar_busca_da_chave(monkeypatch, jwt.PyJWKClientConnectionError("Fail to fetch data"))
+
+    resposta = client.get("/rota-protegida", headers={"Authorization": f"Bearer {gerar_token()}"})
+
+    assert resposta.status_code == 503
+    assert resposta.json()["detail"] == "Serviço de autenticação indisponível"
