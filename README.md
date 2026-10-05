@@ -22,7 +22,7 @@ O Supabase fornece identidade (Auth), banco (PostgreSQL) e arquivos (Storage). A
 | Alembic | migrations | conectado ao banco e aos models, ainda sem migrations |
 | PostgreSQL (Supabase) | banco de dados | conexão configurada, ainda sem tabelas |
 | Supabase Storage | fotos e anexos | planejado |
-| Render | deploy | planejado |
+| Render | deploy | em uso: https://grupo13-backend-megw.onrender.com |
 
 ## Estrutura do backend
 
@@ -102,28 +102,57 @@ uvicorn src.app:app --reload
 | `SUPABASE_URL` | URL do projeto Supabase (Project Settings → API → Project URL), no formato `https://<project-ref>.supabase.co` |
 | `DATABASE_URL` | conexão da API: botão **Connect** do Supabase → Transaction pooler (porta 6543) |
 | `DATABASE_URL_DIRECT` | conexão das migrations: botão **Connect** → Direct connection (porta 5432) |
+| `CORS_ORIGINS` | sites que podem chamar a API pelo navegador, separados por vírgula. Vazio: só `http://localhost:5173` (Vite) |
+| `CORS_ORIGIN_REGEX` | opcional: expressão regular para liberar vários endereços, como os previews da Vercel |
 
 Nas duas URLs do banco, troque `[YOUR-PASSWORD]` pela senha do banco e codifique caracteres especiais (`@` vira `%40`, por exemplo). O `.env.example` mostra o formato completo.
 
-O `.env` está no `.gitignore` e não deve ser commitado. Sem `SUPABASE_URL`, a API não sobe; sem `DATABASE_URL_DIRECT`, o Alembic não roda.
+O `.env` está no `.gitignore` e não deve ser commitado. Sem `SUPABASE_URL` ou `DATABASE_URL`, a API não sobe; sem `DATABASE_URL_DIRECT`, o Alembic não roda.
 
 Com o servidor rodando:
 
-- API: http://127.0.0.1:8000/
 - Documentação interativa: http://127.0.0.1:8000/docs (Swagger) e http://127.0.0.1:8000/redoc
+- Saúde da API e do banco: http://127.0.0.1:8000/health
 
 ## Rotas atuais
 
-| Método | Rota | Autenticação | Resposta |
+As rotas de negócio são o contrato da API: por enquanto todas respondem `{"items": []}`, sem consultar o banco. A lista completa, com parâmetros, fica em `/docs`.
+
+| Método | Rota | Login | Resposta atual |
 |---|---|---|---|
-| GET | `/` | não | `{"status": "ok"}` |
-| GET | `/protegida` | sim | mensagem de confirmação + `user_id` (rota de teste da autenticação) |
+| GET | `/health` | não | `{"status": "ok"}` depois de consultar o banco; 503 se o banco não responder |
+| GET | `/categorias`, `/produtos`, `/produtos/{id}/imagens`, `/unidades`, `/estoque`, `/avaliacoes` | não | `{"items": []}` |
+| GET | `/movimentacoes-estoque`, `/transferencias`, `/pedidos`, `/enderecos`, `/pagamentos`, `/chamados`, `/chamados/{id}/mensagens`, `/usuarios` | sim | `{"items": []}` |
+
+Rotas com login respondem 401 sem token ou com token inválido, e 503 se o Supabase não responder.
 
 ```powershell
-curl.exe http://127.0.0.1:8000/                     # {"status":"ok"}
-curl.exe http://127.0.0.1:8000/protegida            # 401 {"detail":"Token ausente"}
-curl.exe -H "Authorization: Bearer <access_token>" http://127.0.0.1:8000/protegida
+curl.exe http://127.0.0.1:8000/health                # {"status":"ok"}
+curl.exe http://127.0.0.1:8000/pedidos               # 401 {"detail":"Token ausente"}
+curl.exe -H "Authorization: Bearer <access_token>" http://127.0.0.1:8000/pedidos
 ```
+
+## Deploy (Render)
+
+A API está publicada em **https://grupo13-backend-megw.onrender.com** (documentação em `/docs`). O Render publica de novo a cada merge na `main`.
+
+| Configuração | Valor |
+|---|---|
+| Build command | `pip install -r requirements.txt` |
+| Start command | `uvicorn src.app:app --host 0.0.0.0 --port $PORT` |
+| Variáveis de ambiente | `SUPABASE_URL`, `DATABASE_URL`, `CORS_ORIGINS` (e `CORS_ORIGIN_REGEX`, se usar previews), `PYTHON_VERSION=3.14.3` |
+| Health check path | `/docs` (não use `/health` aqui: o Render chama o health check com frequência e manteria conexões abertas no banco) |
+
+`DATABASE_URL_DIRECT` não vai para o Render: as migrations rodam a partir da máquina de quem desenvolve.
+
+No plano gratuito, o Render desliga a API depois de 15 minutos sem requisições, e a primeira chamada seguinte leva cerca de 1 minuto. Para evitar isso, um serviço externo de monitoramento (como o UptimeRobot) deve chamar `/health` a cada 10 minutos; como a rota consulta o banco, isso também mantém o Supabase ativo.
+
+## Integração com o frontend
+
+- **URL base:** `https://grupo13-backend-megw.onrender.com` em produção e `http://127.0.0.1:8000` localmente. No frontend (Vite), guarde-a numa variável de ambiente, por exemplo `VITE_API_URL`.
+- **Login:** o frontend faz login no Supabase Auth e envia o token em toda rota protegida, no header `Authorization: Bearer <access_token>`. A API não usa cookies.
+- **CORS:** o navegador só deixa o frontend chamar a API se o endereço dele estiver em `CORS_ORIGINS`. Ao publicar o frontend na Vercel, adicione o endereço dele (sem barra no final) a `CORS_ORIGINS` no Render, por exemplo `https://<projeto>.vercel.app,http://localhost:5173`. Para liberar também os previews da Vercel, use `CORS_ORIGIN_REGEX`, por exemplo `https://<projeto>-.*\.vercel\.app`.
+- **Erros:** as respostas de erro vêm no formato `{"detail": "..."}`. 401 = sem login válido; 503 = banco ou Supabase indisponível.
 
 ## Testes
 
@@ -138,14 +167,16 @@ Os testes atuais não precisam de banco nem de internet: a chave do Supabase é 
 
 | Arquivo | O que cobre |
 |---|---|
-| `tests/test_auth.py` | `get_current_user`: sem token e sem `Bearer` (401), token válido (200 com o id do usuário), token malformado, expirado, com audience errada ou assinado por outra chave (401) |
+| `tests/test_auth.py` | `get_current_user`: sem token e sem `Bearer` (401), token válido (200 com o id do usuário), token malformado, expirado, com audience errada, assinado por outra chave ou por chave que o Supabase não publica (401), Supabase fora do ar (503) |
 | `tests/test_database.py` | `session.py`: erro claro sem `DATABASE_URL`, uso do driver psycopg e fechamento da sessão do `get_db` |
+| `tests/test_cors.py` | CORS: site liberado recebe permissão, site desconhecido é recusado, previews pela expressão regular |
+| `tests/test_health.py` | `/health`: 200 com o banco respondendo, 503 com o banco fora |
 
 Rode os testes antes de cada commit. Toda função nova deve ganhar um teste.
 
 ## Estado atual
 
-- **Implementado:** API base, validação de tokens do Supabase Auth, configuração da conexão com o PostgreSQL (API e Alembic) e testes automatizados com pytest.
+- **Implementado:** contrato das rotas (ainda sem dados), validação de tokens do Supabase Auth, conexão com o PostgreSQL (API e Alembic), CORS para o frontend, rota `/health`, deploy no Render e testes automatizados com pytest.
 - **Estrutura preparada:** pastas das camadas em `src/`.
 - **Próximos passos:** models e migrations, e rotas de negócio.
 
@@ -157,6 +188,8 @@ Rode os testes antes de cada commit. Toda função nova deve ganhar um teste.
 | `No module named 'src'` | Uvicorn executado fora da raiz do repositório |
 | `Invalid JWKS URI scheme` ao iniciar | `.env` ausente ou `SUPABASE_URL` vazia |
 | `DATABASE_URL não definida no .env` / `DATABASE_URL_DIRECT não definida no .env` | variável do banco ausente no `.env` |
+| No navegador: `blocked by CORS policy` / `No 'Access-Control-Allow-Origin' header` | o endereço do frontend não está em `CORS_ORIGINS` (confira se não sobrou `/` no final) |
+| `DLL load failed while importing pq: Uma política de Controle de Aplicativo bloqueou este arquivo` | o Smart App Control do Windows bloqueou o driver psycopg; a API e o Alembic não rodam nessa máquina enquanto o bloqueio existir |
 | Alembic trava ou não conecta pela conexão direta | a conexão direta do Supabase usa IPv6; se sua rede não tiver, use o Session pooler (porta 5432) em `DATABASE_URL_DIRECT` |
 | 401 `Token ausente` / `Token inválido: ...` | header `Authorization` não enviado, token expirado ou de outro projeto |
 | `DLL load failed ... nome do arquivo ou a extensão é muito grande` | caminho da pasta longo demais para o Windows; clone o repositório (ou crie o venv) em um caminho mais curto |
