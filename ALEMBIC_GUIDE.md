@@ -37,7 +37,7 @@ alembic heads                                     # mostra as "cabeças" (deve h
 2. Crie ou altere o model em `src/models/`.
 3. Se for um arquivo novo, importe-o em `src/models/__init__.py`. Sem isso, o Alembic não enxerga o model.
 4. Gere a migration: `alembic revision --autogenerate -m "descricao curta"`.
-5. **Leia o arquivo gerado** em `src/alembic/versions/` antes de aplicar. O autogenerate não detecta tudo: renomeações viram "apaga e cria", e `CHECK` e valores padrão às vezes precisam ser escritos à mão.
+5. **Leia o arquivo gerado** em `src/alembic/versions/` antes de aplicar. O autogenerate não detecta tudo: renomeações viram "apaga e cria", e `CHECK` e valores padrão às vezes precisam ser escritos à mão. Triggers, funções, views, GRANTs e policies nunca aparecem (veja "O que o `--autogenerate` não gera").
 6. Aplique: `alembic upgrade head`.
 7. Commite a migration **no mesmo commit/PR** do código que depende dela.
 
@@ -57,6 +57,50 @@ auth_users = Table("users", Base.metadata, Column("id", Uuid, primary_key=True),
 ```
 
   e use `ForeignKey("auth.users.id", ondelete="RESTRICT")` na coluna `id_usuario`.
+
+## O que o `--autogenerate` não gera
+
+O autogenerate só compara tabelas, colunas, índices e restrições dos models. Ele **não detecta** e, por isso, nunca cria, altera nem apaga:
+
+- triggers;
+- funções (`CREATE FUNCTION`);
+- views;
+- `GRANT` e `REVOKE` (permissões do usuário de banco do FastAPI);
+- policies de RLS (o `env.py` só liga o RLS, não cria regras de acesso).
+
+Esses objetos são escritos à mão com `op.execute`, numa migration própria (`alembic revision -m "descricao"`, sem `--autogenerate`) ou acrescentados a uma gerada. Regras:
+
+- **Todo `upgrade` tem `downgrade`.** O `downgrade` desfaz na ordem inversa: apaga o trigger antes da função, revoga o que foi concedido, apaga a policy.
+- **Mudar uma função já aplicada é migration nova.** Use `CREATE OR REPLACE FUNCTION` no `upgrade` e, no `downgrade`, recrie a versão anterior (não apague a função).
+- **Teste o caminho de volta:** `alembic upgrade head`, `alembic downgrade -1` e `alembic upgrade head` de novo, sem erro.
+
+Exemplo, com o trigger que atualiza o saldo do estoque a cada movimentação:
+
+```python
+def upgrade() -> None:
+    op.execute("""
+        CREATE FUNCTION aplica_movimentacao() RETURNS trigger AS $$
+        BEGIN
+            -- atualiza (ou cria) a linha de estoque com NEW.quantidade
+            RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+    """)
+    op.execute("""
+        CREATE TRIGGER trg_aplica_movimentacao
+        AFTER INSERT ON movimentacao_estoque
+        FOR EACH ROW EXECUTE FUNCTION aplica_movimentacao();
+    """)
+    op.execute("REVOKE UPDATE (quantidade) ON estoque FROM api_user;")
+
+
+def downgrade() -> None:
+    op.execute("GRANT UPDATE (quantidade) ON estoque TO api_user;")
+    op.execute("DROP TRIGGER trg_aplica_movimentacao ON movimentacao_estoque;")
+    op.execute("DROP FUNCTION aplica_movimentacao();")
+```
+
+O nome `api_user` é ilustrativo; use o nome real do usuário de banco do FastAPI.
 
 ## Migrations em branches paralelas
 
