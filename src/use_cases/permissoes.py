@@ -10,7 +10,7 @@ def tem_permissao(
     acrescentadas: set[str],
     retiradas: set[str],
 ) -> bool:
-    # Admin tem todas, inclusive futuras, e ignora exceções (ADR 0007)
+    # Admin tem todas, inclusive futuras, e ignora exceções (ADR 0009)
     if eh_admin:
         return True
     if codigo in PERMISSOES_SO_ADMIN:
