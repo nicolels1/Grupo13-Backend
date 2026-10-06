@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from src.models.models import (
+from src.models.contas import (
     ModeloAcesso, ModeloPermissao, Permissao, Usuario, UsuarioPermissaoExcecao
 )
 

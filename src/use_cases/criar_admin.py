@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from src.models.models import ModeloAcesso, Usuario
+from src.models.contas import ModeloAcesso, Usuario
 
 
 class ErroCriarAdmin(Exception):
