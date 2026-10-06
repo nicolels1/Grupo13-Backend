@@ -1,3 +1,7 @@
+from sqlalchemy.orm import Session
+
+from src.repositories import permissao_repository as repo
+
 # permissões da Gestão: só o Admin tem; nem modelo comum nem exceção concedem
 PERMISSOES_SO_ADMIN = {"gerenciar_contas", "gerenciar_modelos_acesso", "gerenciar_unidades"}
 
@@ -32,3 +36,26 @@ def permissoes_efetivas(
     if eh_admin:
         return set(todas)
     return (do_modelo | acrescentadas) - retiradas - PERMISSOES_SO_ADMIN
+
+
+# a pessoa tem pelo menos uma das permissões? lê do banco a cada chamada (ADR 0001)
+def usuario_tem_permissao(db: Session, usuario, *codigos: str) -> bool:
+    # só conta interna tem permissões; cliente não tem modelo de acesso
+    if usuario.tipo_conta != "interna" or usuario.id_modelo_acesso is None:
+        return False
+    # admin não precisa das outras consultas
+    if repo.modelo_eh_admin(db, usuario.id_modelo_acesso):
+        return True
+
+    excecoes = repo.excecoes_do_usuario(db, usuario.id_usuario)
+    do_modelo = repo.codigos_do_modelo(db, usuario.id_modelo_acesso)
+    return any(
+        tem_permissao(
+            codigo,
+            eh_admin=False,
+            do_modelo=do_modelo,
+            acrescentadas={c for c, efeito in excecoes.items() if efeito == "acrescentar"},
+            retiradas={c for c, efeito in excecoes.items() if efeito == "retirar"},
+        )
+        for codigo in codigos
+    )
