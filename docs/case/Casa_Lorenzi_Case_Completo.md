@@ -17,10 +17,10 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
   - entregáveis: repositórios organizados, estrutura do banco atualizada (incluindo os ajustes do histórico) e link de deploy acessível pela banca.
 - **Repositórios:** `github.com/nicolels1/Grupo13-Backend` e `github.com/nicolels1/Grupo13-Frontend`
 - **Artefatos do projeto:**
-  - Diagrama do banco: `Diagrama_bancodedados_final.drawio`
-  - Documento do modelo: "Casa Lorenzi — Modelo de Dados" (Claude Doc / .docx)
-  - Termos em `CONTEXT.md`; decisões difíceis de reverter em `docs/adr/`; campos e regras em [`casa_lorenzi_modelo_final.json`](casa_lorenzi_modelo_final.json)
-  - Figma: `figma.com/design/XesoVjQIAf04Vu5I5A02CY`
+  - Diagrama do banco: `Fluxo_final_casa_lorenzi.drawio`
+  - **Este `.md` é o único documento de referência do case** (contexto, decisões, regras e modelo de dados).
+  - Termos em `CONTEXT.md`; decisões difíceis de reverter em `docs/adr/`
+  - Tipos e restrições aplicados no banco ficam nos models (`src/models/`) e nas migrations do backend
 
 ---
 
@@ -41,15 +41,18 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 
 ### Segurança e infraestrutura
 
-- Todas as tabelas com RLS ligado e sem regra de acesso para os papéis públicos do Supabase: nada sai pela API automática. A única regra libera o usuário de banco do FastAPI.
-- O FastAPI usa um usuário de banco próprio, que não pode apagar dados (exceto endereços salvos do cliente), nem editar movimentações, histórico de chamados e histórico de preço, nem alterar o saldo do estoque direto. As migrations continuam com o usuário completo.
+- Todas as tabelas com RLS ligado e sem regra de acesso para os papéis públicos do Supabase: nada sai pela API automática.
+- **Duas camadas de proteção:**
+  - **Triggers no banco** (já implementados): recusam editar movimentações, históricos e o saldo do estoque direto, e garantem as regras do Admin (inclusive Gestão só no Admin), do CD, do estorno e do item do chamado. Valem para qualquer caminho, inclusive o painel do Supabase (ADRs 0009 e 0010).
+  - **Usuário de banco restrito para o FastAPI** (⚠️ pendente — precisa ser resolvido; ver seção 10): não pode apagar dados (exceto endereços salvos do cliente), nem editar movimentações, histórico de chamados e histórico de preço, nem alterar o saldo do estoque direto. Terá uma regra de RLS que libera só ele. As migrations continuam com o usuário completo. O trigger que atualiza o saldo roda como `SECURITY DEFINER`.
+- **Situação em 05/10/2026:** o FastAPI ainda conecta com o usuário dono do banco, que passa por cima do RLS; por isso nenhuma regra de RLS foi criada ainda. Faltam o usuário restrito e o teste de divergência de estoque. Os triggers do saldo e da Gestão e o `SECURITY DEFINER` (migration `e08fd1b28bcf`) foram aplicados no banco em 06/10/2026.
 - A chave de serviço do Supabase fica só no backend.
 - FastAPI conecta pelo pooler; migrations do Alembic usam conexão direta.
 - Nenhuma chamada externa (pagamento, e-mail, Storage) dentro de transação de banco.
 - Ao baixar várias peças, o estoque é travado sempre na mesma ordem (evita deadlock).
 - Fotos de produto em área pública do Storage; anexos de chamado em área privada, com link temporário.
 - E-mails do Auth saem por servidor de e-mail próprio (o padrão do Supabase envia pouquíssimos por hora).
-- **Deploy acordado:** o plano gratuito do Render desliga o backend após 15 minutos sem tráfego. Um serviço externo chama a rota `/health` (que faz uma consulta simples ao banco) a cada 10 minutos, mantendo backend e banco ativos; além disso, o site é aberto antes da banca.
+- **Deploy acordado:** o plano gratuito do Render desliga o backend após 15 minutos sem tráfego. Um serviço externo deve chamar a rota `/health` (que faz uma consulta simples ao banco) a cada 10 minutos, mantendo backend e banco ativos (⚠️ ainda não configurado; ver seção 10); além disso, o site é aberto antes da banca.
 
 ---
 
@@ -100,13 +103,20 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 - Histórico de estoque calculado somando as movimentações até a data e hora pedidas, **sem snapshot**.
 - Carga inicial do estoque como movimentação do tipo `saldo_inicial`.
 - Saldo de ESTOQUE atualizado por **trigger** a cada movimentação (criando a linha se não existir), com saldo nunca negativo. O backend só insere movimentações e não tem permissão para alterar o saldo.
-- Uma consulta de conferência (divergência de estoque) prova que saldo e movimentações batem, verificada por teste.
+- Uma consulta de conferência (divergência de estoque) prova que saldo e movimentações batem, verificada por teste. (⚠️ pendente — precisa ser resolvido; ver seção 10)
 - Peças em trânsito aparecem separadas na consulta da rede.
 - Histórico de preço em tabela própria (HISTORICO_PRECO), registrado também na criação da variante.
 - Pedido ganha `pago_em` e `enviado_em`.
 - Reservas ficam fora do histórico, por escolha.
 - Página Estoque: seletor "ver estoque em" (data com hora opcional; sem hora, fim do dia) e gráfico de evolução por canal, com períodos prontos e intervalo livre.
 - A Visão Geral vira a tela inicial personalizada pelas permissões (seção 8).
+
+### Revisão do Matias no modelo (05/10/2026)
+
+- "Preparar pedido" e "entregar pedido na loja" viraram uma permissão só (`preparar_entregar_pedido`); o sistema tem 15 códigos de permissão.
+- As permissões da Gestão são só do Admin, sem exceção, garantido por trigger.
+- Lista de valores aceitos para cada campo de status e tipo, garantida por `CHECK` no banco.
+- Triggers de proteção no banco (ADRs 0009 e 0010) e ADR 0008 para o cadastro feito pelo backend.
 
 ### Decisões-chave e alternativas descartadas
 
@@ -124,10 +134,13 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 | Avaliação ligada ao item do pedido | Qualquer cliente avaliar o produto | Só quem comprou avalia, uma vez por compra |
 | Pedido devolvido continua entregue | Novo status "devolvido" | O status não perde a informação de entrega |
 | Ativação do caixa exige confirmar CPF | Aceitar risco de e-mail errado | Quem recebeu o link por engano não vê os dados do cliente |
+| Ativação sem limite de tentativas, só com o prazo do link (24h) | Bloquear a conta após 5 erros, com desbloqueio numa loja | O cliente não precisa ir à loja para destravar a conta; menos regra para construir antes da banca |
 | Histórico de estoque calculado somando as movimentações | Foto diária do estoque (snapshot) | Exato até o segundo e sem uma segunda fonte que possa divergir; o volume do case não exige foto (ADR 0006) |
 | Saldo atualizado por trigger, nunca negativo | Backend atualizar saldo e movimentação juntos | Nenhum fluxo consegue mudar um sem o outro, então o histórico não mente (ADR 0005) |
 | Histórico de preço em tabela própria | Só o preço pago no item do pedido | Responde quanto a peça custava em qualquer data, mesmo sem venda |
 | Visão Geral como tela inicial montada pelas permissões | Página "Início" separada | Não cria item novo na barra e mostra só o que importa para a conta |
+| Toda conta criada pelo backend, que cria o login e a linha de usuário | Cadastro direto no Supabase Auth pelo site | As regras do cadastro ficam num lugar só e o CPF repetido tem mensagem clara (ADR 0008) |
+| Regras entre tabelas garantidas por trigger (Admin, CD, estorno, item do chamado) | Validar só no backend | Valem para qualquer caminho, inclusive o painel do Supabase (ADRs 0009 e 0010) |
 
 ---
 
@@ -184,9 +197,9 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 - Admin cria conta interna sem senha, por convite do Auth. Recuperação de senha pelo Auth. Links valem até 24h e podem ser reenviados.
 - Desativar uma conta bloqueia o login no Auth.
 - **Na loja física:** o vendedor pede o CPF (sem exigir). Na primeira compra, cadastra nome, CPF e e-mail (conta sem senha); nas próximas, basta o CPF.
-- **Ativação** de conta do caixa exige confirmar o CPF na página do link. Até ativar, a conta só faz isso. Após 5 erros, bloqueio; o link é reenviado numa loja, com documento.
+- **Ativação** de conta do caixa exige confirmar o CPF na página do link. Até ativar, a conta só faz isso. Não há limite de tentativas: o link vale 24h e pode ser reenviado.
 - Quem comprou sem CPF pode **reivindicar** a compra pelo código da venda no comprovante, uma única vez. Sem o código, não há troca nem devolução.
-- E-mail ou CPF errados são corrigidos em qualquer loja, com documento. Corrigir o CPF reinicia tentativas e reenvia o link. Se o CPF certo já tiver conta, os pedidos passam para ela e a errada é desativada.
+- E-mail ou CPF errados são corrigidos em qualquer loja, com documento. Corrigir o CPF reenvia o link. Se o CPF certo já tiver conta, os pedidos passam para ela e a errada é desativada.
 - Cliente pode ter vários endereços salvos e apagá-los (o pedido guarda sua cópia).
 
 ### Atendimento
@@ -229,13 +242,15 @@ Cada funcionário está ligado a um modelo de acesso e pode ter exceções indiv
 | Unidades | gerenciar unidades | sim | — | — | — |
 | Estoque | movimentar estoque; definir estoque mínimo | sim | sim | sim | — |
 | Transferência | solicitar; enviar; receber | sim | sim | sim | — |
-| Vendas | registrar venda física; preparar pedido; entregar na loja; cancelar pela equipe; corrigir cadastro de cliente | sim | sim | — | — |
+| Vendas | registrar venda física; preparar e entregar pedido; cancelar pela equipe; corrigir cadastro de cliente | sim | sim | — | — |
 | Atendimento | atender chamado | sim | sim | — | sim |
 | Avaliações | moderar avaliações | sim | — | — | sim |
 
 - Existe um único modelo Admin, com todas as permissões (inclusive futuras), sem aceitar retirada.
 - Sempre há pelo menos uma conta ativa no Admin; modelo com pessoas ligadas não pode ser desativado.
 - Permissões lidas do banco a cada ação: mudanças valem na hora.
+- As três permissões da Gestão (gerenciar contas, gerenciar modelos de acesso e gerenciar unidades) são só do Admin: não entram em outro modelo nem em exceção. Exceção só vale para conta interna. As regras do Admin são garantidas por trigger no banco (ADRs 0009 e 0010).
+- No sistema, cada permissão tem um código. São 15: `gerenciar_contas`, `gerenciar_modelos_acesso`, `gerenciar_catalogo`, `gerenciar_unidades`, `movimentar_estoque`, `definir_estoque_minimo`, `solicitar_transferencia`, `enviar_transferencia`, `receber_transferencia`, `registrar_venda_fisica`, `preparar_entregar_pedido`, `cancelar_pedido_equipe`, `corrigir_cadastro_cliente`, `atender_chamado`, `moderar_avaliacoes`.
 
 ---
 
@@ -277,7 +292,7 @@ Campos com `?` aceitam vazio. A chave primária vem primeiro. No banco, nomes fi
 
 | Tabela | Campos | Liga com |
 | --- | --- | --- |
-| USUARIO | id_usuario (= id do Supabase Auth), nome, email (único, cópia do Auth), cpf? (único; obrigatório para cliente), tipo_conta, status_conta, tentativas_ativacao, id_modelo_acesso?, id_unidade?, criado_em, atualizado_em | auth.users (1:1); PEDIDO, CHAMADO, MENSAGEM (1:N) |
+| USUARIO | id_usuario (= id do Supabase Auth), nome, email (único, cópia do Auth), cpf? (único; obrigatório para cliente), tipo_conta, status_conta, id_modelo_acesso?, id_unidade?, criado_em, atualizado_em | auth.users (1:1); PEDIDO, CHAMADO, MENSAGEM (1:N) |
 | MODELO_ACESSO | id_modelo, nome (único), eh_admin, ativo | USUARIO (1:N) |
 | PERMISSAO | id_permissao, codigo (único), descricao | lista fixa do sistema |
 | MODELO_PERMISSAO | id_modelo + id_permissao | modelo ↔ permissão (N:N) |
@@ -301,6 +316,33 @@ Campos com `?` aceitam vazio. A chave primária vem primeiro. No banco, nomes fi
 | DENUNCIA_AVALIACAO | id_denuncia, id_avaliacao, id_cliente, motivo, status, id_analisada_por?, analisada_em?, criada_em — uma por cliente por avaliação | AVALIACAO, USUARIO |
 
 Campos de "quem fez" (minimo_alterado_por, id_registrado_por, id_cancelado_por, id_analisada_por, id_alterado_por etc.) apontam para USUARIO, mas não têm linha no diagrama para não poluí-lo. `auth.users` aparece só como referência.
+
+### Valores aceitos
+
+Campos de status e de tipo só aceitam os valores abaixo, sempre em minúsculas e com `_` no lugar de espaço. O banco recusa qualquer outro valor (restrição `CHECK`).
+
+| Campo | Valores aceitos |
+| --- | --- |
+| unidade.tipo | loja, cd |
+| canal (estoque, movimentação, pedido, item de transferência) | loja_fisica, online |
+| movimentacao_estoque.tipo | saldo_inicial, recebimento, avaria, perda, ajuste, venda, retorno_cancelamento, devolucao, saida_troca, saida_transferencia, entrada_transferencia, saida_realocacao, entrada_realocacao |
+| transferencia.status | solicitada, enviada, recebida, cancelada |
+| pedido.status | aguardando_pagamento, pago, enviado, pronto_para_retirada, entregue, cancelado |
+| pedido.modalidade | entrega, retirada (só na venda online) |
+| pedido.motivo_cancelamento | cliente, reserva_vencida, retirada_vencida, equipe |
+| pedido.devolucao | nenhuma, parcial, total |
+| pagamento.tipo | pagamento, estorno |
+| pagamento.metodo | pix, cartao_credito, cartao_debito, dinheiro |
+| pagamento.status | pendente, aprovado, recusado |
+| usuario.tipo_conta | interna, cliente |
+| usuario.status_conta | pendente_ativacao, ativa, inativa |
+| usuario_permissao_excecao.efeito | acrescentar, retirar |
+| chamado.categoria | entrega, troca_devolucao, estorno, duvida, outros |
+| chamado.status | aberto, em_andamento, concluido |
+| chamado.prioridade | baixa, media, alta |
+| chamado.motivo_encerramento | resolvido, desistencia, sem_resposta |
+| avaliacao.status | publicada, oculta |
+| denuncia_avaliacao.status | pendente, procedente, improcedente |
 
 ### Como ler o diagrama
 
@@ -342,13 +384,6 @@ Cores dos cabeçalhos: amarelo = catálogo, laranja = estoque, laranja-escuro = 
 - Com "Todas as unidades", as tabelas mostram a coluna Unidade; com uma unidade selecionada, a coluna some.
 - A Visão Geral identifica; as ações acontecem nas páginas de cada área. Não há configuração de estoque mínimo nela.
 
-### Figma
-
-- Arquivo: `figma.com/design/XesoVjQIAf04Vu5I5A02CY`
-- Páginas: Foundations, Componentes, Telas — Funcionário, Telas — Cliente.
-- Design system: variáveis de cor/layout, estilos de texto Inter, componentes Badge, Button, Nav Item, Tab, KPI, Field e Message.
-- 17 telas do protótipo: 13 internas + 4 do cliente.
-
 ### Identidade visual
 
 - Paleta da plataforma integrada (Lorenzi + Vulto) em tons de vermelho, de preferência com degradê.
@@ -366,8 +401,22 @@ O modelo já foi pensado para não travar nela:
 - Lojas e CDs da Vulto entram como novas unidades.
 - **A decidir:** incluir campo de marca/empresa em UNIDADE, PRODUTO e talvez USUARIO; como unir clientes que existam nas duas bases.
 
-### Evoluções futuras
+### Evoluções futuras (depois da Entrega 2)
 
 - Reabastecimento automático (sugerir transferência do CD quando a loja fica abaixo do mínimo) — já suportado pelo modelo.
 - Completar uma retirada por transferência — exigiria ligar pedido a um envio.
 - Troca com envio para casa — exigiria ligar chamado a um envio.
+- Limite de velocidade na rota de ativação (ex.: poucas tentativas de CPF por minuto), para dificultar adivinhar o CPF dentro do prazo do link — não muda o banco.
+
+---
+
+## 10. Pendências — precisam ser resolvidas
+
+Decisões já tomadas que ainda não foram implementadas ou confirmadas. Cada uma precisa estar resolvida antes da banca (08/10/2026).
+
+| # | Pendência | O que falta | Situação |
+| --- | --- | --- | --- |
+| 1 | Usuário de banco restrito para o FastAPI | Criar o usuário com as permissões da seção 2, a regra de RLS que libera só ele, e trocar a `DATABASE_URL` no `.env` e no Render | ⚠️ Pendente — a API ainda conecta com o usuário dono do banco |
+| 2 | Trigger do saldo compatível com o usuário restrito | Migration `e08fd1b28bcf` aplicada: o trigger do saldo roda como `SECURITY DEFINER` e o bloqueio do saldo deixa passar só a atualização vinda de uma movimentação. Falta testar com o usuário restrito | ⚠️ Pendente — testar junto com o item 1 |
+| 3 | Conferência de divergência de estoque | Criar a consulta que compara o saldo com a soma das movimentações e o teste que garante que ela fica vazia | ⚠️ Pendente |
+| 4 | Ping do deploy | Configurar o serviço externo que chama `/health` a cada 10 minutos | ⚠️ Pendente — ainda não configurado |
