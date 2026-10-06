@@ -32,7 +32,8 @@ def get_usuario_ativo(
 
 
 # uso: usuario: Usuario = Depends(exige_permissao("movimentar_estoque"))
-def exige_permissao(codigo: str):
+# com mais de um código, basta ter um deles (ex.: ver o estoque)
+def exige_permissao(*codigos: str):
     def dependencia(
         usuario: Usuario = Depends(get_usuario_ativo), db: Session = Depends(get_db)
     ) -> Usuario:
@@ -45,12 +46,16 @@ def exige_permissao(codigo: str):
             return usuario
 
         excecoes = repo.excecoes_do_usuario(db, usuario.id_usuario)
-        permitido = tem_permissao(
-            codigo,
-            eh_admin=False,
-            do_modelo=repo.codigos_do_modelo(db, usuario.id_modelo_acesso),
-            acrescentadas={c for c, efeito in excecoes.items() if efeito == "acrescentar"},
-            retiradas={c for c, efeito in excecoes.items() if efeito == "retirar"},
+        do_modelo = repo.codigos_do_modelo(db, usuario.id_modelo_acesso)
+        permitido = any(
+            tem_permissao(
+                codigo,
+                eh_admin=False,
+                do_modelo=do_modelo,
+                acrescentadas={c for c, efeito in excecoes.items() if efeito == "acrescentar"},
+                retiradas={c for c, efeito in excecoes.items() if efeito == "retirar"},
+            )
+            for codigo in codigos
         )
         if not permitido:
             raise HTTPException(status_code=403, detail="Sem permissão")
