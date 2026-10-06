@@ -43,15 +43,26 @@ def include_object(object, name, type_, reflected, compare_to):
     return True
 
 
-# Regra do modelo de dados: RLS ligado em todas as tabelas.
-# Toda tabela criada pelo --autogenerate já ganha o ENABLE ROW LEVEL SECURITY na migration.
+# Regra do modelo de dados: RLS ligado em todas as tabelas, e só o usuário restrito da API
+# passa (migration 56799f788354). Toda tabela criada pelo --autogenerate já ganha na migration:
+# o RLS, a regra que libera a API e as permissões padrão dela (ler, inserir, alterar; apagar não).
+# Tabela que fuja do padrão (ex.: imutável, ou que precise apagar) tem o GRANT ajustado à mão.
+PAPEL_DA_API = "api_casalorenzi"
 gerar_com_rls = rewriter.Rewriter()
 
 
 @gerar_com_rls.rewrites(ops.CreateTableOp)
 def habilitar_rls(context, revision, op):
     tabela = f'"{op.schema}"."{op.table_name}"' if op.schema else f'"{op.table_name}"'
-    return [op, ops.ExecuteSQLOp(f"ALTER TABLE {tabela} ENABLE ROW LEVEL SECURITY")]
+    return [
+        op,
+        ops.ExecuteSQLOp(f"ALTER TABLE {tabela} ENABLE ROW LEVEL SECURITY"),
+        ops.ExecuteSQLOp(
+            f"CREATE POLICY {PAPEL_DA_API}_acesso ON {tabela} FOR ALL TO {PAPEL_DA_API} USING (true) WITH CHECK (true)"
+        ),
+        ops.ExecuteSQLOp(f"GRANT SELECT, INSERT, UPDATE ON {tabela} TO {PAPEL_DA_API}"),
+        ops.ExecuteSQLOp(f"GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO {PAPEL_DA_API}"),
+    ]
 
 
 # other values from the config, defined by the needs of env.py,

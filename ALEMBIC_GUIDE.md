@@ -14,7 +14,7 @@ O Alembic versiona as mudanças no schema do banco. Cada migration é um arquivo
 
 Regras que o `env.py` aplica sozinho:
 
-- **RLS em todas as tabelas.** Toda tabela criada pelo `--autogenerate` já vem com `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` na migration. A tabela interna `alembic_version` também recebe RLS a cada execução.
+- **RLS em todas as tabelas, liberado só para a API.** Toda tabela criada pelo `--autogenerate` já vem, na migration, com `ENABLE ROW LEVEL SECURITY`, a regra que libera o usuário restrito da API (`api_casalorenzi`) e as permissões padrão dele: ler, inserir e alterar. Apagar não entra. Se a tabela fugir do padrão, ajuste o `GRANT` à mão na migration: histórico que nunca muda fica só com ler e inserir, e tabela de ligação que precisa apagar ganha `DELETE`. A tabela interna `alembic_version` também recebe RLS a cada execução.
 - **Tabelas do Supabase são ignoradas.** Tabelas dos schemas `auth` e `storage` (como `auth.users`) podem ser declaradas nos models para servir de alvo de FK, mas o Alembic nunca tenta criá-las nem apagá-las.
 - **Nomes padronizados de restrições** (`pk_`, `fk_`, `uq_`, `ix_`, `ck_`), definidos em `src/database/base.py`.
 
@@ -65,7 +65,7 @@ O autogenerate só compara tabelas, colunas, índices e restrições dos models.
 - triggers;
 - funções (`CREATE FUNCTION`);
 - views;
-- `GRANT` e `REVOKE` (permissões do usuário de banco do FastAPI);
+- `GRANT` e `REVOKE` (permissões do usuário de banco do FastAPI), fora o padrão que o `env.py` acrescenta em tabela nova;
 - policies de RLS (o `env.py` só liga o RLS, não cria regras de acesso).
 
 Esses objetos são escritos à mão com `op.execute`, numa migration própria (`alembic revision -m "descricao"`, sem `--autogenerate`) ou acrescentados a uma gerada. Regras:
@@ -91,16 +91,16 @@ def upgrade() -> None:
         AFTER INSERT ON movimentacao_estoque
         FOR EACH ROW EXECUTE FUNCTION aplica_movimentacao();
     """)
-    op.execute("REVOKE UPDATE (quantidade) ON estoque FROM api_user;")
+    op.execute("REVOKE UPDATE (quantidade) ON estoque FROM api_casalorenzi;")
 
 
 def downgrade() -> None:
-    op.execute("GRANT UPDATE (quantidade) ON estoque TO api_user;")
+    op.execute("GRANT UPDATE (quantidade) ON estoque TO api_casalorenzi;")
     op.execute("DROP TRIGGER trg_aplica_movimentacao ON movimentacao_estoque;")
     op.execute("DROP FUNCTION aplica_movimentacao();")
 ```
 
-O nome `api_user` é ilustrativo; use o nome real do usuário de banco do FastAPI.
+`api_casalorenzi` é o usuário de banco da API (migration `56799f788354`). As migrations rodam com o dono do banco (`DATABASE_URL_DIRECT`), nunca com ele.
 
 ## Migrations em branches paralelas
 
