@@ -41,7 +41,7 @@ class Chamado(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "categoria IN ('duvida', 'problema_pedido', 'troca', 'devolucao', 'outro')",
+            "categoria IN ('entrega', 'troca_devolucao', 'estorno', 'duvida', 'outros')",
             name="categoria_valida",
         ),
         CheckConstraint("status IN ('aberto', 'em_andamento', 'concluido')", name="status_valido"),
@@ -86,9 +86,3 @@ class HistoricoChamado(Base):
     valor_anterior: Mapped[str | None] = mapped_column(String(255))
     valor_novo: Mapped[str] = mapped_column(String(255))
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-    __table_args__ = (
-        CheckConstraint(
-            "campo_alterado IN ('status', 'responsavel', 'prioridade')", name="campo_valido"
-        ),
-    )

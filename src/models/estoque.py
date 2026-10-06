@@ -58,6 +58,8 @@ class Estoque(Base):
         CheckConstraint(f"canal IN {CANAIS}", name="canal_valido"),
         CheckConstraint("quantidade >= 0", name="quantidade_nao_negativa"),
         CheckConstraint("quantidade_reservada >= 0", name="reservada_nao_negativa"),
+        CheckConstraint("quantidade_reservada <= quantidade", name="reservada_ate_quantidade"),
+        CheckConstraint("canal = 'online' OR quantidade_reservada = 0", name="reserva_so_online"),
         CheckConstraint("estoque_minimo IS NULL OR estoque_minimo >= 0", name="minimo_nao_negativo"),
     )
 
@@ -93,7 +95,8 @@ class Transferencia(Base):
         ),
         CheckConstraint("id_unidade_origem <> id_unidade_destino", name="origem_diferente_destino"),
         CheckConstraint(
-            "status <> 'cancelada' OR motivo_cancelamento IS NOT NULL", name="cancelada_exige_motivo"
+            "status <> 'cancelada' OR (motivo_cancelamento IS NOT NULL AND id_cancelado_por IS NOT NULL)",
+            name="cancelada_exige_motivo",
         ),
     )
 
@@ -119,6 +122,10 @@ class ItemTransferencia(Base):
         CheckConstraint("quantidade_enviada IS NULL OR quantidade_enviada >= 0", name="enviada_nao_negativa"),
         CheckConstraint(
             "quantidade_recebida IS NULL OR quantidade_recebida >= 0", name="recebida_nao_negativa"
+        ),
+        CheckConstraint(
+            "quantidade_recebida IS NULL OR quantidade_recebida <= quantidade_enviada",
+            name="recebida_ate_enviada",
         ),
     )
 

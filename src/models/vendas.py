@@ -46,7 +46,7 @@ class Pedido(Base):
         CheckConstraint("canal IN ('loja_fisica', 'online')", name="canal_valido"),
         CheckConstraint("modalidade IN ('entrega', 'retirada')", name="modalidade_valida"),
         CheckConstraint(
-            "status IN ('aguardando_pagamento', 'pago', 'enviado', 'pronto_retirada', 'entregue', 'cancelado')",
+            "status IN ('aguardando_pagamento', 'pago', 'enviado', 'pronto_para_retirada', 'entregue', 'cancelado')",
             name="status_valido",
         ),
         CheckConstraint(
@@ -108,14 +108,15 @@ class Pagamento(Base):
 
     __table_args__ = (
         CheckConstraint("tipo IN ('pagamento', 'estorno')", name="tipo_valido"),
-        CheckConstraint("metodo IN ('pix', 'credito', 'debito', 'dinheiro')", name="metodo_valido"),
+        CheckConstraint("metodo IN ('pix', 'cartao_credito', 'cartao_debito', 'dinheiro')", name="metodo_valido"),
         CheckConstraint(
-            "status IN ('pendente', 'aprovado', 'recusado', 'expirado')", name="status_valido"
+            "status IN ('pendente', 'aprovado', 'recusado')", name="status_valido"
         ),
         CheckConstraint("valor > 0", name="valor_positivo"),
         CheckConstraint(
             "(tipo = 'estorno') = (id_pagamento_original IS NOT NULL)", name="estorno_exige_original"
         ),
+        CheckConstraint("tipo = 'estorno' OR id_chamado IS NULL", name="chamado_so_em_estorno"),
     )
 
 
