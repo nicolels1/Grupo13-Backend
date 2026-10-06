@@ -43,3 +43,9 @@ def exige_permissao(*codigos: str):
 
     return dependencia
 
+
+# rotas da plataforma do cliente: conta interna usa a conta pessoal de cliente para comprar
+def exige_cliente(usuario: Usuario = Depends(get_usuario_ativo)) -> Usuario:
+    if usuario.tipo_conta != "cliente":
+        raise HTTPException(status_code=403, detail="Só para contas de cliente")
+    return usuario
