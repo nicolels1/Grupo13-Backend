@@ -390,3 +390,37 @@ def test_historico_com_data_invalida(client):
 
     assert resposta.status_code == 422
     assert "AAAA-MM-DD" in resposta.json()["detail"]
+
+
+# ---------- peças em trânsito ----------
+
+def test_em_transito_e_o_que_saiu_e_ainda_nao_chegou():
+    texto = sql(estoque_repository.consulta_em_transito(datetime.now(timezone.utc)))
+
+    assert "transferencia.enviada_em <=" in texto
+    assert "transferencia.recebida_em IS NULL OR transferencia.recebida_em >" in texto
+    assert "item_transferencia.quantidade_enviada >" in texto
+
+
+def test_em_transito_sem_data_usa_agora_e_com_data_o_fim_do_dia(monkeypatch):
+    momentos = []
+    monkeypatch.setattr(estoque_repository, "listar_em_transito", lambda db, em, **f: momentos.append(em) or [])
+
+    estoque.em_transito(None, None)
+    estoque.em_transito(None, "2026-09-22")
+
+    assert (datetime.now(timezone.utc) - momentos[0]).total_seconds() < 5
+    assert momentos[1] == datetime(2026, 9, 22, 23, 59, 59, 999999, tzinfo=BRASILIA)
+
+
+def test_atendente_nao_ve_pecas_em_transito(client):
+    assert client({"atender_chamado"}).get("/estoque/em-transito").status_code == 403
+
+
+def test_em_transito_pela_api(client, monkeypatch):
+    monkeypatch.setattr(estoque_repository, "listar_em_transito", lambda db, em, **f: [])
+
+    resposta = client({"receber_transferencia"}).get("/estoque/em-transito?em=2026-09-22&id_unidade=20")
+
+    assert resposta.status_code == 200
+    assert resposta.json() == {"items": []}
