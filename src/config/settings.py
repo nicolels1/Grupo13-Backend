@@ -8,6 +8,8 @@ load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 # chave de admin do Supabase: só no backend, nunca no front (ADR 0008)
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+# chave pública do Supabase: usada só no login por CPF, feito pelo backend
+SUPABASE_PUBLISHABLE_KEY = os.getenv("SUPABASE_PUBLISHABLE_KEY")
 
 # API usa o pooler do Supabase; migrations (Alembic) usam a conexão direta
 DATABASE_URL = os.getenv("DATABASE_URL")

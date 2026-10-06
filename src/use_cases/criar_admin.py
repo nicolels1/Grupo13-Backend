@@ -13,9 +13,10 @@ def criar_admin(db: Session, auth, nome: str, email: str, senha: str | None = No
 
     id_modelo_admin = repo.id_modelo_admin(db)
     if id_modelo_admin is None:
-        raise RegraDeNegocio("Modelo Admin não existe: rode as migrations (alembic upgrade head)")
+        # banco sem as migrations: problema de configuração, não de quem pediu
+        raise RuntimeError("Modelo Admin não existe: rode as migrations (alembic upgrade head)")
     if repo.email_em_uso(db, email):
-        raise Conflito(f"Já existe usuário com o e-mail {email}")
+        raise Conflito("E-mail já cadastrado")
 
     id_usuario = repo.buscar_login(db, email)
     login_novo = id_usuario is None
