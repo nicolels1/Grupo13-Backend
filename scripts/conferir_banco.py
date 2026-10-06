@@ -52,6 +52,25 @@ def conferir(db: Session) -> Conferencia:
     c.registrar(f"a API conecta como {PAPEL_DA_API}", papel == PAPEL_DA_API, f"conectado como {papel}")
     c.registrar("o usuário da API não passa por cima do RLS", not passa_rls, "passa por cima do RLS")
 
+    # toda tabela precisa liberar a API: uma tabela esquecida só aparece quando a rota quebra
+    sem_regra = db.scalars(text("""
+        SELECT c.relname FROM pg_class c
+        WHERE c.relnamespace = 'public'::regnamespace AND c.relkind = 'r' AND c.relname <> 'alembic_version'
+          AND NOT EXISTS (
+              SELECT 1 FROM pg_policies p
+              WHERE p.schemaname = 'public' AND p.tablename = c.relname AND p.policyname = :regra
+          )
+        ORDER BY 1
+    """), {"regra": f"{PAPEL_DA_API}_acesso"}).all()
+    c.registrar("toda tabela tem a regra de RLS que libera a API", not sem_regra, ", ".join(sem_regra))
+    sem_leitura = db.scalars(text("""
+        SELECT c.relname FROM pg_class c
+        WHERE c.relnamespace = 'public'::regnamespace AND c.relkind = 'r' AND c.relname <> 'alembic_version'
+          AND NOT has_table_privilege(:papel, c.oid, 'SELECT')
+        ORDER BY 1
+    """), {"papel": PAPEL_DA_API}).all()
+    c.registrar("a API consegue ler toda tabela", not sem_leitura, ", ".join(sem_leitura))
+
     # 2. saldo x movimentações no banco como está (deve vir vazio)
     divergencias = estoque_repository.listar_divergencias(db)
     c.registrar("saldo bate com a soma das movimentações", not divergencias, f"{len(divergencias)} linha(s) divergente(s)")

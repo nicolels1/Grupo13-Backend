@@ -36,7 +36,7 @@ APAGAVEIS = ["endereco_cliente", "modelo_permissao", "usuario_permissao_excecao"
 DEMAIS = [
     "avaliacao", "categoria_produto", "chamado", "denuncia_avaliacao", "endereco_entrega", "foto_avaliacao",
     "imagem_produto", "item_pedido", "item_transferencia", "mensagem", "modelo_acesso", "pagamento", "pedido",
-    "produto", "transferencia", "unidade", "usuario", "voto_util",
+    "produto", "transferencia", "unidade", "usuario", "variante", "voto_util",
 ]
 TODAS = IMUTAVEIS + SO_LEITURA + [ESTOQUE] + APAGAVEIS + DEMAIS
 
