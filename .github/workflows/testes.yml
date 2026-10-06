@@ -1,0 +1,28 @@
+# Roda o pytest no GitHub a cada push na main e em todo Pull Request para a main.
+# O resultado aparece na aba Actions e no próprio PR (verde = passou, vermelho = falhou).
+name: Testes
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # botão "Run workflow" na aba Actions, para rodar sem precisar de push
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # mesma versão do Python usada no Render
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14.3"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      # não precisa de .env: o conftest.py usa valores fictícios e nenhum teste conecta no banco
+      - run: pytest -v
