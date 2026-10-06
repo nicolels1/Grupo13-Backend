@@ -193,6 +193,7 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 - Uma tabela de usuários com tipo **interna** ou **cliente**; tela de entrada única decide o destino pelo tipo de conta.
 - O Supabase Auth guarda e-mail, senha, links e sessão. A tabela de usuários usa o mesmo id do Auth e guarda tipo de conta, CPF, modelo de acesso e status. Tipo de conta e permissões nunca ficam no Auth.
 - Toda conta é criada pelo backend; cadastro aberto no Auth desligado.
+- O cliente que se cadastra pelo site já entra com o e-mail confirmado, sem link de confirmação: evita depender do envio de e-mails antes da banca. O risco aceito é um e-mail digitado errado só aparecer depois, corrigido numa loja.
 - Cliente tem CPF único e obrigatório e entra com e-mail ou CPF (login por CPF feito pelo backend, sem expor o e-mail). Funcionário entra só com e-mail corporativo e usa conta pessoal para comprar.
 - Admin cria conta interna sem senha, por convite do Auth. Recuperação de senha pelo Auth. Links valem até 24h e podem ser reenviados.
 - Desativar uma conta bloqueia o login no Auth.
