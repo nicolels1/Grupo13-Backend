@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from src.app import app
 from src.database.session import get_db
 from src.middlewares.permissoes import get_usuario_ativo
+from src.models.estoque import MovimentacaoEstoque
 from src.repositories import permissao_repository
 
 ID_FUNCIONARIO = uuid.UUID("33333333-3333-3333-3333-333333333333")
@@ -17,12 +18,12 @@ class SessaoFalsa:
     """Sessão do SQLAlchemy de mentira: guarda o que foi adicionado e, no refresh,
     preenche o id e os valores padrão das colunas como o banco faria."""
 
-    def __init__(self, erro_commit=None):
+    def __init__(self, erro_commit=None, primeiro_id=1):
         self.erro_commit = erro_commit
         self.adicionados = []
         self.commits = 0
         self.rollbacks = 0
-        self._ids = itertools.count(1)
+        self._ids = itertools.count(primeiro_id)
 
     def add(self, objeto):
         self.adicionados.append(objeto)
@@ -50,6 +51,24 @@ class SessaoFalsa:
         for coluna in tabela.columns:
             if getattr(objeto, coluna.key) is None and coluna.default is not None and coluna.default.is_scalar:
                 setattr(objeto, coluna.key, coluna.default.arg)
+
+
+class SessaoComTrigger(SessaoFalsa):
+    """Faz o papel do trigger do banco: cada movimentação no flush muda o saldo."""
+
+    def __init__(self, saldos):
+        super().__init__()
+        self.saldos = saldos
+        self.aplicadas = set()
+
+    def flush(self):
+        super().flush()
+        for objeto in self.adicionados:
+            if isinstance(objeto, MovimentacaoEstoque) and id(objeto) not in self.aplicadas:
+                self.aplicadas.add(id(objeto))
+                chave = (objeto.id_variante, objeto.id_unidade, objeto.canal)
+                linha = self.saldos.setdefault(chave, SimpleNamespace(quantidade=0, quantidade_reservada=0))
+                linha.quantidade += objeto.quantidade
 
 
 def funcionario(**campos):
