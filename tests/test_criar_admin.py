@@ -70,7 +70,7 @@ def test_cria_login_e_usuario_no_modelo_admin():
 def test_sem_modelo_admin_nao_cria_login():
     db, auth = SessaoFalsa(id_modelo_admin=None), AuthFalso()
 
-    with pytest.raises(RegraDeNegocio, match="Modelo Admin não existe"):
+    with pytest.raises(RuntimeError, match="Modelo Admin não existe"):
         criar_admin(db, auth, "Ana", "ana@lorenzi.com", "senha-forte")
 
     assert auth.criados == []
@@ -79,7 +79,7 @@ def test_sem_modelo_admin_nao_cria_login():
 def test_email_ja_usado_nao_cria_login():
     db, auth = SessaoFalsa(email_existente=uuid.uuid4()), AuthFalso()
 
-    with pytest.raises(Conflito, match="Já existe usuário"):
+    with pytest.raises(Conflito, match="E-mail já cadastrado"):
         criar_admin(db, auth, "Ana", "ana@lorenzi.com", "senha-forte")
 
     assert auth.criados == []

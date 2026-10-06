@@ -29,7 +29,7 @@ def main() -> None:
 
         try:
             usuario = criar_admin(db, SupabaseAdmin(), nome, email, senha)
-        except (ErroNegocio, ErroSupabase) as erro:
+        except (ErroNegocio, ErroSupabase, RuntimeError) as erro:
             raise SystemExit(str(erro))
     print(f"Admin criado: {usuario.email} (id {usuario.id_usuario})")
 
