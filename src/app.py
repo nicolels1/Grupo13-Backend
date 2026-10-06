@@ -4,7 +4,7 @@ from src.config.logs import configurar_logs
 from src.middlewares.cors import configurar_cors
 from src.middlewares.erros import configurar_erros
 from src.middlewares.requisicao import configurar_requisicao
-from src.routes import health
+from src.routes import contas, health
 
 configurar_logs()
 
@@ -15,3 +15,4 @@ configurar_requisicao(app)
 configurar_cors(app)
 
 app.include_router(health.router)
+app.include_router(contas.router)

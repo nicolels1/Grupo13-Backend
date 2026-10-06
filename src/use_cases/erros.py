@@ -8,6 +8,10 @@ class ErroNegocio(Exception):
         self.mensagem = mensagem
 
 
+class NaoAutenticado(ErroNegocio):
+    status_code = 401
+
+
 class RecursoNaoEncontrado(ErroNegocio):
     status_code = 404
 
@@ -24,3 +28,12 @@ class Conflito(ErroNegocio):
 # dado válido no formato, mas recusado pela regra, ex.: estoque insuficiente
 class RegraDeNegocio(ErroNegocio):
     status_code = 422
+
+
+class MuitasTentativas(ErroNegocio):
+    status_code = 429
+
+
+# serviço externo (ex.: Supabase Auth) fora do ar ou sem resposta
+class ServicoIndisponivel(ErroNegocio):
+    status_code = 503

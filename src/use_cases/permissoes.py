@@ -17,3 +17,18 @@ def tem_permissao(
         return False
     # permissão efetiva: as do modelo, mais as exceções acrescentar, menos as retirar
     return codigo in (do_modelo | acrescentadas) - retiradas
+
+
+# lista mostrada ao frontend (GET /me) para esconder o que a pessoa não pode usar;
+# segue a mesma regra de tem_permissao
+def permissoes_efetivas(
+    *,
+    eh_admin: bool,
+    todas: set[str],
+    do_modelo: set[str],
+    acrescentadas: set[str],
+    retiradas: set[str],
+) -> set[str]:
+    if eh_admin:
+        return set(todas)
+    return (do_modelo | acrescentadas) - retiradas - PERMISSOES_SO_ADMIN

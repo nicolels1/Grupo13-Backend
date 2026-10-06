@@ -33,3 +33,11 @@ def excecoes_do_usuario(db: Session, id_usuario: uuid.UUID) -> dict[str, str]:
         .where(UsuarioPermissaoExcecao.id_usuario == id_usuario)
     )
     return {codigo: efeito for codigo, efeito in db.execute(consulta)}
+
+
+def buscar_modelo(db: Session, id_modelo: int) -> ModeloAcesso | None:
+    return db.get(ModeloAcesso, id_modelo)
+
+
+def todos_os_codigos(db: Session) -> set[str]:
+    return set(db.scalars(select(Permissao.codigo)))
