@@ -30,7 +30,9 @@ def quantidade_com_sinal(tipo: str, quantidade: int) -> int:
     return -quantidade if tipo in TIPOS_DE_SAIDA else quantidade
 
 
-def _validar_local(db: Session, id_variante: int, id_unidade: int, canal: str):
+# variante e unidade existem, unidade ativa e canal possível (o CD só tem online);
+# usada também no estoque inicial do catálogo e, com conferir_disponivel, nas transferências
+def validar_local(db: Session, id_variante: int, id_unidade: int, canal: str):
     variante = repo.buscar_variante(db, id_variante)
     if variante is None:
         raise RecursoNaoEncontrado("Variante não encontrada")
@@ -45,7 +47,7 @@ def _validar_local(db: Session, id_variante: int, id_unidade: int, canal: str):
 
 
 # saída só usa o disponível: estoque menos o reservado para pedidos online (case, seção 5)
-def _conferir_disponivel(linha: Estoque | None, saida: int) -> None:
+def conferir_disponivel(linha: Estoque | None, saida: int) -> None:
     disponivel = linha.quantidade - linha.quantidade_reservada if linha else 0
     if saida > disponivel:
         raise RegraDeNegocio(f"Estoque disponível insuficiente: há {disponivel} peça(s) disponível(is)")
@@ -61,13 +63,13 @@ def registrar_movimentacao(
     if tipo in TIPOS_COM_MOTIVO and motivo is None:
         raise RegraDeNegocio("Motivo obrigatório em avaria, perda e ajuste")
     quantidade = quantidade_com_sinal(tipo, quantidade)
-    variante, _ = _validar_local(db, id_variante, id_unidade, canal)
+    variante, _ = validar_local(db, id_variante, id_unidade, canal)
     if tipo == "recebimento" and not variante.ativo:
         raise RegraDeNegocio("Variante desativada não recebe mercadoria")
 
     if quantidade < 0:
         linha = repo.travar_estoque(db, id_variante, id_unidade, [canal]).get(canal)
-        _conferir_disponivel(linha, -quantidade)
+        conferir_disponivel(linha, -quantidade)
 
     movimentacao = repo.inserir_movimentacao(
         db, id_variante=id_variante, id_unidade=id_unidade, canal=canal, id_usuario=usuario.id_usuario,
@@ -84,12 +86,12 @@ def realocar(
     if quantidade <= 0:
         raise RegraDeNegocio("A quantidade precisa ser positiva")
     canal_destino = "online" if canal_origem == "loja_fisica" else "loja_fisica"
-    _, unidade = _validar_local(db, id_variante, id_unidade, "online")
+    _, unidade = validar_local(db, id_variante, id_unidade, "online")
     if unidade.tipo == "cd":
         raise RegraDeNegocio("O CD só tem estoque online: não há realocação entre canais")
 
     linhas = repo.travar_estoque(db, id_variante, id_unidade, sorted(CANAIS))
-    _conferir_disponivel(linhas.get(canal_origem), quantidade)
+    conferir_disponivel(linhas.get(canal_origem), quantidade)
 
     comuns = dict(id_variante=id_variante, id_unidade=id_unidade, id_usuario=usuario.id_usuario)
     saida = repo.inserir_movimentacao(db, **comuns, canal=canal_origem, tipo="saida_realocacao",
@@ -104,7 +106,7 @@ def realocar(
 def definir_minimo(
     db: Session, usuario: Usuario, id_variante: int, id_unidade: int, canal: str, estoque_minimo: int | None,
 ) -> dict:
-    _validar_local(db, id_variante, id_unidade, canal)
+    validar_local(db, id_variante, id_unidade, canal)
     linha = repo.buscar_estoque(db, id_variante, id_unidade, canal)
     if linha is None:
         linha = Estoque(id_variante=id_variante, id_unidade=id_unidade, canal=canal)

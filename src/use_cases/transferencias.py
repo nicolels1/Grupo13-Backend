@@ -7,7 +7,7 @@ from src.models.estoque import ItemTransferencia, Transferencia
 from src.repositories import estoque_repository, unidade_repository
 from src.repositories import transferencia_repository as repo
 from src.use_cases.erros import RecursoNaoEncontrado, RegraDeNegocio
-from src.use_cases.estoque import _conferir_disponivel
+from src.use_cases.estoque import conferir_disponivel
 
 
 def _agora() -> datetime:
@@ -114,7 +114,7 @@ def enviar(db: Session, id_transferencia: int, id_usuario: uuid.UUID, dados: dic
     for (id_variante, canal), total in sorted(por_variante.items()):
         if total:
             linha = estoque_repository.travar_estoque(db, id_variante, origem, [canal]).get(canal)
-            _conferir_disponivel(linha, total)
+            conferir_disponivel(linha, total)
 
     for item in itens:
         quantidade = enviadas[item.id_item_transferencia]

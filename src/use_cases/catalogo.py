@@ -7,7 +7,7 @@ from src.models.catalogo import CategoriaProduto, HistoricoPreco, Produto, Varia
 from src.repositories import catalogo_repository as repo
 from src.repositories import estoque_repository
 from src.use_cases.erros import Conflito, RecursoNaoEncontrado, RegraDeNegocio
-from src.use_cases.estoque import _validar_local
+from src.use_cases.estoque import validar_local
 
 
 def _categoria_ou_404(db: Session, id_categoria: int) -> CategoriaProduto:
@@ -116,7 +116,7 @@ def _criar_variante(db: Session, id_produto: int, id_usuario: uuid.UUID, dados: 
     db.flush()
     db.add(HistoricoPreco(id_variante=variante.id_variante, preco_novo=variante.preco, id_alterado_por=id_usuario))
     for carga in estoque_inicial:
-        _validar_local(db, variante.id_variante, carga["id_unidade"], carga["canal"])
+        validar_local(db, variante.id_variante, carga["id_unidade"], carga["canal"])
         estoque_repository.inserir_movimentacao(
             db, id_variante=variante.id_variante, id_unidade=carga["id_unidade"], canal=carga["canal"],
             tipo="saldo_inicial", quantidade=carga["quantidade"], id_usuario=id_usuario,
