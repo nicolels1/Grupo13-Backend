@@ -163,7 +163,7 @@ pytest            # roda todos os testes
 pytest -v         # mostra o resultado de cada teste
 ```
 
-Os testes atuais não precisam de banco nem de internet: a chave do Supabase é substituída por uma chave gerada no próprio teste.
+Os testes atuais não precisam de banco nem de internet: a chave do Supabase, o banco e o Supabase Auth são substituídos por versões falsas criadas no próprio teste.
 
 | Arquivo | O que cobre |
 |---|---|
@@ -171,8 +171,30 @@ Os testes atuais não precisam de banco nem de internet: a chave do Supabase é 
 | `tests/test_database.py` | `session.py`: erro claro sem `DATABASE_URL`, uso do driver psycopg e fechamento da sessão do `get_db` |
 | `tests/test_cors.py` | CORS: site liberado recebe permissão, site desconhecido é recusado, previews pela expressão regular |
 | `tests/test_health.py` | `/health`: 200 com o banco respondendo, 503 com o banco fora |
+| `tests/test_criar_admin.py` | `criar_admin`: cria login e usuário no modelo Admin; recusa sem modelo Admin, com e-mail já usado ou login novo sem senha; reaproveita e confirma login existente; apaga o login criado se a gravação falhar, mas nunca um login que já existia |
+| `tests/test_permissoes.py` | permissão efetiva (modelo de acesso, exceções `acrescentar`/`retirar`, Admin, permissões de gestão só para Admin) e as dependências das rotas: conta não cadastrada ou não ativa (403), id do token inválido (401), sem permissão (403), cliente sem permissão interna |
 
 Rode os testes antes de cada commit. Toda função nova deve ganhar um teste.
+
+### Testes no VS Code (sem terminal)
+
+O repositório já traz a configuração em `.vscode/`. Com o venv criado e as dependências instaladas:
+
+1. Instale a extensão **Python** (o VS Code sugere ao abrir o projeto).
+2. Escolha o Python do venv: `Ctrl+Shift+P` → **Python: Select Interpreter** → `.venv`.
+3. Abra o painel **Testing** (ícone de frasco na barra lateral) e clique em ▶ para rodar todos os testes, ou no ▶ ao lado de um arquivo ou teste para rodar só ele.
+
+Cada teste aparece com ✅ ou ❌; clicando num teste que falhou, o VS Code mostra o erro na linha do código.
+
+### Testes no GitHub (CI)
+
+O GitHub Actions roda o pytest sozinho a cada push na `main` e em todo Pull Request para a `main` (configuração em `.github/workflows/testes.yml`). Não precisa de terminal nem de `.env`:
+
+- **No Pull Request:** o resultado aparece no fim da página do PR. Verde = todos os testes passaram; vermelho = algum falhou e o PR não deve ser mergeado antes da correção.
+- **Na aba Actions** do repositório: histórico de todas as execuções. Clique em uma execução e depois em `pytest` para ver o resultado de cada teste.
+- **Rodar quando quiser:** aba Actions → **Testes** → **Run workflow**.
+
+O CI usa o mesmo Python do Render (3.14.3). Se a versão mudar no Render, atualize também o `testes.yml`.
 
 ## Estado atual
 
@@ -189,7 +211,7 @@ Rode os testes antes de cada commit. Toda função nova deve ganhar um teste.
 | `Invalid JWKS URI scheme` ao iniciar | `.env` ausente ou `SUPABASE_URL` vazia |
 | `DATABASE_URL não definida no .env` / `DATABASE_URL_DIRECT não definida no .env` | variável do banco ausente no `.env` |
 | No navegador: `blocked by CORS policy` / `No 'Access-Control-Allow-Origin' header` | o endereço do frontend não está em `CORS_ORIGINS` (confira se não sobrou `/` no final) |
-| `DLL load failed while importing pq: Uma política de Controle de Aplicativo bloqueou este arquivo` | o Smart App Control do Windows bloqueou o driver psycopg; a API e o Alembic não rodam nessa máquina enquanto o bloqueio existir |
+| `DLL load failed while importing pq: Uma política de Controle de Aplicativo bloqueou este arquivo` | o Smart App Control do Windows bloqueou o driver psycopg; a API, o Alembic e os testes que usam o banco não rodam nessa máquina enquanto o bloqueio existir; os testes continuam rodando no GitHub (CI) |
 | Alembic trava ou não conecta pela conexão direta | a conexão direta do Supabase usa IPv6; se sua rede não tiver, use o Session pooler (porta 5432) em `DATABASE_URL_DIRECT` |
 | 401 `Token ausente` / `Token inválido: ...` | header `Authorization` não enviado, token expirado ou de outro projeto |
 | `DLL load failed ... nome do arquivo ou a extensão é muito grande` | caminho da pasta longo demais para o Windows; clone o repositório (ou crie o venv) em um caminho mais curto |
