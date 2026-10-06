@@ -1,0 +1,78 @@
+import itertools
+import uuid
+from types import SimpleNamespace
+
+import pytest
+from fastapi.testclient import TestClient
+
+from src.app import app
+from src.database.session import get_db
+from src.middlewares.permissoes import get_usuario_ativo
+from src.repositories import permissao_repository
+
+ID_FUNCIONARIO = uuid.UUID("33333333-3333-3333-3333-333333333333")
+
+
+class SessaoFalsa:
+    """Sessão do SQLAlchemy de mentira: guarda o que foi adicionado e, no refresh,
+    preenche o id e os valores padrão das colunas como o banco faria."""
+
+    def __init__(self, erro_commit=None):
+        self.erro_commit = erro_commit
+        self.adicionados = []
+        self.commits = 0
+        self.rollbacks = 0
+        self._ids = itertools.count(1)
+
+    def add(self, objeto):
+        self.adicionados.append(objeto)
+
+    def add_all(self, objetos):
+        self.adicionados.extend(objetos)
+
+    def flush(self):
+        for objeto in self.adicionados:
+            self.refresh(objeto)
+
+    def commit(self):
+        if self.erro_commit:
+            raise self.erro_commit
+        self.commits += 1
+
+    def rollback(self):
+        self.rollbacks += 1
+
+    def refresh(self, objeto):
+        tabela = objeto.__table__
+        for coluna in tabela.primary_key:
+            if getattr(objeto, coluna.key) is None and coluna.autoincrement in (True, "auto"):
+                setattr(objeto, coluna.key, next(self._ids))
+        for coluna in tabela.columns:
+            if getattr(objeto, coluna.key) is None and coluna.default is not None and coluna.default.is_scalar:
+                setattr(objeto, coluna.key, coluna.default.arg)
+
+
+def funcionario(**campos):
+    dados = dict(id_usuario=ID_FUNCIONARIO, tipo_conta="interna", status_conta="ativa", id_modelo_acesso=1, id_unidade=None)
+    dados.update(campos)
+    return SimpleNamespace(**dados)
+
+
+@pytest.fixture
+def api(monkeypatch):
+    """Cliente da API com banco falso e login simulado.
+
+    api(db) → sem login; api(db, usuario=funcionario()) → logado com todas as permissões;
+    api(db, usuario=..., permitido=False) → logado, sem nenhuma permissão."""
+
+    def montar(db, usuario=None, permitido=True):
+        app.dependency_overrides[get_db] = lambda: db
+        if usuario is not None:
+            app.dependency_overrides[get_usuario_ativo] = lambda: usuario
+            monkeypatch.setattr(permissao_repository, "modelo_eh_admin", lambda db, id_modelo: permitido)
+            monkeypatch.setattr(permissao_repository, "codigos_do_modelo", lambda db, id_modelo: set())
+            monkeypatch.setattr(permissao_repository, "excecoes_do_usuario", lambda db, id_usuario: {})
+        return TestClient(app)
+
+    yield montar
+    app.dependency_overrides.clear()
