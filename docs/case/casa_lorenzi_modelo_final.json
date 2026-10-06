@@ -1,0 +1,688 @@
+{
+  "projeto": {
+    "nome": "Casa Lorenzi — plataforma de estoque, vendas e atendimento",
+    "entrega": "Case de Tech, Trainee Insper Jr. 2026.2 — Entrega 1",
+    "versao": "2026-10-02",
+    "status": "modelo final revisado tecnicamente"
+  },
+  "arquitetura": {
+    "banco": "PostgreSQL no Supabase",
+    "autenticacao": "Supabase Auth",
+    "arquivos": "Supabase Storage",
+    "backend": "FastAPI",
+    "orm": "SQLAlchemy",
+    "migrations": "Alembic",
+    "acesso_a_dados": "Todo acesso da aplicação passa pelo FastAPI",
+    "seguranca": {
+      "rls": "RLS ligado nas tabelas expostas pelo Supabase, sem policies de acesso direto para clientes",
+      "service_role": "Chave de serviço somente no backend",
+      "conexao_backend": "FastAPI via pooler do Supabase",
+      "conexao_migrations": "Alembic via conexão direta",
+      "storage_produtos": "público",
+      "storage_chamados": "privado com links temporários"
+    }
+  },
+  "escopo": {
+    "plataformas": [
+      "interna",
+      "cliente"
+    ],
+    "fora_do_escopo": [
+      "integração com a Vulto",
+      "promoções",
+      "resposta pública da loja a avaliações"
+    ]
+  },
+  "regras_de_negocio": {
+    "catalogo": [
+      "Produto possui variantes de cor e tamanho únicas por produto.",
+      "Peça sem cor ou tamanho usa 'Única' e 'U'.",
+      "Preço fica na variante e não varia por loja.",
+      "Fotos ficam no Supabase Storage e o banco guarda caminho_arquivo, não URL."
+    ],
+    "estoque": [
+      "Estoque é separado por variante, unidade e canal.",
+      "Lojas possuem canais loja_fisica e online; CD possui apenas online.",
+      "Quantidade nunca fica negativa.",
+      "Disponível = quantidade - quantidade_reservada.",
+      "Pedido online e retirada usam estoque online; venda física usa estoque loja_fisica.",
+      "Toda alteração de quantidade gera movimentação imutável.",
+      "Realocação move estoque entre canais da mesma unidade com saída e entrada registradas.",
+      "Estoque mínimo é definido por variante, unidade e canal."
+    ],
+    "transferencia": [
+      "Fluxo: solicitada -> enviada -> recebida.",
+      "Solicitação não reserva estoque na origem.",
+      "Cada item informa canal de saída e canal de entrada.",
+      "Origem e destino devem ser diferentes.",
+      "Cancelamento é permitido antes do envio, com motivo.",
+      "Diferença entre enviado e recebido é registrada como perda ou avaria."
+    ],
+    "vendas": [
+      "Toda venda vira PEDIDO e sai de uma única unidade.",
+      "Venda física nasce entregue, com pagamento aprovado e baixa de estoque no ato.",
+      "Venda online reserva estoque por 15 minutos durante o checkout.",
+      "Estoque baixa quando o pagamento online é aprovado.",
+      "Reserva vencida cancela o pedido e libera o estoque.",
+      "Entrega prioriza CD com todos os itens; depois loja apta por proximidade e estoque.",
+      "Retirada usa estoque online de uma loja escolhida pelo cliente.",
+      "Pedido pode ter múltiplos pagamentos.",
+      "Estorno é lançamento próprio e pode ser parcial."
+    ],
+    "contas": [
+      "Supabase Auth guarda e-mail, senha, links e sessão.",
+      "USUARIO usa o mesmo id de auth.users e guarda dados de negócio e autorização.",
+      "Tipo de conta e permissões ficam no banco da aplicação, não no Auth.",
+      "Cadastro aberto direto no Auth fica desabilitado; contas são criadas pelo backend.",
+      "Cliente entra por e-mail ou CPF; login por CPF é mediado pelo backend.",
+      "Funcionário entra por e-mail corporativo.",
+      "Convite e recuperação de senha são gerenciados pelo Supabase Auth.",
+      "Desativar conta também bloqueia login no Auth."
+    ],
+    "atendimento": [
+      "Somente usuário com conta abre chamado.",
+      "Chamado pode referenciar pedido, item, variante, unidade ou chamado anterior.",
+      "Status: aberto, em_andamento, concluido; sem reabertura.",
+      "Mudanças de status, responsável e prioridade geram histórico imutável.",
+      "Mensagens internas são invisíveis ao cliente.",
+      "Anexos de chamado ficam em Storage privado.",
+      "Troca/devolução é permitida até 30 dias após entrega."
+    ],
+    "avaliacoes": [
+      "Uma avaliação por item de pedido entregue.",
+      "Nota de 1 a 5; texto opcional; até 5 fotos.",
+      "Cliente pode editar por 7 dias e não pode apagar.",
+      "Equipe pode ocultar com motivo.",
+      "Um voto útil por cliente por avaliação.",
+      "Uma denúncia por cliente por avaliação.",
+      "Usuário não pode votar nem denunciar a própria avaliação."
+    ]
+  },
+  "modelo_de_dados": {
+    "quantidade_tabelas_aplicacao": 26,
+    "tabela_externa_referencia": "auth.users",
+    "entidades_extraidas_do_drawio": [
+      {
+        "tabela": "CATEGORIA_PRODUTO",
+        "campos": [
+          "id_categoria (PK)",
+          "nome (UNIQUE)",
+          "ativo"
+        ]
+      },
+      {
+        "tabela": "PRODUTO",
+        "campos": [
+          "id_produto (PK)",
+          "id_categoria (FK)",
+          "nome",
+          "descricao_tecnica",
+          "descricao_cliente",
+          "ativo"
+        ]
+      },
+      {
+        "tabela": "IMAGEM_PRODUTO",
+        "campos": [
+          "id_imagem (PK)",
+          "id_produto (FK)",
+          "cor (nullable)",
+          "caminho_arquivo",
+          "ordem"
+        ]
+      },
+      {
+        "tabela": "VARIANTE",
+        "campos": [
+          "id_variante (PK)",
+          "id_produto (FK)",
+          "sku (UNIQUE)",
+          "cor",
+          "tamanho",
+          "preco",
+          "ativo"
+        ]
+      },
+      {
+        "tabela": "ESTOQUE",
+        "campos": [
+          "id_variante (PK, FK)",
+          "id_unidade (PK, FK)",
+          "canal (PK)",
+          "quantidade",
+          "quantidade_reservada",
+          "estoque_minimo (nullable)",
+          "minimo_alterado_por (FK, nullable)",
+          "minimo_alterado_em (nullable)",
+          "atualizado_em"
+        ]
+      },
+      {
+        "tabela": "UNIDADE",
+        "campos": [
+          "id_unidade (PK)",
+          "nome (UNIQUE)",
+          "tipo",
+          "despacha_online",
+          "rua",
+          "numero",
+          "complemento (nullable)",
+          "bairro",
+          "cidade",
+          "uf",
+          "cep",
+          "ativo"
+        ]
+      },
+      {
+        "tabela": "MOVIMENTACAO_ESTOQUE",
+        "campos": [
+          "id_movimentacao (PK)",
+          "id_variante (FK)",
+          "id_unidade (FK)",
+          "canal",
+          "id_usuario (FK, nullable)",
+          "tipo",
+          "quantidade",
+          "motivo (nullable)",
+          "id_pedido (FK, nullable)",
+          "id_transferencia (FK, nullable)",
+          "id_chamado (FK, nullable)",
+          "criado_em"
+        ]
+      },
+      {
+        "tabela": "TRANSFERENCIA",
+        "campos": [
+          "id_transferencia (PK)",
+          "id_unidade_origem (FK)",
+          "id_unidade_destino (FK)",
+          "status",
+          "id_solicitante (FK)",
+          "id_enviado_por (FK, nullable)",
+          "id_recebido_por (FK, nullable)",
+          "id_cancelado_por (FK, nullable)",
+          "motivo_cancelamento (nullable)",
+          "solicitada_em",
+          "enviada_em (nullable)",
+          "recebida_em (nullable)",
+          "cancelada_em (nullable)"
+        ]
+      },
+      {
+        "tabela": "ITEM_TRANSFERENCIA",
+        "campos": [
+          "id_item_transferencia (PK)",
+          "id_transferencia (FK)",
+          "id_variante (FK)",
+          "canal_saida",
+          "canal_entrada",
+          "quantidade_solicitada",
+          "quantidade_enviada (nullable)",
+          "quantidade_recebida (nullable)"
+        ]
+      },
+      {
+        "tabela": "PAGAMENTO",
+        "campos": [
+          "id_pagamento (PK)",
+          "id_pedido (FK)",
+          "tipo",
+          "id_pagamento_original (FK, nullable)",
+          "id_chamado (FK, nullable)",
+          "metodo",
+          "id_transacao_gateway (UNIQUE, nullable)",
+          "valor",
+          "status",
+          "criado_em",
+          "atualizado_em"
+        ]
+      },
+      {
+        "tabela": "ENDERECO_ENTREGA",
+        "campos": [
+          "id_pedido (PK, FK)",
+          "rua",
+          "numero",
+          "complemento (nullable)",
+          "bairro",
+          "cidade",
+          "uf",
+          "cep"
+        ]
+      },
+      {
+        "tabela": "PEDIDO",
+        "campos": [
+          "id_pedido (PK)",
+          "codigo_venda (UNIQUE)",
+          "id_cliente (FK, nullable)",
+          "id_unidade (FK)",
+          "id_registrado_por (FK, nullable)",
+          "canal",
+          "modalidade (nullable)",
+          "status",
+          "motivo_cancelamento (nullable)",
+          "id_cancelado_por (FK, nullable)",
+          "justificativa_cancelamento (nullable)",
+          "devolucao",
+          "valor_frete",
+          "valor_total",
+          "pronto_retirada_em (nullable)",
+          "reserva_expira_em (nullable)",
+          "entregue_em (nullable)",
+          "cancelado_em (nullable)",
+          "criado_em",
+          "atualizado_em"
+        ]
+      },
+      {
+        "tabela": "ITEM_PEDIDO",
+        "campos": [
+          "id_item (PK)",
+          "id_pedido (FK)",
+          "id_variante (FK)",
+          "quantidade",
+          "preco_unitario"
+        ]
+      },
+      {
+        "tabela": "ENDERECO_CLIENTE",
+        "campos": [
+          "id_endereco (PK)",
+          "id_cliente (FK)",
+          "rua",
+          "numero",
+          "complemento (nullable)",
+          "bairro",
+          "cidade",
+          "uf",
+          "cep"
+        ]
+      },
+      {
+        "tabela": "USUARIO",
+        "campos": [
+          "id_usuario (PK, = auth.users.id)",
+          "nome",
+          "email (UNIQUE, cópia do Auth)",
+          "cpf (UNIQUE, nullable, obrigatório se cliente)",
+          "tipo_conta",
+          "status_conta",
+          "tentativas_ativacao",
+          "id_modelo_acesso (FK, nullable)",
+          "id_unidade (FK, nullable)",
+          "criado_em",
+          "atualizado_em"
+        ]
+      },
+      {
+        "tabela": "MODELO_ACESSO",
+        "campos": [
+          "id_modelo (PK)",
+          "nome (UNIQUE)",
+          "eh_admin",
+          "ativo"
+        ]
+      },
+      {
+        "tabela": "MODELO_PERMISSAO",
+        "campos": [
+          "id_modelo (PK, FK)",
+          "id_permissao (PK, FK)"
+        ]
+      },
+      {
+        "tabela": "PERMISSAO",
+        "campos": [
+          "id_permissao (PK)",
+          "codigo (UNIQUE)",
+          "descricao"
+        ]
+      },
+      {
+        "tabela": "USUARIO_PERMISSAO_EXCECAO",
+        "campos": [
+          "id_usuario (PK, FK)",
+          "id_permissao (PK, FK)",
+          "efeito"
+        ]
+      },
+      {
+        "tabela": "CHAMADO",
+        "campos": [
+          "id_chamado (PK)",
+          "id_cliente (FK)",
+          "id_responsavel (FK, nullable)",
+          "id_unidade (FK, nullable)",
+          "id_pedido (FK, nullable)",
+          "id_item_pedido (FK, nullable)",
+          "id_variante (FK, nullable)",
+          "id_chamado_anterior (FK, nullable)",
+          "categoria",
+          "assunto",
+          "descricao",
+          "status",
+          "prioridade (nullable)",
+          "motivo_encerramento (nullable)",
+          "criado_em",
+          "atualizado_em",
+          "assumido_em (nullable)",
+          "concluido_em (nullable)"
+        ]
+      },
+      {
+        "tabela": "MENSAGEM",
+        "campos": [
+          "id_mensagem (PK)",
+          "id_chamado (FK)",
+          "id_autor (FK)",
+          "conteudo (nullable)",
+          "anexo_caminho (nullable)",
+          "anexo_nome (nullable)",
+          "anexo_tamanho (nullable)",
+          "interna",
+          "lida_em (nullable)",
+          "criado_em"
+        ]
+      },
+      {
+        "tabela": "HISTORICO_CHAMADO",
+        "campos": [
+          "id_historico (PK)",
+          "id_chamado (FK)",
+          "id_autor (FK)",
+          "campo_alterado",
+          "valor_anterior (nullable)",
+          "valor_novo",
+          "criado_em"
+        ]
+      },
+      {
+        "tabela": "AVALIACAO",
+        "campos": [
+          "id_avaliacao (PK)",
+          "id_item_pedido (FK, UNIQUE)",
+          "nota",
+          "texto (nullable)",
+          "status",
+          "motivo_ocultacao (nullable)",
+          "id_ocultada_por (FK, nullable)",
+          "ocultada_em (nullable)",
+          "criada_em",
+          "editada_em (nullable)"
+        ]
+      },
+      {
+        "tabela": "FOTO_AVALIACAO",
+        "campos": [
+          "id_foto (PK)",
+          "id_avaliacao (FK)",
+          "caminho_arquivo",
+          "ordem"
+        ]
+      },
+      {
+        "tabela": "VOTO_UTIL",
+        "campos": [
+          "id_avaliacao (PK, FK)",
+          "id_cliente (PK, FK)",
+          "criado_em"
+        ]
+      },
+      {
+        "tabela": "DENUNCIA_AVALIACAO",
+        "campos": [
+          "id_denuncia (PK)",
+          "id_avaliacao (FK)",
+          "id_cliente (FK)",
+          "motivo",
+          "status",
+          "id_analisada_por (FK, nullable)",
+          "analisada_em (nullable)",
+          "criada_em"
+        ]
+      },
+      {
+        "tabela": "auth.users (Supabase Auth)",
+        "campos": [
+          "id (PK)",
+          "email, senha, sessão",
+          "gerenciada pelo Supabase"
+        ]
+      }
+    ],
+    "relacionamentos_extraidos_do_drawio": [
+      {
+        "de": "CATEGORIA_PRODUTO",
+        "para": "PRODUTO"
+      },
+      {
+        "de": "PRODUTO",
+        "para": "VARIANTE"
+      },
+      {
+        "de": "PRODUTO",
+        "para": "IMAGEM_PRODUTO"
+      },
+      {
+        "de": "VARIANTE",
+        "para": "ESTOQUE"
+      },
+      {
+        "de": "UNIDADE",
+        "para": "ESTOQUE"
+      },
+      {
+        "de": "ESTOQUE",
+        "para": "MOVIMENTACAO_ESTOQUE"
+      },
+      {
+        "de": "UNIDADE",
+        "para": "TRANSFERENCIA"
+      },
+      {
+        "de": "TRANSFERENCIA",
+        "para": "ITEM_TRANSFERENCIA"
+      },
+      {
+        "de": "VARIANTE",
+        "para": "ITEM_TRANSFERENCIA"
+      },
+      {
+        "de": "TRANSFERENCIA",
+        "para": "MOVIMENTACAO_ESTOQUE"
+      },
+      {
+        "de": "PEDIDO",
+        "para": "MOVIMENTACAO_ESTOQUE"
+      },
+      {
+        "de": "CHAMADO",
+        "para": "MOVIMENTACAO_ESTOQUE"
+      },
+      {
+        "de": "UNIDADE",
+        "para": "PEDIDO"
+      },
+      {
+        "de": "USUARIO",
+        "para": "PEDIDO"
+      },
+      {
+        "de": "PEDIDO",
+        "para": "ITEM_PEDIDO"
+      },
+      {
+        "de": "VARIANTE",
+        "para": "ITEM_PEDIDO"
+      },
+      {
+        "de": "PEDIDO",
+        "para": "PAGAMENTO"
+      },
+      {
+        "de": "PEDIDO",
+        "para": "ENDERECO_ENTREGA"
+      },
+      {
+        "de": "USUARIO",
+        "para": "ENDERECO_CLIENTE"
+      },
+      {
+        "de": "MODELO_ACESSO",
+        "para": "USUARIO"
+      },
+      {
+        "de": "MODELO_ACESSO",
+        "para": "MODELO_PERMISSAO"
+      },
+      {
+        "de": "PERMISSAO",
+        "para": "MODELO_PERMISSAO"
+      },
+      {
+        "de": "USUARIO",
+        "para": "USUARIO_PERMISSAO_EXCECAO"
+      },
+      {
+        "de": "PERMISSAO",
+        "para": "USUARIO_PERMISSAO_EXCECAO"
+      },
+      {
+        "de": "USUARIO",
+        "para": "CHAMADO"
+      },
+      {
+        "de": "PEDIDO",
+        "para": "CHAMADO"
+      },
+      {
+        "de": "ITEM_PEDIDO",
+        "para": "CHAMADO"
+      },
+      {
+        "de": "VARIANTE",
+        "para": "CHAMADO"
+      },
+      {
+        "de": "UNIDADE",
+        "para": "CHAMADO"
+      },
+      {
+        "de": "CHAMADO",
+        "para": "CHAMADO"
+      },
+      {
+        "de": "CHAMADO",
+        "para": "MENSAGEM"
+      },
+      {
+        "de": "USUARIO",
+        "para": "MENSAGEM"
+      },
+      {
+        "de": "CHAMADO",
+        "para": "HISTORICO_CHAMADO"
+      },
+      {
+        "de": "ITEM_PEDIDO",
+        "para": "AVALIACAO"
+      },
+      {
+        "de": "AVALIACAO",
+        "para": "FOTO_AVALIACAO"
+      },
+      {
+        "de": "AVALIACAO",
+        "para": "VOTO_UTIL"
+      },
+      {
+        "de": "USUARIO",
+        "para": "VOTO_UTIL"
+      },
+      {
+        "de": "AVALIACAO",
+        "para": "DENUNCIA_AVALIACAO"
+      },
+      {
+        "de": "USUARIO",
+        "para": "DENUNCIA_AVALIACAO"
+      },
+      {
+        "de": "auth.users (Supabase Auth)",
+        "para": "USUARIO"
+      },
+      {
+        "de": "PAGAMENTO",
+        "para": "PAGAMENTO"
+      },
+      {
+        "de": "CHAMADO",
+        "para": "PAGAMENTO"
+      }
+    ]
+  },
+  "decisoes_chave": [
+    {
+      "decisao": "Toda alteração de estoque gera movimentação",
+      "motivo": "Preservar histórico completo da quantidade."
+    },
+    {
+      "decisao": "Transferência entre unidades possui etapas",
+      "motivo": "Controlar mercadoria em trânsito."
+    },
+    {
+      "decisao": "CD é um tipo de unidade",
+      "motivo": "Evitar estrutura paralela e reutilizar o fluxo de estoque."
+    },
+    {
+      "decisao": "Estoque separado por canal",
+      "motivo": "Evitar que vendas online consumam o estoque destinado à loja física."
+    },
+    {
+      "decisao": "Reserva de estoque por 15 minutos no checkout",
+      "motivo": "Evitar aprovação de pagamento sem disponibilidade, especialmente em Pix."
+    },
+    {
+      "decisao": "Estorno é um lançamento próprio",
+      "motivo": "Permitir estorno parcial e manter histórico financeiro."
+    },
+    {
+      "decisao": "Supabase Auth para autenticação e banco da aplicação para autorização",
+      "motivo": "Não duplicar senha/tokens e manter regras de negócio fora dos metadados do Auth."
+    },
+    {
+      "decisao": "Permissões por modelo de acesso com exceções individuais",
+      "motivo": "Permitir flexibilidade sem alterar o schema."
+    },
+    {
+      "decisao": "Uma tabela USUARIO para contas internas e clientes",
+      "motivo": "Unificar autoria e relacionamentos entre as duas plataformas."
+    },
+    {
+      "decisao": "Avaliação ligada ao item do pedido",
+      "motivo": "Garantir avaliação apenas por quem recebeu o produto."
+    }
+  ],
+  "integracao_vulto": {
+    "status": "fora do escopo atual",
+    "ja_suportado": [
+      "Funcionários podem entrar como contas internas.",
+      "Lojas e CDs podem entrar como novas unidades."
+    ],
+    "a_decidir": [
+      "Campo de marca/empresa em UNIDADE, PRODUTO e talvez USUARIO.",
+      "Estratégia de unificação de clientes entre bases."
+    ]
+  },
+  "evolucoes_futuras": [
+    "reabastecimento automático",
+    "completar retirada por transferência",
+    "troca com envio para casa"
+  ],
+  "fontes": {
+    "documento": "Casa Lorenzi_Modelo de Dados.docx",
+    "diagrama": "Diagrama_bancodedados_final.drawio"
+  }
+}
