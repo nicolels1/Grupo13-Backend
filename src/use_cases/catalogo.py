@@ -1,5 +1,4 @@
 import uuid
-from datetime import datetime
 
 from sqlalchemy.orm import Session
 
@@ -7,7 +6,8 @@ from src.models.catalogo import CategoriaProduto, HistoricoPreco, Produto, Varia
 from src.repositories import catalogo_repository as repo
 from src.repositories import estoque_repository
 from src.use_cases.erros import Conflito, RecursoNaoEncontrado, RegraDeNegocio
-from src.use_cases.estoque import _validar_local
+from src.use_cases.permissoes import usuario_tem_permissao
+from src.use_cases.estoque import interpretar_momento, validar_local
 
 
 def _categoria_ou_404(db: Session, id_categoria: int) -> CategoriaProduto:
@@ -67,28 +67,38 @@ def _conferir_categoria(db: Session, id_categoria: int) -> None:
         raise RegraDeNegocio("Categoria desativada")
 
 
-def montar_produto(produto: Produto, variantes: list[Variante]) -> dict:
+# visão pública (vitrine): só produtos ativos de categorias ativas, só variantes ativas e sem a
+# descrição técnica. Quem gerencia o catálogo vê tudo, inclusive o que está desativado
+def visao_publica(db: Session, usuario) -> bool:
+    return usuario is None or not usuario_tem_permissao(db, usuario, "gerenciar_catalogo")
+
+
+def montar_produto(produto: Produto, variantes: list[Variante], publico: bool = False) -> dict:
     return {
         "id_produto": produto.id_produto,
         "id_categoria": produto.id_categoria,
         "nome": produto.nome,
-        "descricao_tecnica": produto.descricao_tecnica,
+        "descricao_tecnica": None if publico else produto.descricao_tecnica,
         "descricao_cliente": produto.descricao_cliente,
         "ativo": produto.ativo,
-        "variantes": variantes,
+        "variantes": [v for v in variantes if v.ativo] if publico else variantes,
     }
 
 
-def listar_produtos(db: Session, limit: int, offset: int, **filtros) -> dict:
+def listar_produtos(db: Session, limit: int, offset: int, publico: bool = False, **filtros) -> dict:
+    if publico:
+        filtros.update(ativo=True, categoria_ativa=True)
     produtos, total = repo.listar_produtos(db, limit, offset, **filtros)
     variantes = repo.variantes_dos_produtos(db, [p.id_produto for p in produtos])
-    itens = [montar_produto(p, variantes[p.id_produto]) for p in produtos]
+    itens = [montar_produto(p, variantes[p.id_produto], publico) for p in produtos]
     return {"items": itens, "total": total, "limit": limit, "offset": offset}
 
 
-def buscar_produto(db: Session, id_produto: int) -> dict:
+def buscar_produto(db: Session, id_produto: int, publico: bool = False) -> dict:
     produto = _produto_ou_404(db, id_produto)
-    return montar_produto(produto, repo.variantes_dos_produtos(db, [id_produto])[id_produto])
+    if publico and (not produto.ativo or not repo.buscar_categoria(db, produto.id_categoria).ativo):
+        raise RecursoNaoEncontrado("Produto não encontrado")
+    return montar_produto(produto, repo.variantes_dos_produtos(db, [id_produto])[id_produto], publico)
 
 
 def _conferir_variantes_novas(db: Session, id_produto: int | None, variantes: list[dict]) -> None:
@@ -116,7 +126,7 @@ def _criar_variante(db: Session, id_produto: int, id_usuario: uuid.UUID, dados: 
     db.flush()
     db.add(HistoricoPreco(id_variante=variante.id_variante, preco_novo=variante.preco, id_alterado_por=id_usuario))
     for carga in estoque_inicial:
-        _validar_local(db, variante.id_variante, carga["id_unidade"], carga["canal"])
+        validar_local(db, variante.id_variante, carga["id_unidade"], carga["canal"])
         estoque_repository.inserir_movimentacao(
             db, id_variante=variante.id_variante, id_unidade=carga["id_unidade"], canal=carga["canal"],
             tipo="saldo_inicial", quantidade=carga["quantidade"], id_usuario=id_usuario,
@@ -178,6 +188,8 @@ def alterar_variante(db: Session, id_variante: int, id_usuario: uuid.UUID, campo
     return variante
 
 
-def historico_preco(db: Session, id_variante: int, em: datetime | None) -> list[HistoricoPreco]:
+# data sem hora vale o fim do dia em Brasília, como no histórico de estoque (case, seção 5)
+def historico_preco(db: Session, id_variante: int, em: str | None) -> list[HistoricoPreco]:
     _variante_ou_404(db, id_variante)
-    return repo.historico_preco(db, id_variante, em)
+    momento = interpretar_momento(em) if em else None
+    return repo.historico_preco(db, id_variante, momento)

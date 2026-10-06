@@ -68,6 +68,22 @@ class EstoqueHistoricoItem(BaseModel):
     quantidade: int
 
 
+class EmTransitoItem(BaseModel):
+    id_transferencia: int
+    id_variante: int
+    sku: str
+    produto: str
+    cor: str
+    tamanho: str
+    id_unidade_origem: int
+    origem: str
+    id_unidade_destino: int
+    destino: str
+    canal_entrada: Canal
+    quantidade: int
+    enviada_em: datetime
+
+
 class MovimentacaoSaida(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

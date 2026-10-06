@@ -1,11 +1,11 @@
 from datetime import datetime
 
 from sqlalchemy import Select, and_, func, literal_column, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from src.models.catalogo import Produto, Variante
 from src.models.contas import Usuario
-from src.models.estoque import Estoque, MovimentacaoEstoque, Unidade
+from src.models.estoque import Estoque, ItemTransferencia, MovimentacaoEstoque, Transferencia, Unidade
 
 FUSO = "America/Sao_Paulo"
 UNIDADE_DO_POSTGRES = {"hora": "hour", "dia": "day", "semana": "week"}
@@ -221,3 +221,40 @@ def consulta_divergencias() -> Select:
 
 def listar_divergencias(db: Session) -> list:
     return list(db.execute(consulta_divergencias()).mappings().all())
+
+
+# ---------- peças em trânsito: enviadas e ainda não recebidas naquele momento ----------
+
+Origem = aliased(Unidade, name="origem")
+Destino = aliased(Unidade, name="destino")
+
+
+def consulta_em_transito(em: datetime, id_variante=None, id_unidade=None, busca=None) -> Select:
+    i, t = ItemTransferencia, Transferencia
+    consulta = (
+        select(
+            t.id_transferencia, i.id_variante, Variante.sku, Produto.nome.label("produto"), Variante.cor,
+            Variante.tamanho, t.id_unidade_origem, Origem.nome.label("origem"), t.id_unidade_destino,
+            Destino.nome.label("destino"), i.canal_entrada, i.quantidade_enviada.label("quantidade"), t.enviada_em,
+        )
+        .join(t, t.id_transferencia == i.id_transferencia)
+        .join(Variante, Variante.id_variante == i.id_variante)
+        .join(Produto, Produto.id_produto == Variante.id_produto)
+        .join(Origem, Origem.id_unidade == t.id_unidade_origem)
+        .join(Destino, Destino.id_unidade == t.id_unidade_destino)
+        # a saída já aconteceu e a entrada ainda não (no recebimento entra o total enviado)
+        .where(t.enviada_em <= em, or_(t.recebida_em.is_(None), t.recebida_em > em), i.quantidade_enviada > 0)
+        .order_by(t.enviada_em, t.id_transferencia, Produto.nome, Variante.cor, Variante.tamanho)
+    )
+    if id_variante is not None:
+        consulta = consulta.where(i.id_variante == id_variante)
+    if id_unidade is not None:
+        consulta = consulta.where(or_(t.id_unidade_origem == id_unidade, t.id_unidade_destino == id_unidade))
+    if busca:
+        padrao = f"%{busca}%"
+        consulta = consulta.where(or_(Variante.sku.ilike(padrao), Produto.nome.ilike(padrao)))
+    return consulta
+
+
+def listar_em_transito(db: Session, em: datetime, **filtros) -> list:
+    return list(db.execute(consulta_em_transito(em, **filtros)).mappings().all())

@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
@@ -9,7 +7,7 @@ from src.entities.catalogo import (
     ProdutoSaida, VarianteAlterar, VarianteCriar, VarianteSaida,
 )
 from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Lista, Pagina, campos_alterados
-from src.middlewares.permissoes import exige_permissao
+from src.middlewares.permissoes import exige_permissao, get_usuario_opcional
 from src.models.contas import Usuario
 from src.repositories import catalogo_repository
 from src.use_cases import catalogo
@@ -55,22 +53,29 @@ ERROS_PRODUTO = {
 }
 
 
-# público: a vitrine pede ativo=true; a plataforma interna vê todos. Lista paginada
+# público. Sem login (ou sem gerenciar_catalogo): só produtos e variantes ativos, sem a descrição
+# técnica, e o filtro "ativo" é ignorado. Com gerenciar_catalogo: tudo, e "ativo" filtra. Lista paginada
 @router.get("/produtos", response_model=Pagina[ProdutoSaida])
 def listar_produtos(
     id_categoria: int | None = None,
-    ativo: bool | None = None,
+    ativo: bool | None = Query(default=None, description="Só para quem gerencia o catálogo"),
     busca: str | None = Query(default=None, max_length=100, description="Parte do nome do produto"),
     limit: int = Query(LIMITE_PADRAO, ge=1, le=LIMITE_MAXIMO),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
+    usuario: Usuario | None = Depends(get_usuario_opcional),
 ):
-    return catalogo.listar_produtos(db, limit, offset, id_categoria=id_categoria, ativo=ativo, busca=busca)
+    return catalogo.listar_produtos(
+        db, limit, offset, publico=catalogo.visao_publica(db, usuario),
+        id_categoria=id_categoria, ativo=ativo, busca=busca,
+    )
 
 
 @router.get("/produtos/{id_produto}", response_model=ProdutoSaida, responses={404: ERROS_PRODUTO[404]})
-def buscar_produto(id_produto: int, db: Session = Depends(get_db)):
-    return catalogo.buscar_produto(db, id_produto)
+def buscar_produto(
+    id_produto: int, db: Session = Depends(get_db), usuario: Usuario | None = Depends(get_usuario_opcional)
+):
+    return catalogo.buscar_produto(db, id_produto, publico=catalogo.visao_publica(db, usuario))
 
 
 @router.post("/produtos", status_code=status.HTTP_201_CREATED, response_model=ProdutoSaida, responses=ERROS_PRODUTO)
@@ -125,7 +130,9 @@ def alterar_variante(
 )
 def historico_preco(
     id_variante: int,
-    em: datetime | None = None,
+    em: str | None = Query(
+        default=None, description="AAAA-MM-DD (fim do dia) ou AAAA-MM-DDTHH:MM, no horário de Brasília"
+    ),
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(exige_permissao("gerenciar_catalogo")),
 ):
