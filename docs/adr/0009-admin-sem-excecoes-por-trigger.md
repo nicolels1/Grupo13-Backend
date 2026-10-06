@@ -1,6 +1,6 @@
 # Admin sem exceções de permissão, garantido por trigger
 
-Substitui o ADR 0007.
+Substitui o ADR 0007. **Atualizado pelo ADR 0010:** o Admin passa a recusar só exceção de retirada.
 
 **Contexto:** o Admin tem todas as permissões, inclusive futuras, e não aceita exceções. O ADR 0007 deixava a regra só no backend, mas a divisão de tarefas da Entrega 2 define que regras entre tabelas ficam em trigger. A regra pode ser quebrada por três caminhos: criar uma exceção para quem já é Admin, trocar para o modelo Admin uma pessoa que já tem exceções, ou marcar um modelo como admin.
 

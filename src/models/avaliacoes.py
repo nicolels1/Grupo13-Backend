@@ -30,7 +30,8 @@ class Avaliacao(Base):
         CheckConstraint("nota BETWEEN 1 AND 5", name="nota_de_1_a_5"),
         CheckConstraint("status IN ('publicada', 'oculta')", name="status_valido"),
         CheckConstraint(
-            "status <> 'oculta' OR (motivo_ocultacao IS NOT NULL AND id_ocultada_por IS NOT NULL)",
+            "status <> 'oculta' OR (motivo_ocultacao IS NOT NULL AND id_ocultada_por IS NOT NULL "
+            "AND ocultada_em IS NOT NULL)",
             name="oculta_exige_motivo",
         ),
     )
