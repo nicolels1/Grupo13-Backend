@@ -18,12 +18,12 @@ class SessaoFalsa:
     """Sessão do SQLAlchemy de mentira: guarda o que foi adicionado e, no refresh,
     preenche o id e os valores padrão das colunas como o banco faria."""
 
-    def __init__(self, erro_commit=None):
+    def __init__(self, erro_commit=None, primeiro_id=1):
         self.erro_commit = erro_commit
         self.adicionados = []
         self.commits = 0
         self.rollbacks = 0
-        self._ids = itertools.count(1)
+        self._ids = itertools.count(primeiro_id)
 
     def add(self, objeto):
         self.adicionados.append(objeto)
