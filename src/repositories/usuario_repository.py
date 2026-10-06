@@ -15,14 +15,16 @@ def email_em_uso(db: Session, email: str) -> bool:
     return db.scalar(select(Usuario.id_usuario).where(Usuario.email == email)) is not None
 
 
+# o login fica no Supabase Auth (schema auth), que o usuário restrito da API não lê: as duas
+# funções do banco (migration 56799f788354) respondem só o que a API precisa
+
 # id do login no Supabase Auth com esse e-mail, se já existir
 def buscar_login(db: Session, email: str) -> uuid.UUID | None:
-    return db.scalar(text("SELECT id FROM auth.users WHERE lower(email) = :email"), {"email": email})
+    return db.scalar(text("SELECT login_por_email(:email)"), {"email": email})
 
 
 def login_confirmado(db: Session, id_usuario: uuid.UUID) -> bool:
-    consulta = text("SELECT email_confirmed_at IS NOT NULL FROM auth.users WHERE id = :id")
-    return bool(db.scalar(consulta, {"id": id_usuario}))
+    return bool(db.scalar(text("SELECT login_confirmado(:id)"), {"id": id_usuario}))
 
 
 def cpf_em_uso(db: Session, cpf: str) -> bool:

@@ -44,15 +44,15 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 - Todas as tabelas com RLS ligado e sem regra de acesso para os papéis públicos do Supabase: nada sai pela API automática.
 - **Duas camadas de proteção:**
   - **Triggers no banco** (já implementados): recusam editar movimentações, históricos e o saldo do estoque direto, e garantem as regras do Admin (inclusive Gestão só no Admin), do CD, do estorno e do item do chamado. Valem para qualquer caminho, inclusive o painel do Supabase (ADRs 0009 e 0010).
-  - **Usuário de banco restrito para o FastAPI** (⚠️ pendente — precisa ser resolvido; ver seção 10): não pode apagar dados (exceto endereços salvos do cliente), nem editar movimentações, histórico de chamados e histórico de preço, nem alterar o saldo do estoque direto. Terá uma regra de RLS que libera só ele. As migrations continuam com o usuário completo. O trigger que atualiza o saldo roda como `SECURITY DEFINER`.
-- **Situação em 05/10/2026:** o FastAPI ainda conecta com o usuário dono do banco, que passa por cima do RLS; por isso nenhuma regra de RLS foi criada ainda. Faltam o usuário restrito e o teste de divergência de estoque. Os triggers do saldo e da Gestão e o `SECURITY DEFINER` (migration `e08fd1b28bcf`) foram aplicados no banco em 06/10/2026.
+  - **Usuário de banco restrito para o FastAPI** (`api_casalorenzi`, migration `56799f788354`): não pode apagar dados, exceto endereços salvos do cliente e as duas tabelas de ligação da Gestão (`modelo_permissao` e `usuario_permissao_excecao`: tirar uma permissão de um modelo ou remover uma exceção apaga a linha que liga um ao outro). Também não edita movimentações, histórico de chamados e histórico de preço, não altera o saldo do estoque direto e só lê a lista de permissões. Uma regra de RLS em cada tabela libera só ele. Ele não lê o `auth.users`: duas funções do banco respondem só o que a Gestão precisa (se um e-mail já tem login e se o login foi confirmado). As migrations continuam com o usuário completo. O trigger que atualiza o saldo roda como `SECURITY DEFINER`.
+- **Situação em 06/10/2026:** os triggers do saldo e da Gestão e o `SECURITY DEFINER` (migration `e08fd1b28bcf`) estão aplicados. O usuário restrito está na migration `56799f788354`; depois de aplicada, falta definir a senha dele e trocar a `DATABASE_URL` (ver seção 10). O script `scripts/conferir_banco.py` confere, no banco de verdade, que as garantias valem.
 - A chave de serviço do Supabase fica só no backend.
 - FastAPI conecta pelo pooler; migrations do Alembic usam conexão direta.
 - Nenhuma chamada externa (pagamento, e-mail, Storage) dentro de transação de banco.
 - Ao baixar várias peças, o estoque é travado sempre na mesma ordem (evita deadlock).
 - Fotos de produto em área pública do Storage; anexos de chamado em área privada, com link temporário.
 - E-mails do Auth saem por servidor de e-mail próprio (o padrão do Supabase envia pouquíssimos por hora).
-- **Deploy acordado:** o plano gratuito do Render desliga o backend após 15 minutos sem tráfego. Um serviço externo deve chamar a rota `/health` (que faz uma consulta simples ao banco) a cada 10 minutos, mantendo backend e banco ativos (⚠️ ainda não configurado; ver seção 10); além disso, o site é aberto antes da banca.
+- **Deploy:** o plano gratuito do Render desliga o backend após 15 minutos sem tráfego; o site é aberto antes da banca para acordá-lo.
 
 ---
 
@@ -103,7 +103,7 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 - Histórico de estoque calculado somando as movimentações até a data e hora pedidas, **sem snapshot**.
 - Carga inicial do estoque como movimentação do tipo `saldo_inicial`.
 - Saldo de ESTOQUE atualizado por **trigger** a cada movimentação (criando a linha se não existir), com saldo nunca negativo. O backend só insere movimentações e não tem permissão para alterar o saldo.
-- Uma consulta de conferência (divergência de estoque) prova que saldo e movimentações batem, verificada por teste. (⚠️ pendente — precisa ser resolvido; ver seção 10)
+- Uma consulta de conferência (divergência de estoque, rota `GET /estoque/divergencias`) prova que saldo e movimentações batem; o script `scripts/conferir_banco.py` a roda no banco de verdade e confere que fica vazia.
 - Peças em trânsito aparecem separadas na consulta da rede.
 - Histórico de preço em tabela própria (HISTORICO_PRECO), registrado também na criação da variante.
 - Pedido ganha `pago_em` e `enviado_em`.
@@ -418,7 +418,6 @@ Decisões já tomadas que ainda não foram implementadas ou confirmadas. Cada um
 
 | # | Pendência | O que falta | Situação |
 | --- | --- | --- | --- |
-| 1 | Usuário de banco restrito para o FastAPI | Criar o usuário com as permissões da seção 2, a regra de RLS que libera só ele, e trocar a `DATABASE_URL` no `.env` e no Render | ⚠️ Pendente — a API ainda conecta com o usuário dono do banco |
-| 2 | Trigger do saldo compatível com o usuário restrito | Migration `e08fd1b28bcf` aplicada: o trigger do saldo roda como `SECURITY DEFINER` e o bloqueio do saldo deixa passar só a atualização vinda de uma movimentação. Falta testar com o usuário restrito | ⚠️ Pendente — testar junto com o item 1 |
-| 3 | Conferência de divergência de estoque | Criar a consulta que compara o saldo com a soma das movimentações e o teste que garante que ela fica vazia | ⚠️ Pendente |
-| 4 | Ping do deploy | Configurar o serviço externo que chama `/health` a cada 10 minutos | ⚠️ Pendente — ainda não configurado |
+| 1 | Usuário de banco restrito para o FastAPI | Migration `56799f788354` cria o usuário, as permissões da seção 2 e a regra de RLS que libera só ele. Falta aplicar (`alembic upgrade head`), definir a senha no Supabase e trocar a `DATABASE_URL` no `.env` e no Render | ⚠️ Código pronto — falta aplicar e trocar a conexão |
+| 2 | Trigger do saldo compatível com o usuário restrito | O trigger do saldo roda como `SECURITY DEFINER` (migration `e08fd1b28bcf`). `scripts/conferir_banco.py` confere, com o usuário restrito, que a movimentação atualiza o saldo e que o saldo não muda direto | ⚠️ Rodar o script depois do item 1 |
+| 3 | Conferência de divergência de estoque | Rota `GET /estoque/divergencias`; `scripts/conferir_banco.py` confere no banco de verdade que ela fica vazia | ⚠️ Rodar o script depois do item 1 |
