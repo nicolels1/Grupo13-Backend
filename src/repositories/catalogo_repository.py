@@ -25,9 +25,15 @@ def categoria_por_nome(db: Session, nome: str) -> CategoriaProduto | None:
 # ---------- produto e variante ----------
 
 # uma página de produtos e o total; busca no nome sem diferenciar maiúsculas
+# categoria_ativa=True: só produtos de categorias ativas (visão pública)
 def listar_produtos(db: Session, limit: int, offset: int, id_categoria: int | None = None,
-                    ativo: bool | None = None, busca: str | None = None) -> tuple[list[Produto], int]:
+                    ativo: bool | None = None, busca: str | None = None,
+                    categoria_ativa: bool | None = None) -> tuple[list[Produto], int]:
     consulta = select(Produto)
+    if categoria_ativa is not None:
+        consulta = consulta.join(CategoriaProduto, CategoriaProduto.id_categoria == Produto.id_categoria).where(
+            CategoriaProduto.ativo == categoria_ativa
+        )
     if id_categoria is not None:
         consulta = consulta.where(Produto.id_categoria == id_categoria)
     if ativo is not None:

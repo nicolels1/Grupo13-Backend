@@ -117,7 +117,7 @@ class ProdutoSaida(BaseModel):
     id_produto: int
     id_categoria: int
     nome: str
-    descricao_tecnica: str
+    descricao_tecnica: str | None = Field(description="Só para quem gerencia o catálogo; vazia na visão pública")
     descricao_cliente: str
     ativo: bool
     variantes: list[VarianteSaida]

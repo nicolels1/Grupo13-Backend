@@ -1,7 +1,7 @@
 import logging
 import uuid
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
@@ -29,6 +29,16 @@ def get_usuario_ativo(
     if usuario.status_conta != "ativa":
         raise HTTPException(status_code=403, detail="Conta não está ativa")
     return usuario
+
+
+# rota pública que mostra mais para quem está logado: sem o header, ninguém (None);
+# com header, o token precisa ser válido e a conta ativa, como nas rotas protegidas
+def get_usuario_opcional(
+    authorization: str | None = Header(None), db: Session = Depends(get_db)
+) -> Usuario | None:
+    if authorization is None:
+        return None
+    return get_usuario_ativo(get_current_user(authorization), db)
 
 
 # uso: usuario: Usuario = Depends(exige_permissao("movimentar_estoque"))
