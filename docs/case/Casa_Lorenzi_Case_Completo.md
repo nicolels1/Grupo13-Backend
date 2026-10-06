@@ -19,7 +19,7 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 - **Artefatos do projeto:**
   - Diagrama do banco: `Diagrama_bancodedados_final.drawio`
   - Documento do modelo: "Casa Lorenzi — Modelo de Dados" (Claude Doc / .docx)
-  - Termos em `CONTEXT.md`; decisões difíceis de reverter em `docs/adr/`; tipos e restrições em `casa_lorenzi_modelo.json`
+  - Termos em `CONTEXT.md`; decisões difíceis de reverter em `docs/adr/`; campos e regras em [`casa_lorenzi_modelo_final.json`](casa_lorenzi_modelo_final.json)
   - Figma: `figma.com/design/XesoVjQIAf04Vu5I5A02CY`
 
 ---

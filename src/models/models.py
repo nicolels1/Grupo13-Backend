@@ -23,7 +23,9 @@ class Usuario(Base):
     id_modelo_acesso: Mapped[int | None] = mapped_column(
         ForeignKey("modelo_acesso.id_modelo", ondelete="RESTRICT")
     )
-    id_unidade: Mapped[int | None] = mapped_column()  # a FK entra quando existir o model Unidade
+    id_unidade: Mapped[int | None] = mapped_column(
+        ForeignKey("unidade.id_unidade", ondelete="RESTRICT")
+    )
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     atualizado_em: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
