@@ -41,3 +41,11 @@ def buscar_modelo(db: Session, id_modelo: int) -> ModeloAcesso | None:
 
 def todos_os_codigos(db: Session) -> set[str]:
     return set(db.scalars(select(Permissao.codigo)))
+
+
+def buscar_permissao(db: Session, codigo: str) -> Permissao | None:
+    return db.scalar(select(Permissao).where(Permissao.codigo == codigo))
+
+
+def buscar_excecao(db: Session, id_usuario: uuid.UUID, id_permissao: int) -> UsuarioPermissaoExcecao | None:
+    return db.get(UsuarioPermissaoExcecao, (id_usuario, id_permissao))

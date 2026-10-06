@@ -16,8 +16,8 @@ logger = logging.getLogger(__name__)
 LOGIN_INVALIDO = "CPF ou senha inválidos"
 
 
-# respostas do Supabase Auth viram erros com mensagem para o usuário
-def _traduzir_erro_auth(erro: ErroSupabase) -> ErroNegocio:
+# respostas do Supabase Auth viram erros com mensagem para o usuário (usado também na Gestão)
+def traduzir_erro_auth(erro: ErroSupabase) -> ErroNegocio:
     if erro.codigo == "email_exists":
         return Conflito("E-mail já cadastrado")
     if erro.codigo == "weak_password":
@@ -41,7 +41,7 @@ def cadastrar_cliente(db: Session, auth, nome: str, email: str, cpf: str, senha:
     try:
         id_usuario = auth.criar_login(email, senha)
     except ErroSupabase as erro:
-        raise _traduzir_erro_auth(erro)
+        raise traduzir_erro_auth(erro)
 
     usuario = Usuario(
         id_usuario=id_usuario,
@@ -77,7 +77,7 @@ def entrar_com_cpf(db: Session, auth_login, cpf: str, senha: str) -> dict:
     except ErroSupabase as erro:
         if erro.status in (400, 401):
             raise NaoAutenticado(LOGIN_INVALIDO)
-        raise _traduzir_erro_auth(erro)
+        raise traduzir_erro_auth(erro)
 
     if usuario.status_conta != "ativa":
         raise SemPermissao("Conta não está ativa")
