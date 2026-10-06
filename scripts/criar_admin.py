@@ -6,7 +6,9 @@
 from getpass import getpass
 
 from src.database.session import SessionLocal
-from src.use_cases.criar_admin import ErroCriarAdmin, buscar_login, criar_admin
+from src.repositories.usuario_repository import buscar_login
+from src.use_cases.criar_admin import criar_admin
+from src.use_cases.erros import ErroNegocio
 from src.utils.supabase_admin import ErroSupabase, SupabaseAdmin
 
 
@@ -27,7 +29,7 @@ def main() -> None:
 
         try:
             usuario = criar_admin(db, SupabaseAdmin(), nome, email, senha)
-        except (ErroCriarAdmin, ErroSupabase) as erro:
+        except (ErroNegocio, ErroSupabase) as erro:
             raise SystemExit(str(erro))
     print(f"Admin criado: {usuario.email} (id {usuario.id_usuario})")
 

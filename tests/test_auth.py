@@ -77,7 +77,7 @@ def test_token_invalido_retorna_401(client, token):
     resposta = client.get("/rota-protegida", headers={"Authorization": f"Bearer {token}"})
 
     assert resposta.status_code == 401
-    assert resposta.json()["detail"].startswith("Token inválido")
+    assert resposta.json()["detail"] == "Token inválido"
 
 
 def falhar_busca_da_chave(monkeypatch, erro):
@@ -94,7 +94,7 @@ def test_chave_desconhecida_pelo_supabase_retorna_401(client, monkeypatch):
     resposta = client.get("/rota-protegida", headers={"Authorization": f"Bearer {gerar_token()}"})
 
     assert resposta.status_code == 401
-    assert resposta.json()["detail"].startswith("Token inválido")
+    assert resposta.json()["detail"] == "Token inválido"
 
 
 def test_supabase_fora_do_ar_retorna_503(client, monkeypatch):
