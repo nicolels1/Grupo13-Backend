@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
@@ -125,7 +123,9 @@ def alterar_variante(
 )
 def historico_preco(
     id_variante: int,
-    em: datetime | None = None,
+    em: str | None = Query(
+        default=None, description="AAAA-MM-DD (fim do dia) ou AAAA-MM-DDTHH:MM, no horário de Brasília"
+    ),
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(exige_permissao("gerenciar_catalogo")),
 ):

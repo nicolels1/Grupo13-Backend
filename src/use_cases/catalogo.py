@@ -1,5 +1,4 @@
 import uuid
-from datetime import datetime
 
 from sqlalchemy.orm import Session
 
@@ -7,7 +6,7 @@ from src.models.catalogo import CategoriaProduto, HistoricoPreco, Produto, Varia
 from src.repositories import catalogo_repository as repo
 from src.repositories import estoque_repository
 from src.use_cases.erros import Conflito, RecursoNaoEncontrado, RegraDeNegocio
-from src.use_cases.estoque import validar_local
+from src.use_cases.estoque import interpretar_momento, validar_local
 
 
 def _categoria_ou_404(db: Session, id_categoria: int) -> CategoriaProduto:
@@ -178,6 +177,8 @@ def alterar_variante(db: Session, id_variante: int, id_usuario: uuid.UUID, campo
     return variante
 
 
-def historico_preco(db: Session, id_variante: int, em: datetime | None) -> list[HistoricoPreco]:
+# data sem hora vale o fim do dia em Brasília, como no histórico de estoque (case, seção 5)
+def historico_preco(db: Session, id_variante: int, em: str | None) -> list[HistoricoPreco]:
     _variante_ou_404(db, id_variante)
-    return repo.historico_preco(db, id_variante, em)
+    momento = interpretar_momento(em) if em else None
+    return repo.historico_preco(db, id_variante, momento)
