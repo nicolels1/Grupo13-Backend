@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
-from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Pagina
+from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Lista, Pagina
 from src.entities.estoque import (
-    Canal, Divergencia, EstoqueHistoricoItem, EstoqueItem, Evolucao, Granularidade, MovimentacaoItem,
+    Canal, Divergencia, EmTransitoItem, EstoqueHistoricoItem, EstoqueItem, Evolucao, Granularidade, MovimentacaoItem,
     MovimentacaoSaida, NovaMovimentacao, NovaRealocacao, NovoMinimo,
 )
 from src.middlewares.permissoes import exige_permissao
@@ -61,6 +61,23 @@ def estoque_em(
     return estoque.estoque_em(
         db, em, **paginacao, id_unidade=id_unidade, id_variante=id_variante, canal=canal, busca=busca
     )
+
+
+@router.get(
+    "/estoque/em-transito",
+    response_model=Lista[EmTransitoItem],
+    responses=ERROS_COMUNS,
+    description="Peças enviadas e ainda não recebidas naquele momento: completam o histórico da rede inteira.",
+)
+def em_transito(
+    em: str | None = Query(None, description="AAAA-MM-DD (fim do dia) ou AAAA-MM-DDTHH:MM. Padrão: agora"),
+    id_variante: int | None = None,
+    id_unidade: int | None = Query(None, description="Transferências que saem ou chegam nesta unidade"),
+    busca: str | None = None,
+    _: Usuario = Depends(VER_ESTOQUE),
+    db: Session = Depends(get_db),
+):
+    return {"items": estoque.em_transito(db, em, id_variante=id_variante, id_unidade=id_unidade, busca=busca)}
 
 
 @router.get("/estoque/evolucao", response_model=Evolucao, responses=ERROS_COMUNS)

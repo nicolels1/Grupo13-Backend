@@ -162,6 +162,14 @@ def estoque_em(db: Session, em: str, limit: int, offset: int, **filtros) -> dict
     return _pagina(*repo.listar_historico(db, momento, limit, offset, **filtros), limit, offset)
 
 
+# peças de transferências enviadas e ainda não recebidas no momento pedido (padrão: agora).
+# Elas saíram do saldo da origem e ainda não entraram no do destino: na visão da rede inteira,
+# aparecem separadas (case, seção 5)
+def em_transito(db: Session, em: str | None, **filtros) -> list:
+    momento = interpretar_momento(em) if em else datetime.now(timezone.utc)
+    return repo.listar_em_transito(db, momento, **filtros)
+
+
 # granularidade automática do gráfico: até 2 dias por hora, até 90 dias por dia, acima por semana
 def escolher_granularidade(inicio: datetime, fim: datetime) -> str:
     duracao = fim - inicio
