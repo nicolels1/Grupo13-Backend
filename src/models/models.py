@@ -19,7 +19,6 @@ class Usuario(Base):
     cpf: Mapped[str | None] = mapped_column(String(11), unique=True)
     tipo_conta: Mapped[str] = mapped_column(String(20))
     status_conta: Mapped[str] = mapped_column(String(30))
-    tentativas_ativacao: Mapped[int] = mapped_column(default=0, server_default="0")
     id_modelo_acesso: Mapped[int | None] = mapped_column(
         ForeignKey("modelo_acesso.id_modelo", ondelete="RESTRICT")
     )
