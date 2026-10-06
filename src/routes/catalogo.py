@@ -1,9 +1,14 @@
-from fastapi import APIRouter, Depends, status
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
-from src.entities.catalogo import CategoriaAlterar, CategoriaCriar, CategoriaSaida
-from src.entities.comum import Lista, campos_alterados
+from src.entities.catalogo import (
+    CategoriaAlterar, CategoriaCriar, CategoriaSaida, HistoricoPrecoSaida, ProdutoAlterar, ProdutoCriar,
+    ProdutoSaida, VarianteAlterar, VarianteCriar, VarianteSaida,
+)
+from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Lista, Pagina, campos_alterados
 from src.middlewares.permissoes import exige_permissao
 from src.models.contas import Usuario
 from src.repositories import catalogo_repository
@@ -39,3 +44,89 @@ def alterar_categoria(
     usuario: Usuario = Depends(exige_permissao("gerenciar_catalogo")),
 ):
     return catalogo.alterar_categoria(db, id_categoria, campos_alterados(dados))
+
+
+# ---------- produto e variante ----------
+
+ERROS_PRODUTO = {
+    404: {"description": "Produto, variante ou categoria não encontrada"},
+    409: {"description": "SKU ou cor e tamanho repetidos"},
+    422: {"description": "Dados inválidos ou categoria desativada"},
+}
+
+
+# público: a vitrine pede ativo=true; a plataforma interna vê todos. Lista paginada
+@router.get("/produtos", response_model=Pagina[ProdutoSaida])
+def listar_produtos(
+    id_categoria: int | None = None,
+    ativo: bool | None = None,
+    busca: str | None = Query(default=None, max_length=100, description="Parte do nome do produto"),
+    limit: int = Query(LIMITE_PADRAO, ge=1, le=LIMITE_MAXIMO),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+):
+    return catalogo.listar_produtos(db, limit, offset, id_categoria=id_categoria, ativo=ativo, busca=busca)
+
+
+@router.get("/produtos/{id_produto}", response_model=ProdutoSaida, responses={404: ERROS_PRODUTO[404]})
+def buscar_produto(id_produto: int, db: Session = Depends(get_db)):
+    return catalogo.buscar_produto(db, id_produto)
+
+
+@router.post("/produtos", status_code=status.HTTP_201_CREATED, response_model=ProdutoSaida, responses=ERROS_PRODUTO)
+def criar_produto(
+    dados: ProdutoCriar,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(exige_permissao("gerenciar_catalogo")),
+):
+    return catalogo.criar_produto(db, usuario.id_usuario, dados.model_dump())
+
+
+@router.patch("/produtos/{id_produto}", response_model=ProdutoSaida, responses=ERROS_PRODUTO)
+def alterar_produto(
+    id_produto: int,
+    dados: ProdutoAlterar,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(exige_permissao("gerenciar_catalogo")),
+):
+    return catalogo.alterar_produto(db, id_produto, campos_alterados(dados))
+
+
+@router.post(
+    "/produtos/{id_produto}/variantes",
+    status_code=status.HTTP_201_CREATED,
+    response_model=VarianteSaida,
+    responses=ERROS_PRODUTO,
+)
+def adicionar_variante(
+    id_produto: int,
+    dados: VarianteCriar,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(exige_permissao("gerenciar_catalogo")),
+):
+    return catalogo.adicionar_variante(db, id_produto, usuario.id_usuario, dados.model_dump())
+
+
+@router.patch("/variantes/{id_variante}", response_model=VarianteSaida, responses=ERROS_PRODUTO)
+def alterar_variante(
+    id_variante: int,
+    dados: VarianteAlterar,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(exige_permissao("gerenciar_catalogo")),
+):
+    return catalogo.alterar_variante(db, id_variante, usuario.id_usuario, campos_alterados(dados))
+
+
+# histórico completo, mais recente primeiro; com `em`, só o preço que valia naquela data
+@router.get(
+    "/variantes/{id_variante}/historico-preco",
+    response_model=Lista[HistoricoPrecoSaida],
+    responses={404: {"description": "Variante não encontrada"}},
+)
+def historico_preco(
+    id_variante: int,
+    em: datetime | None = None,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(exige_permissao("gerenciar_catalogo")),
+):
+    return {"items": catalogo.historico_preco(db, id_variante, em)}
