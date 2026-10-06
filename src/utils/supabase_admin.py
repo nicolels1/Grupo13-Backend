@@ -5,6 +5,7 @@ import httpx2
 from src.config.settings import SUPABASE_PUBLISHABLE_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL
 
 TEMPO_LIMITE = 10  # segundos
+BLOQUEIO = "876000h"  # 100 anos: o Supabase não tem bloqueio sem prazo
 
 
 class ErroSupabase(Exception):
@@ -44,6 +45,7 @@ class SupabaseAdmin:
         if not url or not chave:
             raise RuntimeError("SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY precisam estar no .env")
         self.base = f"{url}/auth/v1/admin/users"
+        self.convite = f"{url}/auth/v1/invite"
         self.headers = {"apikey": chave, "Authorization": f"Bearer {chave}"}
 
     def criar_login(self, email: str, senha: str) -> uuid.UUID:
@@ -60,6 +62,19 @@ class SupabaseAdmin:
 
     def apagar_login(self, id_usuario: uuid.UUID) -> None:
         _enviar("DELETE", f"{self.base}/{id_usuario}", headers=self.headers)
+
+    # cria o login sem senha e manda o e-mail de convite; a pessoa define a senha pelo link.
+    # Com o e-mail padrão do Supabase, só chega para quem é da equipe do projeto (case: servidor próprio)
+    def convidar(self, email: str) -> uuid.UUID:
+        resposta = _enviar("POST", self.convite, headers=self.headers, json={"email": email})
+        return uuid.UUID(resposta.json()["id"])
+
+    # desativar uma conta bloqueia o login no Auth (case, seção 5); "none" desbloqueia
+    def bloquear_login(self, id_usuario: uuid.UUID) -> None:
+        _enviar("PUT", f"{self.base}/{id_usuario}", headers=self.headers, json={"ban_duration": BLOQUEIO})
+
+    def desbloquear_login(self, id_usuario: uuid.UUID) -> None:
+        _enviar("PUT", f"{self.base}/{id_usuario}", headers=self.headers, json={"ban_duration": "none"})
 
 
 # login com e-mail e senha pela chave pública; usado no login por CPF,

@@ -196,6 +196,7 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 - O cliente que se cadastra pelo site já entra com o e-mail confirmado, sem link de confirmação: evita depender do envio de e-mails antes da banca. O risco aceito é um e-mail digitado errado só aparecer depois, corrigido numa loja.
 - Cliente tem CPF único e obrigatório e entra com e-mail ou CPF (login por CPF feito pelo backend, sem expor o e-mail). Funcionário entra só com e-mail corporativo e usa conta pessoal para comprar.
 - Admin cria conta interna sem senha, por convite do Auth. Recuperação de senha pelo Auth. Links valem até 24h e podem ser reenviados.
+- Enquanto o servidor de e-mail próprio não estiver configurado, o convite não chega a quem não é da equipe do projeto Supabase. Por isso o Admin também pode criar a conta interna com uma **senha provisória**, que a pessoa troca depois; sem senha provisória, vale o convite.
 - Desativar uma conta bloqueia o login no Auth.
 - **Na loja física:** o vendedor pede o CPF (sem exigir). Na primeira compra, cadastra nome, CPF e e-mail (conta sem senha); nas próximas, basta o CPF.
 - **Ativação** de conta do caixa exige confirmar o CPF na página do link. Até ativar, a conta só faz isso. Não há limite de tentativas: o link vale 24h e pode ser reenviado.

@@ -4,7 +4,9 @@ from src.config.logs import configurar_logs
 from src.middlewares.cors import configurar_cors
 from src.middlewares.erros import configurar_erros
 from src.middlewares.requisicao import configurar_requisicao
-from src.routes import atendimento, catalogo, contas, estoque, health, modelos_acesso, transferencias, unidades
+from src.routes import (
+    atendimento, catalogo, contas, estoque, health, modelos_acesso, transferencias, unidades, usuarios,
+)
 
 configurar_logs()
 
@@ -22,3 +24,4 @@ app.include_router(unidades.router)
 app.include_router(transferencias.router)
 app.include_router(modelos_acesso.router)
 app.include_router(atendimento.router)
+app.include_router(usuarios.router)
