@@ -8,7 +8,7 @@ from src.database.session import get_db
 from src.middlewares.auth import get_current_user
 from src.models.contas import Usuario
 from src.repositories import permissao_repository as repo
-from src.use_cases.permissoes import tem_permissao
+from src.use_cases.permissoes import usuario_tem_permissao
 
 logger = logging.getLogger(__name__)
 
@@ -37,28 +37,9 @@ def exige_permissao(*codigos: str):
     def dependencia(
         usuario: Usuario = Depends(get_usuario_ativo), db: Session = Depends(get_db)
     ) -> Usuario:
-        # só conta interna tem permissões; cliente não tem modelo de acesso
-        if usuario.tipo_conta != "interna" or usuario.id_modelo_acesso is None:
-            raise HTTPException(status_code=403, detail="Sem permissão")
-
-        # admin não precisa das outras consultas
-        if repo.modelo_eh_admin(db, usuario.id_modelo_acesso):
-            return usuario
-
-        excecoes = repo.excecoes_do_usuario(db, usuario.id_usuario)
-        do_modelo = repo.codigos_do_modelo(db, usuario.id_modelo_acesso)
-        permitido = any(
-            tem_permissao(
-                codigo,
-                eh_admin=False,
-                do_modelo=do_modelo,
-                acrescentadas={c for c, efeito in excecoes.items() if efeito == "acrescentar"},
-                retiradas={c for c, efeito in excecoes.items() if efeito == "retirar"},
-            )
-            for codigo in codigos
-        )
-        if not permitido:
+        if not usuario_tem_permissao(db, usuario, *codigos):
             raise HTTPException(status_code=403, detail="Sem permissão")
         return usuario
 
     return dependencia
+
