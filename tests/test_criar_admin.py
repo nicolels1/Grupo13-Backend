@@ -2,14 +2,15 @@ import uuid
 
 import pytest
 
-from src.use_cases.criar_admin import ErroCriarAdmin, criar_admin
+from src.use_cases.criar_admin import criar_admin
+from src.use_cases.erros import Conflito, RegraDeNegocio
 
 ID_LOGIN = uuid.UUID("22222222-2222-2222-2222-222222222222")
 ID_MODELO_ADMIN = 2
 
 
 class SessaoFalsa:
-    # responde às consultas do use case, na ordem: id do modelo Admin, e-mail já usado
+    # responde às consultas do repository, na ordem: id do modelo Admin, e-mail já usado
     # em USUARIO, login já existente no Supabase Auth e, se existir, se ele está confirmado
     def __init__(self, id_modelo_admin=ID_MODELO_ADMIN, email_existente=None, login_existente=None,
                  login_confirmado=True, erro_commit=None):
@@ -69,7 +70,7 @@ def test_cria_login_e_usuario_no_modelo_admin():
 def test_sem_modelo_admin_nao_cria_login():
     db, auth = SessaoFalsa(id_modelo_admin=None), AuthFalso()
 
-    with pytest.raises(ErroCriarAdmin, match="Modelo Admin não existe"):
+    with pytest.raises(RegraDeNegocio, match="Modelo Admin não existe"):
         criar_admin(db, auth, "Ana", "ana@lorenzi.com", "senha-forte")
 
     assert auth.criados == []
@@ -78,7 +79,7 @@ def test_sem_modelo_admin_nao_cria_login():
 def test_email_ja_usado_nao_cria_login():
     db, auth = SessaoFalsa(email_existente=uuid.uuid4()), AuthFalso()
 
-    with pytest.raises(ErroCriarAdmin, match="Já existe usuário"):
+    with pytest.raises(Conflito, match="Já existe usuário"):
         criar_admin(db, auth, "Ana", "ana@lorenzi.com", "senha-forte")
 
     assert auth.criados == []
@@ -118,7 +119,7 @@ def test_falha_ao_gravar_nao_apaga_login_que_ja_existia():
 def test_login_novo_sem_senha_e_recusado():
     db, auth = SessaoFalsa(), AuthFalso()
 
-    with pytest.raises(ErroCriarAdmin, match="Senha obrigatória"):
+    with pytest.raises(RegraDeNegocio, match="Senha obrigatória"):
         criar_admin(db, auth, "Ana", "ana@lorenzi.com")
 
     assert auth.criados == []

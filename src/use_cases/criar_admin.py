@@ -2,10 +2,7 @@ from sqlalchemy.orm import Session
 
 from src.models.contas import Usuario
 from src.repositories import usuario_repository as repo
-
-
-class ErroCriarAdmin(Exception):
-    pass
+from src.use_cases.erros import Conflito, RegraDeNegocio
 
 
 # cria a linha de USUARIO no modelo Admin; usa o login que já existe com o e-mail
@@ -16,15 +13,15 @@ def criar_admin(db: Session, auth, nome: str, email: str, senha: str | None = No
 
     id_modelo_admin = repo.id_modelo_admin(db)
     if id_modelo_admin is None:
-        raise ErroCriarAdmin("Modelo Admin não existe: rode as migrations (alembic upgrade head)")
+        raise RegraDeNegocio("Modelo Admin não existe: rode as migrations (alembic upgrade head)")
     if repo.email_em_uso(db, email):
-        raise ErroCriarAdmin(f"Já existe usuário com o e-mail {email}")
+        raise Conflito(f"Já existe usuário com o e-mail {email}")
 
     id_usuario = repo.buscar_login(db, email)
     login_novo = id_usuario is None
     if login_novo:
         if not senha:
-            raise ErroCriarAdmin("Senha obrigatória para criar um login novo")
+            raise RegraDeNegocio("Senha obrigatória para criar um login novo")
         id_usuario = auth.criar_login(email, senha)
     elif not repo.login_confirmado(db, id_usuario):
         auth.confirmar_email(id_usuario)
