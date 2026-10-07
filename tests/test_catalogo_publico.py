@@ -247,3 +247,34 @@ def test_disponivel_online_sem_variantes_nao_consulta():
 
     assert catalogo_repository.ids_disponiveis_online(db, []) == set()
     assert db.consultas == []
+
+
+# ---------- tamanhos à venda ----------
+
+def test_tamanhos_saem_na_ordem_da_grade(monkeypatch):
+    monkeypatch.setattr(catalogo_repository, "tamanhos_a_venda",
+                        lambda db, c, b: ["U", "42", "G", "38", "PP", "M", "Único"])
+
+    assert catalogo.tamanhos_a_venda(SessaoFalsa()) == ["PP", "M", "G", "38", "42", "U", "Único"]
+
+
+def test_rota_de_tamanhos_nao_e_lida_como_produto(client, monkeypatch):
+    pedidos = []
+    monkeypatch.setattr(catalogo_repository, "tamanhos_a_venda",
+                        lambda db, c, b: pedidos.append((c, b)) or ["M", "P"])
+
+    resposta = client().get("/produtos/tamanhos", params={"id_categoria": 23, "busca": "camisa"})
+
+    assert resposta.status_code == 200
+    assert resposta.json() == {"items": ["P", "M"]}
+    assert pedidos == [(23, "camisa")]
+
+
+def test_tamanhos_a_venda_so_contam_o_que_esta_ativo():
+    db = SessaoQueGuarda()
+
+    catalogo_repository.tamanhos_a_venda(db, id_categoria=23, busca="cam")
+
+    texto = sql(db.consultas[0])
+    assert texto.startswith("SELECT DISTINCT variante.tamanho")
+    assert "variante.ativo" in texto and "produto.ativo" in texto and "categoria_produto.ativo" in texto

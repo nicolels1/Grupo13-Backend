@@ -80,6 +80,17 @@ def listar_produtos(
     )
 
 
+# público: os tamanhos à venda na vitrine, para o filtro da lista. Fica antes de /produtos/{id_produto}
+# para "tamanhos" não ser lido como id
+@router.get("/produtos/tamanhos", response_model=Lista[str])
+def tamanhos_a_venda(
+    id_categoria: int | None = None,
+    busca: str | None = Query(default=None, max_length=100, description="Parte do nome do produto"),
+    db: Session = Depends(get_db),
+):
+    return {"items": catalogo.tamanhos_a_venda(db, id_categoria, busca)}
+
+
 @router.get("/produtos/{id_produto}", response_model=ProdutoSaida, responses={404: ERROS_PRODUTO[404]})
 def buscar_produto(
     id_produto: int, db: Session = Depends(get_db), usuario: Usuario | None = Depends(get_usuario_opcional)
