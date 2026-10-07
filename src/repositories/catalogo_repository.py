@@ -94,6 +94,21 @@ def listar_produtos(db: Session, limit: int, offset: int, id_categoria: int | No
     return list(db.scalars(pagina)), total
 
 
+# tamanhos distintos das variantes à venda na vitrine (variante, produto e categoria ativos)
+def tamanhos_a_venda(db: Session, id_categoria: int | None = None, busca: str | None = None) -> list[str]:
+    consulta = (
+        select(Variante.tamanho).distinct()
+        .join(Produto, Produto.id_produto == Variante.id_produto)
+        .join(CategoriaProduto, CategoriaProduto.id_categoria == Produto.id_categoria)
+        .where(Variante.ativo, Produto.ativo, CategoriaProduto.ativo)
+    )
+    if id_categoria is not None:
+        consulta = consulta.where(Produto.id_categoria == id_categoria)
+    if busca:
+        consulta = consulta.where(Produto.nome.ilike(f"%{busca}%"))
+    return list(db.scalars(consulta))
+
+
 def buscar_produto(db: Session, id_produto: int) -> Produto | None:
     return db.get(Produto, id_produto)
 

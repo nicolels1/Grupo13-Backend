@@ -127,6 +127,22 @@ def listar_produtos(db: Session, limit: int, offset: int, publico: bool = False,
     return {"items": itens, "total": total, "limit": limit, "offset": offset}
 
 
+# letras na ordem da grade (PP a XG), depois números em ordem crescente, depois o resto (ex.: U)
+_GRADE = ["PP", "P", "M", "G", "GG", "XG"]
+
+
+def _ordem_do_tamanho(tamanho: str) -> tuple:
+    if tamanho.upper() in _GRADE:
+        return (0, _GRADE.index(tamanho.upper()), "")
+    if tamanho.isdigit():
+        return (1, int(tamanho), "")
+    return (2, 0, tamanho.lower())
+
+
+def tamanhos_a_venda(db: Session, id_categoria: int | None = None, busca: str | None = None) -> list[str]:
+    return sorted(repo.tamanhos_a_venda(db, id_categoria, busca), key=_ordem_do_tamanho)
+
+
 def buscar_produto(db: Session, id_produto: int, publico: bool = False) -> dict:
     produto = _produto_ou_404(db, id_produto)
     if publico and (not produto.ativo or not repo.buscar_categoria(db, produto.id_categoria).ativo):
