@@ -27,7 +27,7 @@ def categoria_por_nome(db: Session, nome: str) -> CategoriaProduto | None:
 
 # variantes ativas com peça para vender online: estoque menos o reservado no canal online de uma
 # unidade ativa, a mesma conta do checkout. A vitrine física não entra: o site não vende dela
-def _variantes_disponiveis_online(tamanho: str | None = None) -> Select:
+def _variantes_disponiveis_online(tamanhos: list[str] | None = None) -> Select:
     consulta = (
         select(Variante.id_variante, Variante.id_produto)
         .join(Estoque, Estoque.id_variante == Variante.id_variante)
@@ -35,8 +35,8 @@ def _variantes_disponiveis_online(tamanho: str | None = None) -> Select:
         .where(Variante.ativo, Unidade.ativo, Estoque.canal == "online",
                Estoque.quantidade - Estoque.quantidade_reservada > 0)
     )
-    if tamanho:
-        consulta = consulta.where(Variante.tamanho == tamanho)
+    if tamanhos:
+        consulta = consulta.where(Variante.tamanho.in_(tamanhos))
     return consulta
 
 
@@ -66,10 +66,11 @@ ORDENS = {
 
 # uma página de produtos e o total; busca no nome sem diferenciar maiúsculas
 # categoria_ativa=True: só produtos de categorias ativas (visão pública)
-# tamanho: com variante ativa nesse tamanho; disponivel: com peça para vender online (no tamanho, se houver)
+# tamanhos: com variante ativa em algum desses tamanhos; disponivel: com peça para vender online
+# (em algum desses tamanhos, se houver)
 def listar_produtos(db: Session, limit: int, offset: int, id_categoria: int | None = None,
                     ativo: bool | None = None, busca: str | None = None,
-                    categoria_ativa: bool | None = None, tamanho: str | None = None,
+                    categoria_ativa: bool | None = None, tamanhos: list[str] | None = None,
                     disponivel: bool | None = None, ordem: str = "nome") -> tuple[list[Produto], int]:
     consulta = select(Produto)
     if categoria_ativa is not None:
@@ -82,12 +83,12 @@ def listar_produtos(db: Session, limit: int, offset: int, id_categoria: int | No
         consulta = consulta.where(Produto.ativo == ativo)
     if busca:
         consulta = consulta.where(Produto.nome.ilike(f"%{busca}%"))
-    if tamanho:
+    if tamanhos:
         consulta = consulta.where(Produto.id_produto.in_(
-            select(Variante.id_produto).where(Variante.tamanho == tamanho, Variante.ativo)
+            select(Variante.id_produto).where(Variante.tamanho.in_(tamanhos), Variante.ativo)
         ))
     if disponivel is not None:
-        com_peca = Produto.id_produto.in_(_variantes_disponiveis_online(tamanho).with_only_columns(Variante.id_produto))
+        com_peca = Produto.id_produto.in_(_variantes_disponiveis_online(tamanhos).with_only_columns(Variante.id_produto))
         consulta = consulta.where(com_peca if disponivel else ~com_peca)
     total = db.scalar(select(func.count()).select_from(consulta.subquery()))
     pagina = consulta.order_by(*ORDENS[ordem]).limit(limit).offset(offset)
