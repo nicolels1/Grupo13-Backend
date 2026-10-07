@@ -6,8 +6,11 @@ from src.models.atendimento import Chamado, HistoricoChamado, Mensagem
 from src.models.contas import Usuario
 from src.repositories import atendimento_repository as repo
 from src.repositories import estoque_repository, permissao_repository, unidade_repository
-from src.use_cases.erros import Conflito, RecursoNaoEncontrado, RegraDeNegocio, SemPermissao
+from src.use_cases import arquivos
+from src.use_cases.arquivos import ANEXO_CHAMADO
+from src.use_cases.erros import Conflito, RecursoNaoEncontrado, RegraDeNegocio, SemPermissao, ServicoIndisponivel
 from src.use_cases.permissoes import usuario_tem_permissao
+from src.utils.supabase_storage import VALIDADE_DO_LINK
 
 NAO_ENCONTRADO = "Chamado não encontrado"
 CONCLUIDO = "Chamado concluído não muda mais: não há reabertura"
@@ -86,10 +89,12 @@ def mensagens_do_cliente(db: Session, cliente: Usuario, id_chamado: int) -> list
     return repo.listar_mensagens(db, id_chamado, incluir_internas=False)
 
 
-def _nova_mensagem(db: Session, chamado: Chamado, autor: Usuario, conteudo: str, interna: bool) -> dict:
+def _nova_mensagem(db: Session, chamado: Chamado, autor: Usuario, conteudo: str | None, interna: bool,
+                   anexo: dict | None = None) -> dict:
     if chamado.status == "concluido":
         raise RegraDeNegocio(CONCLUIDO)
-    mensagem = Mensagem(id_chamado=chamado.id_chamado, id_autor=autor.id_usuario, conteudo=conteudo, interna=interna)
+    mensagem = Mensagem(id_chamado=chamado.id_chamado, id_autor=autor.id_usuario, conteudo=conteudo, interna=interna,
+                        **(anexo or {}))
     db.add(mensagem)
     db.flush()
     db.refresh(mensagem)  # traz criado_em do banco
@@ -98,9 +103,47 @@ def _nova_mensagem(db: Session, chamado: Chamado, autor: Usuario, conteudo: str,
     return {**colunas, "autor": autor.nome, "da_equipe": autor.id_usuario != chamado.id_cliente}
 
 
+# o anexo vai para a área privada do Storage antes da gravação; se a mensagem não for gravada,
+# o arquivo sai (case, seção 5: toda mensagem tem texto ou anexo)
+def _mensagem_com_anexo(db: Session, storage, chamado: Chamado, autor: Usuario, arquivo, conteudo: str | None,
+                        interna: bool) -> dict:
+    if chamado.status == "concluido":
+        raise RegraDeNegocio(CONCLUIDO)
+    caminho = arquivos.enviar(storage, ANEXO_CHAMADO, f"chamado-{chamado.id_chamado}", arquivo)
+    anexo = {"anexo_caminho": caminho, "anexo_nome": arquivo.nome[-255:], "anexo_tamanho": len(arquivo.conteudo)}
+    try:
+        return _nova_mensagem(db, chamado, autor, conteudo, interna, anexo)
+    except Exception:
+        db.rollback()
+        arquivos.desfazer_envio(storage, ANEXO_CHAMADO, caminho)
+        raise
+
+
+# link temporário do anexo; a mensagem precisa ser do chamado (e, para o cliente, não ser interna)
+def _link_do_anexo(db: Session, storage, chamado: Chamado, id_mensagem: int, incluir_internas: bool) -> dict:
+    mensagem = repo.buscar_mensagem(db, id_mensagem)
+    if (mensagem is None or mensagem.id_chamado != chamado.id_chamado or mensagem.anexo_caminho is None
+            or (mensagem.interna and not incluir_internas)):
+        raise RecursoNaoEncontrado("Anexo não encontrado")
+    url = arquivos.url_temporaria(storage, ANEXO_CHAMADO, mensagem.anexo_caminho)
+    if url is None:
+        raise ServicoIndisponivel("Não foi possível abrir o anexo. Tente de novo")
+    return {"url": url, "nome": mensagem.anexo_nome, "expira_em_segundos": VALIDADE_DO_LINK}
+
+
 def enviar_mensagem_do_cliente(db: Session, cliente: Usuario, id_chamado: int, conteudo: str) -> dict:
     chamado = _chamado_do_cliente(db, cliente, id_chamado)
     return _nova_mensagem(db, chamado, cliente, conteudo, interna=False)
+
+
+def anexar_do_cliente(db: Session, storage, cliente: Usuario, id_chamado: int, arquivo, conteudo: str | None) -> dict:
+    chamado = _chamado_do_cliente(db, cliente, id_chamado)
+    return _mensagem_com_anexo(db, storage, chamado, cliente, arquivo, conteudo, interna=False)
+
+
+def anexo_para_o_cliente(db: Session, storage, cliente: Usuario, id_chamado: int, id_mensagem: int) -> dict:
+    chamado = _chamado_do_cliente(db, cliente, id_chamado)
+    return _link_do_anexo(db, storage, chamado, id_mensagem, incluir_internas=False)
 
 
 # ---------- lado da equipe (permissão atender_chamado) ----------
@@ -191,6 +234,15 @@ def mensagens_da_equipe(db: Session, id_chamado: int) -> list:
 
 def enviar_mensagem_da_equipe(db: Session, usuario: Usuario, id_chamado: int, conteudo: str, interna: bool) -> dict:
     return _nova_mensagem(db, _chamado(db, id_chamado), usuario, conteudo, interna)
+
+
+def anexar_da_equipe(db: Session, storage, usuario: Usuario, id_chamado: int, arquivo, conteudo: str | None,
+                     interna: bool) -> dict:
+    return _mensagem_com_anexo(db, storage, _chamado(db, id_chamado), usuario, arquivo, conteudo, interna)
+
+
+def anexo_para_a_equipe(db: Session, storage, id_chamado: int, id_mensagem: int) -> dict:
+    return _link_do_anexo(db, storage, _chamado(db, id_chamado), id_mensagem, incluir_internas=True)
 
 
 def historico(db: Session, id_chamado: int) -> list:

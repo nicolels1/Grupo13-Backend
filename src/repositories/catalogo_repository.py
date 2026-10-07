@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from src.models.catalogo import CategoriaProduto, HistoricoPreco, Produto, Variante
+from src.models.catalogo import CategoriaProduto, HistoricoPreco, ImagemProduto, Produto, Variante
 
 
 def listar_categorias(db: Session, ativo: bool | None = None) -> list[CategoriaProduto]:
@@ -61,6 +61,28 @@ def variantes_dos_produtos(db: Session, ids_produto: list[int]) -> dict[int, lis
         for variante in db.scalars(consulta):
             agrupadas[variante.id_produto].append(variante)
     return agrupadas
+
+
+def imagens_dos_produtos(db: Session, ids_produto: list[int]) -> dict[int, list[ImagemProduto]]:
+    agrupadas: dict[int, list[ImagemProduto]] = {i: [] for i in ids_produto}
+    if ids_produto:
+        consulta = (
+            select(ImagemProduto)
+            .where(ImagemProduto.id_produto.in_(ids_produto))
+            .order_by(ImagemProduto.ordem, ImagemProduto.id_imagem)
+        )
+        for imagem in db.scalars(consulta):
+            agrupadas[imagem.id_produto].append(imagem)
+    return agrupadas
+
+
+def buscar_imagem(db: Session, id_imagem: int) -> ImagemProduto | None:
+    return db.get(ImagemProduto, id_imagem)
+
+
+def proxima_ordem_de_imagem(db: Session, id_produto: int) -> int:
+    maior = db.scalar(select(func.max(ImagemProduto.ordem)).where(ImagemProduto.id_produto == id_produto))
+    return (maior or 0) + 1
 
 
 def buscar_variante(db: Session, id_variante: int) -> Variante | None:

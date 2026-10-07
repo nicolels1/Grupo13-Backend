@@ -1,5 +1,6 @@
-# Carrega o cenário de demonstração: unidades, catálogo, modelos de acesso, contas e
-# estoque com 30 dias de movimentações (para o histórico ter o que mostrar).
+# Carrega o cenário de demonstração: unidades, catálogo, modelos de acesso, contas,
+# estoque com 30 dias de movimentações (para o histórico ter o que mostrar) e pedidos
+# em cada etapa, com uma avaliação e uma denúncia para a moderação.
 # Pode rodar de novo: o que já existe é pulado, nada é duplicado.
 # Uso, na raiz do repositório com o venv ativo:
 #   python -m scripts.carregar_demo
@@ -18,7 +19,10 @@ from sqlalchemy.orm import Session
 from src.models.catalogo import CategoriaProduto, HistoricoPreco, Produto, Variante
 from src.models.contas import ModeloAcesso, ModeloPermissao, Permissao, Usuario
 from src.models.estoque import Estoque, MovimentacaoEstoque, Unidade
+from src.models.vendas import EnderecoCliente, Pedido
 from src.repositories import usuario_repository
+from src.use_cases import avaliacoes, pedidos, vendas
+from src.use_cases.erros import ErroNegocio
 from src.utils.cpf import digito_verificador
 from src.utils.supabase_admin import ErroSupabase, SupabaseAdmin
 
@@ -313,6 +317,96 @@ def carregar_estoque(db: Session, agora: datetime) -> int:
     return len(movimentacoes)
 
 
+# ---------- vendas, atendimento ao pedido e avaliações ----------
+
+def _conta(db: Session, email: str) -> Usuario:
+    return db.scalar(select(Usuario).where(Usuario.email == email))
+
+
+# variantes com pelo menos `minimo` peças disponíveis naquela unidade e canal, na ordem do SKU
+def _skus_disponiveis(db: Session, unidade: Unidade, canal: str, minimo: int = 1) -> list[Variante]:
+    return list(db.scalars(
+        select(Variante).join(Estoque, Estoque.id_variante == Variante.id_variante)
+        .where(Estoque.id_unidade == unidade.id_unidade, Estoque.canal == canal,
+               Estoque.quantidade - Estoque.quantidade_reservada >= minimo)
+        .order_by(Variante.sku)
+    ))
+
+
+def _pagar(db: Session, cliente: Usuario, pedido: dict) -> dict:
+    cobrado = pedidos.criar_cobranca(db, cliente, pedido["id_pedido"], "pix")
+    return pedidos.responder_cobranca(db, cliente, cobrado["pagamentos"][-1].id_pagamento, True)
+
+
+def carregar_vendas(db: Session) -> dict:
+    """Pedidos em cada etapa, pelas mesmas regras da API (use cases). Só roda uma vez: se já existe
+    algum pedido, não faz nada. Devolve os códigos de venda que a demonstração usa."""
+    if db.scalar(select(Pedido.id_pedido).limit(1)) is not None:
+        return {}
+
+    vendedora = _conta(db, f"fernanda.lima@{DOMINIO_CORPORATIVO}")
+    marina = _conta(db, CLIENTES[0]["email"])
+    pedro = _conta(db, CLIENTES[1]["email"])
+    fernanda = _conta(db, CLIENTES[2]["email"])
+    paulista = db.scalar(select(Unidade).where(Unidade.nome == "Loja Paulista"))
+    cd = db.scalar(select(Unidade).where(Unidade.nome == "CD Guarulhos"))
+
+    # venda física com CPF (vai para a conta da Marina) e sem CPF (pode ser reivindicada pelo código)
+    na_loja = _skus_disponiveis(db, paulista, "loja_fisica", 2)
+    codigos = {}
+    for cpf, variante in ((marina.cpf, na_loja[0]), (None, na_loja[1])):
+        pedido = vendas.registrar_venda_fisica(db, vendedora, {
+            "id_unidade": paulista.id_unidade, "cpf_cliente": cpf,
+            "itens": [{"id_variante": variante.id_variante, "quantidade": 1}],
+            "pagamentos": [{"metodo": "cartao_debito" if cpf else "dinheiro", "valor": variante.preco}],
+        })
+        codigos["venda na loja sem CPF" if cpf is None else "venda na loja da Marina"] = pedido["codigo_venda"]
+
+    enderecos_salvos = {}
+    for cliente in (marina, pedro):
+        endereco = EnderecoCliente(id_cliente=cliente.id_usuario, rua="Rua Augusta", numero="1500",
+                                   complemento="Apto 12", bairro="Consolação", cidade="São Paulo", uf="SP",
+                                   cep="01304001")
+        db.add(endereco)
+        db.commit()
+        enderecos_salvos[cliente.id_usuario] = endereco.id_endereco
+
+    no_cd = _skus_disponiveis(db, cd, "online", 3)
+
+    # Pedro: entrega em casa paga, esperando a equipe preparar (bloco da Visão Geral)
+    pedido = pedidos.checkout(db, pedro, {
+        "itens": [{"id_variante": no_cd[0].id_variante, "quantidade": 1}], "modalidade": "entrega",
+        "id_endereco": enderecos_salvos[pedro.id_usuario], "id_unidade_retirada": None,
+    })
+    codigos["entrega paga para preparar"] = _pagar(db, pedro, pedido)["codigo_venda"]
+
+    # Marina: retirada na Paulista, paga e pronta para retirar
+    online_paulista = _skus_disponiveis(db, paulista, "online")
+    pedido = pedidos.checkout(db, marina, {
+        "itens": [{"id_variante": online_paulista[0].id_variante, "quantidade": 1}], "modalidade": "retirada",
+        "id_endereco": None, "id_unidade_retirada": paulista.id_unidade,
+    })
+    _pagar(db, marina, pedido)
+    codigos["retirada pronta"] = vendas.marcar_pronto_para_retirada(db, pedido["id_pedido"])["codigo_venda"]
+
+    # Marina: entrega em casa já entregue e avaliada; o Pedro acha útil e a Fernanda denuncia
+    pedido = pedidos.checkout(db, marina, {
+        "itens": [{"id_variante": no_cd[1].id_variante, "quantidade": 2}], "modalidade": "entrega",
+        "id_endereco": enderecos_salvos[marina.id_usuario], "id_unidade_retirada": None,
+    })
+    _pagar(db, marina, pedido)
+    vendas.enviar(db, pedido["id_pedido"])
+    entregue = vendas.entregar(db, pedido["id_pedido"], None)
+    codigos["entrega entregue e avaliada"] = entregue["codigo_venda"]
+    avaliacao = avaliacoes.criar(db, None, marina, {
+        "id_item_pedido": entregue["itens"][0]["id_item"], "nota": 5,
+        "texto": "Tecido ótimo e chegou antes do prazo. Comprei dois!",
+    })
+    avaliacoes.votar_util(db, None, pedro, avaliacao["id_avaliacao"])
+    avaliacoes.denunciar(db, fernanda, avaliacao["id_avaliacao"], "Avaliação de demonstração para a moderação")
+    return codigos
+
+
 def main() -> None:
     # importado aqui para os dados e as funções acima poderem ser usados (e testados) sem conectar no banco
     from src.database.session import SessionLocal
@@ -329,13 +423,20 @@ def main() -> None:
             base = carregar_base(db)
             contas = carregar_contas(db, SupabaseAdmin(), senha)
             movimentacoes = carregar_estoque(db, agora)
-        except (ErroSupabase, RuntimeError) as erro:
+            codigos = carregar_vendas(db)
+        except (ErroSupabase, RuntimeError, ErroNegocio) as erro:
             raise SystemExit(str(erro))
 
     print(f"Unidades novas: {base['unidades']}, variantes novas: {base['variantes']}, "
           f"modelos novos: {base['modelos']}")
     print(f"Contas novas: {contas} (contas que já existiam mantêm a senha antiga)")
     print(f"Movimentações de estoque: {movimentacoes or 'já carregadas antes, nada novo'}")
+    if codigos:
+        print("Pedidos de demonstração (código da venda):")
+        for descricao, codigo in codigos.items():
+            print(f"  {codigo}  {descricao}")
+    else:
+        print("Pedidos: já existiam pedidos no banco, nada novo")
 
 
 if __name__ == "__main__":

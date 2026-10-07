@@ -54,6 +54,7 @@ def banco(monkeypatch):
     m(catalogo_repository, "variantes_dos_produtos", lambda db, ids: {
         i: [v for v in estado.variantes if v.id_produto == i] for i in ids})
     m(catalogo_repository, "historico_preco", historico)
+    m(catalogo_repository, "imagens_dos_produtos", lambda db, ids: {i: [] for i in ids})
     return estado
 
 

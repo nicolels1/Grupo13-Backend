@@ -95,3 +95,27 @@ def api(monkeypatch):
 
     yield montar
     app.dependency_overrides.clear()
+
+
+class StorageFalso:
+    """Supabase Storage de mentira: guarda os arquivos enviados e apagados."""
+
+    def __init__(self, erro=None):
+        self.erro = erro
+        self.enviados = {}
+        self.apagados = []
+
+    def enviar(self, bucket, caminho, conteudo, tipo):
+        if self.erro:
+            raise self.erro
+        self.enviados[(bucket, caminho)] = (conteudo, tipo)
+
+    def apagar(self, bucket, caminho):
+        self.apagados.append((bucket, caminho))
+
+    def url_temporaria(self, bucket, caminho, segundos=3600):
+        return f"https://teste/{bucket}/{caminho}?token=x"
+
+
+PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 32
+PDF = b"%PDF-1.7" + b"0" * 32

@@ -2,12 +2,15 @@ import uuid
 
 from sqlalchemy.orm import Session
 
-from src.models.catalogo import CategoriaProduto, HistoricoPreco, Produto, Variante
+from src.models.catalogo import CategoriaProduto, HistoricoPreco, ImagemProduto, Produto, Variante
 from src.repositories import catalogo_repository as repo
 from src.repositories import estoque_repository
+from src.use_cases import arquivos
+from src.use_cases.arquivos import FOTO_PRODUTO
 from src.use_cases.erros import Conflito, RecursoNaoEncontrado, RegraDeNegocio
 from src.use_cases.permissoes import usuario_tem_permissao
 from src.use_cases.estoque import interpretar_momento, validar_local
+from src.utils.supabase_storage import url_publica
 
 
 def _categoria_ou_404(db: Session, id_categoria: int) -> CategoriaProduto:
@@ -73,7 +76,16 @@ def visao_publica(db: Session, usuario) -> bool:
     return usuario is None or not usuario_tem_permissao(db, usuario, "gerenciar_catalogo")
 
 
-def montar_produto(produto: Produto, variantes: list[Variante], publico: bool = False) -> dict:
+def montar_imagem(imagem: ImagemProduto) -> dict:
+    return {
+        "id_imagem": imagem.id_imagem, "id_produto": imagem.id_produto, "cor": imagem.cor, "ordem": imagem.ordem,
+        "url": url_publica(FOTO_PRODUTO.bucket, imagem.caminho_arquivo),
+    }
+
+
+def montar_produto(
+    produto: Produto, variantes: list[Variante], publico: bool = False, imagens: list[ImagemProduto] = (),
+) -> dict:
     return {
         "id_produto": produto.id_produto,
         "id_categoria": produto.id_categoria,
@@ -82,6 +94,7 @@ def montar_produto(produto: Produto, variantes: list[Variante], publico: bool = 
         "descricao_cliente": produto.descricao_cliente,
         "ativo": produto.ativo,
         "variantes": [v for v in variantes if v.ativo] if publico else variantes,
+        "imagens": [montar_imagem(i) for i in imagens],
     }
 
 
@@ -89,8 +102,10 @@ def listar_produtos(db: Session, limit: int, offset: int, publico: bool = False,
     if publico:
         filtros.update(ativo=True, categoria_ativa=True)
     produtos, total = repo.listar_produtos(db, limit, offset, **filtros)
-    variantes = repo.variantes_dos_produtos(db, [p.id_produto for p in produtos])
-    itens = [montar_produto(p, variantes[p.id_produto], publico) for p in produtos]
+    ids = [p.id_produto for p in produtos]
+    variantes = repo.variantes_dos_produtos(db, ids)
+    imagens = repo.imagens_dos_produtos(db, ids)
+    itens = [montar_produto(p, variantes[p.id_produto], publico, imagens[p.id_produto]) for p in produtos]
     return {"items": itens, "total": total, "limit": limit, "offset": offset}
 
 
@@ -98,7 +113,56 @@ def buscar_produto(db: Session, id_produto: int, publico: bool = False) -> dict:
     produto = _produto_ou_404(db, id_produto)
     if publico and (not produto.ativo or not repo.buscar_categoria(db, produto.id_categoria).ativo):
         raise RecursoNaoEncontrado("Produto não encontrado")
-    return montar_produto(produto, repo.variantes_dos_produtos(db, [id_produto])[id_produto], publico)
+    return montar_produto(
+        produto, repo.variantes_dos_produtos(db, [id_produto])[id_produto], publico,
+        repo.imagens_dos_produtos(db, [id_produto])[id_produto],
+    )
+
+
+# ---------- fotos ----------
+
+# a cor da foto, quando informada, precisa ser de uma variante do produto (sem cor: vale para todas)
+def _cor_do_produto(db: Session, id_produto: int, cor: str | None) -> str | None:
+    if cor is None:
+        return None
+    for variante in repo.variantes_dos_produtos(db, [id_produto])[id_produto]:
+        if variante.cor.lower() == cor.lower():
+            return variante.cor
+    raise RegraDeNegocio(f"O produto não tem variante na cor {cor}")
+
+
+# o arquivo sobe antes da gravação (nenhuma chamada externa dentro de transação);
+# sem ordem, a foto entra no fim
+def adicionar_imagem(db: Session, storage, id_produto: int, arquivo, cor: str | None, ordem: int | None) -> dict:
+    _produto_ou_404(db, id_produto)
+    cor = _cor_do_produto(db, id_produto, cor)
+    caminho = arquivos.enviar(storage, FOTO_PRODUTO, f"produto-{id_produto}", arquivo)
+    imagem = ImagemProduto(
+        id_produto=id_produto, cor=cor, caminho_arquivo=caminho,
+        ordem=ordem or repo.proxima_ordem_de_imagem(db, id_produto),
+    )
+    try:
+        db.add(imagem)
+        db.commit()
+    except Exception:
+        db.rollback()
+        arquivos.desfazer_envio(storage, FOTO_PRODUTO, caminho)
+        raise
+    db.refresh(imagem)
+    return montar_imagem(imagem)
+
+
+def alterar_imagem(db: Session, id_imagem: int, campos: dict) -> dict:
+    imagem = repo.buscar_imagem(db, id_imagem)
+    if imagem is None:
+        raise RecursoNaoEncontrado("Foto não encontrada")
+    if "cor" in campos:
+        campos["cor"] = _cor_do_produto(db, imagem.id_produto, campos["cor"])
+    for campo, valor in campos.items():
+        setattr(imagem, campo, valor)
+    db.commit()
+    db.refresh(imagem)
+    return montar_imagem(imagem)
 
 
 def _conferir_variantes_novas(db: Session, id_produto: int | None, variantes: list[dict]) -> None:
