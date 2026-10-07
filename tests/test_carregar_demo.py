@@ -146,3 +146,12 @@ def test_alguma_variante_termina_abaixo_do_minimo():
     abaixo_loja = [c for c, q in saldos.items() if c[2] == "loja_fisica" and q < demo.MINIMO_LOJA_FISICA]
     abaixo_cd = [c for c, q in saldos.items() if c[1] == "CD Guarulhos" and q < demo.MINIMO_ONLINE_CD]
     assert abaixo_loja and abaixo_cd
+
+
+def test_vendas_da_demo_so_carregam_uma_vez():
+    # já existe pedido no banco: nada é criado (e nenhuma conta é consultada)
+    class SessaoComPedido:
+        def scalar(self, consulta):
+            return 1
+
+    assert demo.carregar_vendas(SessaoComPedido()) == {}
