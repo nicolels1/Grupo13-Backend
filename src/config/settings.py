@@ -24,3 +24,7 @@ CORS_ORIGINS = [
 ]
 # Opcional: expressão regular para liberar vários endereços, como os previews da Vercel
 CORS_ORIGIN_REGEX = os.getenv("CORS_ORIGIN_REGEX") or None
+
+# Opcional: página do frontend aberta pelo link de ativação da conta criada no caixa.
+# Precisa estar nas Redirect URLs do Supabase Auth; sem ela, o link abre a Site URL do projeto
+URL_ATIVACAO = os.getenv("URL_ATIVACAO") or None

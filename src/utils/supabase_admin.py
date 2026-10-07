@@ -46,6 +46,7 @@ class SupabaseAdmin:
             raise RuntimeError("SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY precisam estar no .env")
         self.base = f"{url}/auth/v1/admin/users"
         self.convite = f"{url}/auth/v1/invite"
+        self.links = f"{url}/auth/v1/admin/generate_link"
         self.headers = {"apikey": chave, "Authorization": f"Bearer {chave}"}
 
     def criar_login(self, email: str, senha: str) -> uuid.UUID:
@@ -68,6 +69,22 @@ class SupabaseAdmin:
     def convidar(self, email: str) -> uuid.UUID:
         resposta = _enviar("POST", self.convite, headers=self.headers, json={"email": email})
         return uuid.UUID(resposta.json()["id"])
+
+    # link de primeiro acesso sem enviar e-mail: "invite" cria o login sem senha; "magiclink" gera
+    # um link novo para um login que já existe. Devolve o id do login e o link
+    def gerar_link(self, tipo: str, email: str, redirecionar_para: str | None = None) -> tuple[uuid.UUID, str]:
+        corpo = {"type": tipo, "email": email}
+        if redirecionar_para:
+            corpo["redirect_to"] = redirecionar_para
+        dados = _enviar("POST", self.links, headers=self.headers, json=corpo).json()
+        return uuid.UUID(dados["id"]), dados["action_link"]
+
+    def definir_senha(self, id_usuario: uuid.UUID, senha: str) -> None:
+        _enviar("PUT", f"{self.base}/{id_usuario}", headers=self.headers, json={"password": senha})
+
+    # correção feita na loja, com documento: o novo e-mail já vale, sem link de confirmação
+    def alterar_email(self, id_usuario: uuid.UUID, email: str) -> None:
+        _enviar("PUT", f"{self.base}/{id_usuario}", headers=self.headers, json={"email": email, "email_confirm": True})
 
     # desativar uma conta bloqueia o login no Auth (case, seção 5); "none" desbloqueia
     def bloquear_login(self, id_usuario: uuid.UUID) -> None:
