@@ -248,3 +248,9 @@ def anexo_para_a_equipe(db: Session, storage, id_chamado: int, id_mensagem: int)
 def historico(db: Session, id_chamado: int) -> list:
     _chamado(db, id_chamado)
     return repo.listar_historico(db, id_chamado)
+
+
+# para quem dá para repassar um chamado: contas internas ativas que atendem chamados
+# (a mesma regra que alterar() confere no repasse)
+def equipe(db: Session) -> list[Usuario]:
+    return [u for u in repo.contas_internas_ativas(db) if usuario_tem_permissao(db, u, "atender_chamado")]

@@ -118,6 +118,12 @@ class MensagemSaida(BaseModel):
     criado_em: datetime
 
 
+class PessoaDaEquipe(BaseModel):
+    id_usuario: uuid.UUID
+    nome: str
+    id_unidade: int | None
+
+
 class HistoricoSaida(BaseModel):
     id_historico: int
     campo_alterado: str

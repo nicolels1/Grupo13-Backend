@@ -272,6 +272,7 @@ A leitura exige alguma permissão da área (movimentar estoque, definir mínimo 
 | GET, POST | `/chamados/{id}/mensagens` | cliente | mensagens (sem as internas) e resposta |
 | GET | `/atendimento/chamados` | `atender_chamado` | fila, com filtros: sem responsável, meus, com mensagem nova… |
 | GET, PATCH | `/atendimento/chamados/{id}` | `atender_chamado` | detalhe; o responsável define a prioridade ou repassa o chamado |
+| GET | `/atendimento/equipe` | `atender_chamado` | contas ativas que atendem chamados, por nome: para quem dá para repassar |
 | POST | `/atendimento/chamados/{id}/assumir` | `atender_chamado` | assume o chamado |
 | POST | `/atendimento/chamados/{id}/concluir` | `atender_chamado` | conclui com motivo |
 | GET, POST | `/atendimento/chamados/{id}/mensagens` | `atender_chamado` | mensagens (inclusive internas) e resposta |
