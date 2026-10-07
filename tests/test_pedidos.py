@@ -67,6 +67,7 @@ def test_resumo_do_carrinho(banco):
 
     assert resumo["valor_itens"] == Decimal("200.00") and resumo["frete_entrega"] == Decimal("19.90")
     assert resumo["total_entrega"] == Decimal("219.90") and resumo["total_retirada"] == Decimal("200.00")
+    assert resumo["frete_gratis_a_partir_de"] == Decimal("299.00")
     # a Loja Rio só tem 1: fica de fora da retirada; a Loja Paulista não despacha: sem entrega
     assert [l["id_unidade"] for l in resumo["lojas_retirada"]] == [LOJA_SP]
     assert resumo["entrega_disponivel"] is False
@@ -270,6 +271,7 @@ def test_carrinho_e_publico(api, banco):
     com_estoque(banco, CAMISA, LOJA_SP, "online", 5)
     resposta = api(SessaoFalsa()).post("/carrinho", json={"itens": [{"id_variante": CAMISA, "quantidade": 1}]})
     assert resposta.status_code == 200 and resposta.json()["total_retirada"] == "100.00"
+    assert resposta.json()["frete_gratis_a_partir_de"] == "299.00"
 
 
 def test_checkout_so_para_cliente(api, banco):
