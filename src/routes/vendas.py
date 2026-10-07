@@ -45,13 +45,15 @@ def listar(
     pronto_ha_mais_de_dias: int | None = Query(
         None, ge=0, description="Retiradas prontas há mais de N dias (risco de vencer)",
     ),
+    de: str | None = Query(None, description="Criados a partir de AAAA-MM-DD (começo do dia) ou AAAA-MM-DDTHH:MM"),
+    ate: str | None = Query(None, description="Criados até AAAA-MM-DD (fim do dia) ou AAAA-MM-DDTHH:MM"),
     limit: int = Query(LIMITE_PADRAO, ge=1, le=LIMITE_MAXIMO),
     offset: int = Query(0, ge=0),
     _: Usuario = Depends(VER_PEDIDOS),
     db: Session = Depends(get_db),
 ):
     return vendas.listar(
-        db, limit, offset, pronto_ha_mais_de_dias, status=status_pedido, canal=canal, modalidade=modalidade,
+        db, limit, offset, pronto_ha_mais_de_dias, de, ate, status=status_pedido, canal=canal, modalidade=modalidade,
         id_unidade=id_unidade, codigo_venda=codigo_venda,
     )
 
