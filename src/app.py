@@ -5,8 +5,8 @@ from src.middlewares.cors import configurar_cors
 from src.middlewares.erros import configurar_erros
 from src.middlewares.requisicao import configurar_requisicao
 from src.routes import (
-    atendimento, avaliacoes, catalogo, contas, enderecos, estoque, health, modelos_acesso, pedidos, transferencias,
-    unidades, usuarios, vendas,
+    atendimento, avaliacoes, balcao, catalogo, contas, enderecos, estoque, health, modelos_acesso, pedidos,
+    transferencias, unidades, usuarios, vendas,
 )
 
 configurar_logs()
@@ -30,3 +30,4 @@ app.include_router(enderecos.router)
 app.include_router(pedidos.router)
 app.include_router(vendas.router)
 app.include_router(avaliacoes.router)
+app.include_router(balcao.router)

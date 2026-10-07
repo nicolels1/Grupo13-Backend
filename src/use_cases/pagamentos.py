@@ -32,9 +32,11 @@ def restante_estornavel(original: Pagamento, pagamentos: list[Pagamento]) -> Dec
 
 
 # estorno é um lançamento próprio, ligado ao original e volta pelo mesmo método (ADR 0003);
-# o gateway simulado aprova na hora
+# o gateway simulado aprova na hora. origem: cancelamento (automático ou pela equipe), atendimento
+# (com chamado) ou balcao (com quem registrou e a loja) — ADR 0015
 def estornar(db: Session, pedido: Pedido, original: Pagamento, valor: Decimal, pagamentos: list[Pagamento],
-             id_chamado: int | None = None) -> Pagamento:
+             origem: str, id_chamado: int | None = None, id_registrado_por=None,
+             id_unidade: int | None = None) -> Pagamento:
     if original.id_pedido != pedido.id_pedido or original.tipo != "pagamento" or original.status != "aprovado":
         raise RegraDeNegocio("Só um pagamento aprovado deste pedido pode ser estornado")
     if valor <= 0:
@@ -44,8 +46,8 @@ def estornar(db: Session, pedido: Pedido, original: Pagamento, valor: Decimal, p
         raise RegraDeNegocio(f"Estorno maior que o disponível nesse pagamento: R$ {restante}")
     estorno = Pagamento(
         id_pedido=pedido.id_pedido, tipo="estorno", id_pagamento_original=original.id_pagamento,
-        id_chamado=id_chamado, metodo=original.metodo, id_transacao_gateway=id_transacao(original.metodo),
-        valor=valor, status="aprovado",
+        id_chamado=id_chamado, origem=origem, id_registrado_por=id_registrado_por, id_unidade=id_unidade,
+        metodo=original.metodo, id_transacao_gateway=id_transacao(original.metodo), valor=valor, status="aprovado",
     )
     db.add(estorno)
     pagamentos.append(estorno)
@@ -58,7 +60,7 @@ def estornar_tudo(db: Session, pedido: Pedido, pagamentos: list[Pagamento]) -> l
     for original in [p for p in pagamentos if p.tipo == "pagamento" and p.status == "aprovado"]:
         restante = restante_estornavel(original, pagamentos)
         if restante > 0:
-            estornos.append(estornar(db, pedido, original, restante, pagamentos))
+            estornos.append(estornar(db, pedido, original, restante, pagamentos, "cancelamento"))
     return estornos
 
 

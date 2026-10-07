@@ -113,6 +113,9 @@ class PagamentoSaida(BaseModel):
     tipo: str
     id_pagamento_original: int | None
     id_chamado: int | None
+    origem: str | None = Field(description="Estorno: cancelamento, atendimento ou balcao")
+    id_registrado_por: uuid.UUID | None = Field(description="Estorno no balcão: quem registrou")
+    id_unidade: int | None = Field(description="Estorno no balcão: a loja")
     metodo: str
     id_transacao_gateway: str | None
     valor: Valor

@@ -1,3 +1,4 @@
+import itertools
 import uuid
 from decimal import Decimal
 from types import SimpleNamespace
@@ -26,11 +27,13 @@ def _unidade(id_unidade, nome, tipo, despacha, cidade, uf, ativo=True):
 
 
 class SessaoVendas(SessaoComTrigger):
-    """Guarda pedidos, itens, pagamentos e endereços como o banco guardaria."""
+    """Guarda pedidos, itens, pagamentos e endereços como o banco guardaria. As sessões do mesmo
+    banco usam um contador de ids só, para dois pedidos nunca terem o mesmo número."""
 
     def __init__(self, banco):
         super().__init__(banco.saldos)
         self.banco = banco
+        self._ids = banco.ids
 
     def flush(self):
         super().flush()
@@ -76,6 +79,7 @@ def banco(monkeypatch):
         enderecos={7: EnderecoCliente(id_endereco=7, id_cliente=ID_CLIENTE, rua="Rua A", numero="1", complemento=None,
                                       bairro="Centro", cidade="Sao Paulo", uf="SP", cep="01000000")},
         clientes_por_cpf={},
+        ids=itertools.count(1),
     )
 
     def disponivel_online(db, ids):
