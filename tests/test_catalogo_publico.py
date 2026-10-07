@@ -75,7 +75,7 @@ def test_quem_gerencia_o_catalogo_ve_tudo(monkeypatch, tem_permissao, publico):
 def test_vitrine_so_lista_ativos_mesmo_pedindo_inativos(banco):
     resultado = catalogo.listar_produtos(SessaoFalsa(), 10, 0, publico=True, ativo=False)
 
-    assert banco.filtros == {"ativo": True, "categoria_ativa": True}
+    assert banco.filtros == {"ativo": True, "categoria_ativa": True, "palavras": None, "ordem": "nome"}
     [item] = resultado["items"]
     assert item["descricao_tecnica"] is None
     assert [v["id_variante"] for v in item["variantes"]] == [50]  # a variante desativada some
@@ -84,7 +84,7 @@ def test_vitrine_so_lista_ativos_mesmo_pedindo_inativos(banco):
 def test_equipe_do_catalogo_ve_inativos_e_descricao_tecnica(banco):
     resultado = catalogo.listar_produtos(SessaoFalsa(), 10, 0, ativo=False)
 
-    assert banco.filtros == {"ativo": False}
+    assert banco.filtros == {"ativo": False, "palavras": None, "ordem": "nome"}
     [item] = resultado["items"]
     assert item["descricao_tecnica"] == "algodão 30.1"
     assert len(item["variantes"]) == 2
@@ -267,13 +267,13 @@ def test_rota_de_tamanhos_nao_e_lida_como_produto(client, monkeypatch):
 
     assert resposta.status_code == 200
     assert resposta.json() == {"items": ["P", "M"]}
-    assert pedidos == [(23, "camisa")]
+    assert pedidos == [(23, ["camisa"])]
 
 
 def test_tamanhos_a_venda_so_contam_o_que_esta_ativo():
     db = SessaoQueGuarda()
 
-    catalogo_repository.tamanhos_a_venda(db, id_categoria=23, busca="cam")
+    catalogo_repository.tamanhos_a_venda(db, id_categoria=23, palavras=["cam"])
 
     texto = sql(db.consultas[0])
     assert texto.startswith("SELECT DISTINCT variante.tamanho")
@@ -304,3 +304,102 @@ def test_varios_tamanhos_viram_um_in_na_consulta():
     texto = str(contagem)
     assert "variante.tamanho IN (__[POSTCOMPILE_tamanho_1])" in texto
     assert contagem.params["tamanho_1"] == ["P", "M"]
+
+
+# ---------- busca flexível ----------
+
+@pytest.mark.parametrize("busca, palavras", [
+    ("Calça  Jeans!", ["calca", "jeans"]),
+    ("CAMISETA camiseta", ["camiseta"]),
+    ("  ", []),
+    (None, []),
+    ("a b c d e f g h", ["a", "b", "c", "d", "e", "f"]),
+])
+def test_busca_vira_palavras_sem_acento(busca, palavras):
+    assert catalogo.palavras_da_busca(busca) == palavras
+
+
+def test_com_busca_e_sem_ordem_os_mais_parecidos_vem_primeiro(banco):
+    catalogo.listar_produtos(SessaoFalsa(), 10, 0, publico=True, busca="calça")
+
+    assert banco.filtros["palavras"] == ["calca"]
+    assert banco.filtros["ordem"] == "relevancia"
+
+
+def test_ordem_escolhida_vale_mesmo_com_busca(banco):
+    catalogo.listar_produtos(SessaoFalsa(), 10, 0, publico=True, busca="calça", ordem="menor_preco")
+
+    assert banco.filtros["ordem"] == "menor_preco"
+
+
+@pytest.fixture
+def busca_vazia(banco, monkeypatch):
+    """Repository de mentira: a busca normal não acha nada; o que acontece depois depende do teste."""
+    estado = SimpleNamespace(chamadas=[], acha_parecidas=True)
+
+    def listar(db, limit, offset, **filtros):
+        estado.chamadas.append(filtros)
+        achou = filtros.get("aproximada") and estado.acha_parecidas or filtros.get("ordem") == "novidades"
+        return (list(banco.produtos.values()), len(banco.produtos)) if achou else ([], 0)
+
+    monkeypatch.setattr(catalogo_repository, "listar_produtos", listar)
+    return estado
+
+
+def test_vitrine_sem_resultado_traz_pecas_parecidas_e_avisa(busca_vazia):
+    resultado = catalogo.listar_produtos(SessaoFalsa(), 10, 0, publico=True, busca="calssa")
+
+    assert resultado["busca_alternativa"] == "parecidas" and resultado["total"] == 1
+    assert busca_vazia.chamadas[1]["aproximada"] is True and busca_vazia.chamadas[1]["ordem"] == "relevancia"
+
+
+def test_sem_nada_parecido_mostra_as_novidades(busca_vazia):
+    busca_vazia.acha_parecidas = False
+
+    resultado = catalogo.listar_produtos(SessaoFalsa(), 10, 0, publico=True, busca="xablau")
+
+    assert resultado["busca_alternativa"] == "novidades" and resultado["total"] == 1
+    assert "palavras" not in busca_vazia.chamadas[2] and busca_vazia.chamadas[2]["ordem"] == "novidades"
+
+
+def test_catalogo_interno_nao_troca_a_busca_por_outra_coisa(busca_vazia):
+    resultado = catalogo.listar_produtos(SessaoFalsa(), 10, 0, publico=False, busca="xablau")
+
+    assert resultado["busca_alternativa"] is None and resultado["total"] == 0
+    assert len(busca_vazia.chamadas) == 1
+
+
+def test_rota_devolve_o_aviso_de_busca_alternativa(client):
+    assert client().get("/produtos").json()["busca_alternativa"] is None
+
+
+def test_busca_procura_no_texto_do_produto_sem_acento():
+    db = SessaoQueGuarda()
+
+    catalogo_repository.listar_produtos(db, 12, 0, palavras=["ca", "camisa"], ordem="relevancia")
+
+    contagem, pagina = (sql(c) for c in db.consultas)
+    # nome, categoria, cores e descrição juntos, sem acento
+    assert "texto_de_busca(concat_ws(" in contagem and "produto.descricao_cliente" in contagem
+    assert "string_agg(variante.cor" in contagem and "categoria_produto.nome" in contagem
+    # "ca" só pelo começo da palavra (curta demais para semelhança); "camisa" também por semelhança
+    assert contagem.count(" ~ ") == 2 and contagem.count("semelhanca_de_palavra(") == 1
+    assert "ORDER BY" in pagina and "semelhanca_de_palavra(" in pagina.split("ORDER BY")[1]
+
+
+def test_busca_aproximada_aceita_qualquer_palavra_parecida():
+    db = SessaoQueGuarda()
+
+    catalogo_repository.listar_produtos(db, 12, 0, palavras=["linho", "azul"], aproximada=True, ordem="relevancia")
+
+    contagem = db.consultas[0].compile(dialect=postgresql.dialect())
+    assert " OR " in str(contagem) and " ~ " not in str(contagem)
+    assert catalogo_repository.SEMELHANCA_APROXIMADA in contagem.params.values()
+
+
+def test_relevancia_sem_busca_cai_na_ordem_por_nome():
+    db = SessaoQueGuarda()
+
+    catalogo_repository.listar_produtos(db, 12, 0, ordem="relevancia")
+
+    assert "ORDER BY produto.nome" in sql(db.consultas[1])

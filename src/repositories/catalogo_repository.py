@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, and_, func, literal, or_, select
 from sqlalchemy.orm import Session
 
 from src.models.catalogo import CategoriaProduto, HistoricoPreco, ImagemProduto, Produto, Variante
@@ -64,12 +64,69 @@ ORDENS = {
 }
 
 
-# uma página de produtos e o total; busca no nome sem diferenciar maiúsculas
+# ---------- busca da vitrine ----------
+# texto_de_busca e semelhanca_de_palavra são funções do banco (migration 5809c1f5a848): sem acento
+# e minúsculo, e semelhança de 0 a 1 entre a palavra buscada e a palavra inteira mais parecida do texto.
+# Limites testados nos produtos da demo: pegam "camisa" ~ "camiseta", "calsa" ~ "calça" e
+# "alfaitaria" ~ "alfaiataria" sem trazer "camiseta" para "calca" nem "bolsa" para "calsa"
+SEMELHANCA_MINIMA = 0.3
+# quando nada bate, a busca aproximada aceita parentes mais distantes
+SEMELHANCA_APROXIMADA = 0.2
+# com menos letras a comparação por semelhança não diz nada ("cal" parecia "camiseta"):
+# só vale o começo da palavra
+LETRAS_PARA_SEMELHANCA = 4
+
+_CATEGORIA_DO_PRODUTO = (
+    select(CategoriaProduto.nome)
+    .where(CategoriaProduto.id_categoria == Produto.id_categoria)
+    .correlate(Produto)
+    .scalar_subquery()
+)
+_CORES_DO_PRODUTO = (
+    select(func.string_agg(Variante.cor, " "))
+    .where(Variante.id_produto == Produto.id_produto, Variante.ativo)
+    .correlate(Produto)
+    .scalar_subquery()
+)
+# onde a busca procura: nome, categoria, cores e a descrição para o cliente (ex.: "linho" no tecido)
+_TEXTO_DO_PRODUTO = func.texto_de_busca(
+    func.concat_ws(" ", Produto.nome, _CATEGORIA_DO_PRODUTO, _CORES_DO_PRODUTO, Produto.descricao_cliente)
+)
+_NOME_DO_PRODUTO = func.texto_de_busca(Produto.nome)
+
+
+# uma palavra bate se começa alguma palavra do produto ("cal" → "calça") ou se é parecida o
+# bastante com alguma ("camisa" → "camiseta"). As palavras chegam limpas (só letras e números)
+def _palavra_bate(palavra: str):
+    comeco = _TEXTO_DO_PRODUTO.op("~")(r"\m" + palavra)
+    if len(palavra) < LETRAS_PARA_SEMELHANCA:
+        return comeco
+    return or_(comeco, func.semelhanca_de_palavra(palavra, _TEXTO_DO_PRODUTO) >= SEMELHANCA_MINIMA)
+
+
+# busca normal: todas as palavras precisam bater. Aproximada: basta uma parecida de longe
+def _filtro_da_busca(palavras: list[str], aproximada: bool = False):
+    if aproximada:
+        return or_(*(func.semelhanca_de_palavra(p, _TEXTO_DO_PRODUTO) >= SEMELHANCA_APROXIMADA for p in palavras))
+    return and_(*(_palavra_bate(p) for p in palavras))
+
+
+# o que bate no nome pesa o dobro do que bate só na categoria, cor ou descrição
+def _relevancia(palavras: list[str]):
+    return sum(
+        (2 * func.semelhanca_de_palavra(p, _NOME_DO_PRODUTO) + func.semelhanca_de_palavra(p, _TEXTO_DO_PRODUTO)
+         for p in palavras),
+        start=literal(0),
+    )
+
+
+# uma página de produtos e o total
 # categoria_ativa=True: só produtos de categorias ativas (visão pública)
+# palavras: busca sem acento, por começo de palavra ou semelhança; aproximada: aceita parentes distantes
 # tamanhos: com variante ativa em algum desses tamanhos; disponivel: com peça para vender online
-# (em algum desses tamanhos, se houver)
+# (em algum desses tamanhos, se houver). ordem "relevancia" só faz sentido com palavras
 def listar_produtos(db: Session, limit: int, offset: int, id_categoria: int | None = None,
-                    ativo: bool | None = None, busca: str | None = None,
+                    ativo: bool | None = None, palavras: list[str] | None = None, aproximada: bool = False,
                     categoria_ativa: bool | None = None, tamanhos: list[str] | None = None,
                     disponivel: bool | None = None, ordem: str = "nome") -> tuple[list[Produto], int]:
     consulta = select(Produto)
@@ -81,8 +138,8 @@ def listar_produtos(db: Session, limit: int, offset: int, id_categoria: int | No
         consulta = consulta.where(Produto.id_categoria == id_categoria)
     if ativo is not None:
         consulta = consulta.where(Produto.ativo == ativo)
-    if busca:
-        consulta = consulta.where(Produto.nome.ilike(f"%{busca}%"))
+    if palavras:
+        consulta = consulta.where(_filtro_da_busca(palavras, aproximada))
     if tamanhos:
         consulta = consulta.where(Produto.id_produto.in_(
             select(Variante.id_produto).where(Variante.tamanho.in_(tamanhos), Variante.ativo)
@@ -91,12 +148,17 @@ def listar_produtos(db: Session, limit: int, offset: int, id_categoria: int | No
         com_peca = Produto.id_produto.in_(_variantes_disponiveis_online(tamanhos).with_only_columns(Variante.id_produto))
         consulta = consulta.where(com_peca if disponivel else ~com_peca)
     total = db.scalar(select(func.count()).select_from(consulta.subquery()))
-    pagina = consulta.order_by(*ORDENS[ordem]).limit(limit).offset(offset)
+    if ordem == "relevancia" and palavras:
+        ordenacao = (_relevancia(palavras).desc(), Produto.nome, Produto.id_produto)
+    else:
+        ordenacao = ORDENS.get(ordem, ORDENS["nome"])
+    pagina = consulta.order_by(*ordenacao).limit(limit).offset(offset)
     return list(db.scalars(pagina)), total
 
 
-# tamanhos distintos das variantes à venda na vitrine (variante, produto e categoria ativos)
-def tamanhos_a_venda(db: Session, id_categoria: int | None = None, busca: str | None = None) -> list[str]:
+# tamanhos distintos das variantes à venda na vitrine (variante, produto e categoria ativos),
+# com a mesma busca da lista para os dois concordarem
+def tamanhos_a_venda(db: Session, id_categoria: int | None = None, palavras: list[str] | None = None) -> list[str]:
     consulta = (
         select(Variante.tamanho).distinct()
         .join(Produto, Produto.id_produto == Variante.id_produto)
@@ -105,8 +167,8 @@ def tamanhos_a_venda(db: Session, id_categoria: int | None = None, busca: str | 
     )
     if id_categoria is not None:
         consulta = consulta.where(Produto.id_categoria == id_categoria)
-    if busca:
-        consulta = consulta.where(Produto.nome.ilike(f"%{busca}%"))
+    if palavras:
+        consulta = consulta.where(_filtro_da_busca(palavras))
     return list(db.scalars(consulta))
 
 
