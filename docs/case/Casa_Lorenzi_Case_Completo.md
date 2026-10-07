@@ -1,6 +1,6 @@
 # Casa Lorenzi — Case de Tech (Trainee Insper Jr. 2026.2)
 
-Documento consolidado com o contexto do case, as decisões tomadas ao longo do projeto e o modelo de dados. Atualizado em 05/10/2026 com os ajustes da Entrega 2 (requisito de histórico e tela inicial).
+Documento consolidado com o contexto do case, as decisões tomadas ao longo do projeto e o modelo de dados. Atualizado em 06/10/2026 com os ajustes da Entrega 2 (histórico e tela inicial) e com a implementação de vendas, avaliações e arquivos.
 
 ---
 
@@ -45,12 +45,13 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 - **Duas camadas de proteção:**
   - **Triggers no banco** (já implementados): recusam editar movimentações, históricos e o saldo do estoque direto, e garantem as regras do Admin (inclusive Gestão só no Admin), do CD, do estorno e do item do chamado. Valem para qualquer caminho, inclusive o painel do Supabase (ADRs 0009 e 0010).
   - **Usuário de banco restrito para o FastAPI** (`api_casalorenzi`, migration `56799f788354`): não pode apagar dados, exceto endereços salvos do cliente e as duas tabelas de ligação da Gestão (`modelo_permissao` e `usuario_permissao_excecao`: tirar uma permissão de um modelo ou remover uma exceção apaga a linha que liga um ao outro). Também não edita movimentações, histórico de chamados e histórico de preço, não altera o saldo do estoque direto e só lê a lista de permissões. Uma regra de RLS em cada tabela libera só ele. Ele não lê o `auth.users`: duas funções do banco respondem só o que a Gestão precisa (se um e-mail já tem login e se o login foi confirmado). As migrations continuam com o usuário completo. O trigger que atualiza o saldo roda como `SECURITY DEFINER`.
-- **Situação em 06/10/2026:** os triggers do saldo e da Gestão e o `SECURITY DEFINER` (migration `e08fd1b28bcf`) estão aplicados. O usuário restrito está na migration `56799f788354`; depois de aplicada, falta definir a senha dele e trocar a `DATABASE_URL` (ver seção 10). O script `scripts/conferir_banco.py` confere, no banco de verdade, que as garantias valem.
+- **Situação em 06/10/2026:** os triggers do saldo e da Gestão, o `SECURITY DEFINER` e o usuário restrito estão aplicados no banco, e a API local já conecta como `api_casalorenzi`. O script `scripts/conferir_banco.py` confere, no banco de verdade, que as garantias valem (todas passaram em 06/10/2026). Falta aplicar a migration `03aeb347f6cf` e conferir a `DATABASE_URL` do Render (ver seção 10).
+- **Prazos automáticos:** a função `cancela_vencidos()` do banco cancela reservas vencidas (15 min) e retiradas vencidas (7 dias), e o pg_cron do Supabase a roda a cada minuto, mesmo com a API dormindo (ADR 0012).
 - A chave de serviço do Supabase fica só no backend.
 - FastAPI conecta pelo pooler; migrations do Alembic usam conexão direta.
 - Nenhuma chamada externa (pagamento, e-mail, Storage) dentro de transação de banco.
 - Ao baixar várias peças, o estoque é travado sempre na mesma ordem (evita deadlock).
-- Fotos de produto em área pública do Storage; anexos de chamado em área privada, com link temporário.
+- Fotos de produto em área pública do Storage (bucket `produtos`); anexos de chamado (`anexos`) e fotos de avaliação (`avaliacoes`) em área privada, com link temporário. Só o backend envia arquivos, conferindo tipo, conteúdo e tamanho; o banco guarda o caminho, nunca a URL.
 - E-mails do Auth saem por servidor de e-mail próprio (o padrão do Supabase envia pouquíssimos por hora).
 - **Deploy:** o plano gratuito do Render desliga o backend após 15 minutos sem tráfego; o site é aberto antes da banca para acordá-lo.
 
@@ -118,6 +119,15 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 - Lista de valores aceitos para cada campo de status e tipo, garantida por `CHECK` no banco.
 - Triggers de proteção no banco (ADRs 0009 e 0010) e ADR 0008 para o cadastro feito pelo backend.
 
+### Implementação de vendas, avaliações e arquivos (06/10/2026)
+
+- **Frete** da entrega em casa: R$ 19,90, grátis a partir de R$ 299,00 em itens. O cliente vê o frete no carrinho, antes de a unidade ser escolhida no checkout.
+- **Pagamento online** por gateway simulado: a cobrança nasce pendente e uma rota aprova ou recusa (ADR 0011).
+- **Prazos** da reserva e da retirada cancelados pelo banco, com pg_cron (ADR 0012).
+- **Link de ativação** da conta do caixa gerado sem e-mail e entregue pela loja ao cliente (ADR 0013).
+- **Troca** por outra cor ou tamanho do mesmo produto, sem estorno; devolução com estorno escolhido pelo atendente.
+- **Denúncia procedente** oculta a avaliação com o motivo da denúncia (ou outro informado pela moderação).
+
 ### Decisões-chave e alternativas descartadas
 
 | Decisão | Alternativa descartada | Por quê |
@@ -141,6 +151,10 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 | Visão Geral como tela inicial montada pelas permissões | Página "Início" separada | Não cria item novo na barra e mostra só o que importa para a conta |
 | Toda conta criada pelo backend, que cria o login e a linha de usuário | Cadastro direto no Supabase Auth pelo site | As regras do cadastro ficam num lugar só e o CPF repetido tem mensagem clara (ADR 0008) |
 | Regras entre tabelas garantidas por trigger (Admin, CD, estorno, item do chamado) | Validar só no backend | Valem para qualquer caminho, inclusive o painel do Supabase (ADRs 0009 e 0010) |
+| Gateway de pagamento simulado pelo backend | Integrar o sandbox de um gateway real | O fluxo da venda fica completo sem conta, chaves nem webhook externos; trocar depois muda só quem aprova (ADR 0011) |
+| Prazos cancelados pelo banco com pg_cron | Cancelar só quando alguém consulta | Vale mesmo com a API dormindo no Render e não deixa peça presa na reserva (ADR 0012) |
+| Link de ativação entregue pela loja | Depender do e-mail do Supabase | Funciona antes do servidor de e-mail próprio (ADR 0013) |
+| Frete fixo, grátis a partir de um valor | Frete por distância | O frete não muda entre o carrinho e o checkout, quando a unidade é escolhida |
 
 ---
 
@@ -184,7 +198,8 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 - O pedido registra quando foi pago, enviado, ficou pronto para retirada, foi entregue ou cancelado.
 - Cancelamento sempre com motivo: cliente, reserva vencida, retirada vencida ou equipe (registra quem e a justificativa).
 - Após devolução, o pedido continua entregue e indica devolução parcial ou total. Troca não conta como devolução.
-- Valor total = itens + frete; frete zero na retirada e na venda física. O item guarda o preço do momento da compra.
+- Valor total = itens + frete; frete zero na retirada e na venda física. Na entrega em casa, R$ 19,90, grátis a partir de R$ 299,00 em itens. O item guarda o preço do momento da compra.
+- Pagamento online pelo gateway simulado: a cobrança nasce pendente e é aprovada ou recusada; recusada, o cliente tenta de novo enquanto a reserva vale (ADR 0011).
 - Vários pagamentos por pedido; fica pago quando aprovados − estornos aprovados ≥ total. Métodos: Pix, crédito, débito e dinheiro (só loja física).
 - **Estorno:** lançamento próprio, ligado ao pagamento original e, em troca/devolução, ao chamado. Pode ser parcial e volta pelo mesmo método. Com vários pagamentos, o atendente escolhe de qual sai.
 
@@ -199,7 +214,7 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 - Enquanto o servidor de e-mail próprio não estiver configurado, o convite não chega a quem não é da equipe do projeto Supabase. Por isso o Admin também pode criar a conta interna com uma **senha provisória**, que a pessoa troca depois; sem senha provisória, vale o convite.
 - Desativar uma conta bloqueia o login no Auth.
 - **Na loja física:** o vendedor pede o CPF (sem exigir). Na primeira compra, cadastra nome, CPF e e-mail (conta sem senha); nas próximas, basta o CPF.
-- **Ativação** de conta do caixa exige confirmar o CPF na página do link. Até ativar, a conta só faz isso. Não há limite de tentativas: o link vale 24h e pode ser reenviado.
+- **Ativação** de conta do caixa exige confirmar o CPF na página do link. Até ativar, a conta só faz isso. Não há limite de tentativas: o link vale 24h e pode ser reenviado. Enquanto o servidor de e-mail próprio não estiver configurado, a loja recebe o link e o entrega ao cliente (ADR 0013).
 - Quem comprou sem CPF pode **reivindicar** a compra pelo código da venda no comprovante, uma única vez. Sem o código, não há troca nem devolução.
 - E-mail ou CPF errados são corrigidos em qualquer loja, com documento. Corrigir o CPF reenvia o link. Se o CPF certo já tiver conta, os pedidos passam para ela e a errada é desativada.
 - Cliente pode ter vários endereços salvos e apagá-los (o pedido guarda sua cópia).
@@ -414,10 +429,13 @@ O modelo já foi pensado para não travar nela:
 
 ## 10. Pendências — precisam ser resolvidas
 
-Decisões já tomadas que ainda não foram implementadas ou confirmadas. Cada uma precisa estar resolvida antes da banca (08/10/2026).
+Cada uma precisa estar resolvida antes da banca (08/10/2026).
 
 | # | Pendência | O que falta | Situação |
 | --- | --- | --- | --- |
-| 1 | Usuário de banco restrito para o FastAPI | Migration `56799f788354` cria o usuário, as permissões da seção 2 e a regra de RLS que libera só ele. Falta aplicar (`alembic upgrade head`), definir a senha no Supabase e trocar a `DATABASE_URL` no `.env` e no Render | ⚠️ Código pronto — falta aplicar e trocar a conexão |
-| 2 | Trigger do saldo compatível com o usuário restrito | O trigger do saldo roda como `SECURITY DEFINER` (migration `e08fd1b28bcf`). `scripts/conferir_banco.py` confere, com o usuário restrito, que a movimentação atualiza o saldo e que o saldo não muda direto | ⚠️ Rodar o script depois do item 1 |
-| 3 | Conferência de divergência de estoque | Rota `GET /estoque/divergencias`; `scripts/conferir_banco.py` confere no banco de verdade que ela fica vazia | ⚠️ Rodar o script depois do item 1 |
+| 1 | Usuário de banco restrito para o FastAPI | Migration `56799f788354` aplicada e senha definida; a API local já conecta com ele. Conferir se a `DATABASE_URL` do Render também usa `api_casalorenzi` | ⚠️ Conferir o Render |
+| 2 | Trigger do saldo compatível com o usuário restrito | `scripts/conferir_banco.py` confirmou em 06/10/2026 que a movimentação atualiza o saldo e que o saldo não muda direto | ✅ Resolvido |
+| 3 | Conferência de divergência de estoque | Rota `GET /estoque/divergencias`; `scripts/conferir_banco.py` confirmou em 06/10/2026 que ela fica vazia | ✅ Resolvido |
+| 4 | Vendas, avaliações e arquivos no banco | Aplicar a migration `03aeb347f6cf` (`alembic upgrade head`): cria a função dos prazos, o agendamento no pg_cron e os buckets do Storage. Depois, rodar `scripts/conferir_banco.py` | ⚠️ Código pronto — falta aplicar |
+| 5 | Ativação da conta do caixa | Definir `URL_ATIVACAO` (página do frontend) no Render, incluí-la em Redirect URLs do Supabase Auth e deixar a validade do link em 24h (Email OTP Expiration = 86400) | ⚠️ Configurar no painel |
+| 6 | Variáveis do Render | `SUPABASE_SERVICE_ROLE_KEY` e `SUPABASE_PUBLISHABLE_KEY` no Render: sem elas, cadastro, login por CPF, Gestão, contas do caixa e arquivos não funcionam em produção | ⚠️ Conferir o Render |

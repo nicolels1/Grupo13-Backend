@@ -1,6 +1,6 @@
 # Casa Lorenzi — Backend
 
-API da plataforma de estoque, catálogo e atendimento da Casa Lorenzi, desenvolvida no Case Tech da Trainee Insper Jr 2026.2. Atende duas frentes com entrada única: a **plataforma interna** (equipe da loja) e a **plataforma do cliente**. O frontend fica no repositório [Grupo13-Frontend](https://github.com/nicolels1/Grupo13-Frontend).
+API da plataforma de estoque, vendas, catálogo, atendimento e avaliações da Casa Lorenzi, desenvolvida no Case Tech da Trainee Insper Jr 2026.2. Atende duas frentes com entrada única: a **plataforma interna** (equipe da loja) e a **plataforma do cliente**. O frontend fica no repositório [Grupo13-Frontend](https://github.com/nicolels1/Grupo13-Frontend).
 
 - **API publicada:** https://grupo13-backend-megw.onrender.com
 - **Documentação interativa:** https://grupo13-backend-megw.onrender.com/docs (Swagger) e `/redoc`
@@ -31,10 +31,13 @@ API da plataforma de estoque, catálogo e atendimento da Casa Lorenzi, desenvolv
 Frontend (Vercel) ──HTTPS + token──▶ API FastAPI (Render, este repositório) ──▶ PostgreSQL (Supabase)
        │                                   │
        └── login no Supabase Auth          ├── valida o token com a chave pública do Supabase
-                                           └── cria logins no Supabase Auth (cadastro e Gestão)
+                                           ├── cria logins no Supabase Auth (cadastro, Gestão e caixa)
+                                           └── envia e lê arquivos no Supabase Storage
 ```
 
-O Supabase fornece a identidade (Auth) e o banco (PostgreSQL). Todo acesso a dados passa pelo FastAPI: o frontend nunca fala direto com o banco, e as tabelas ficam fechadas para a API automática do Supabase.
+O banco também cancela sozinho reservas e retiradas vencidas: o pg_cron roda uma função a cada minuto, mesmo com a API dormindo no Render (ADR 0012).
+
+O Supabase fornece a identidade (Auth), o banco (PostgreSQL) e os arquivos (Storage). Todo acesso a dados e arquivos passa pelo FastAPI: o frontend nunca fala direto com o banco nem envia arquivos ao Storage, e as tabelas ficam fechadas para a API automática do Supabase.
 
 | Tecnologia | Função |
 |---|---|
@@ -43,9 +46,11 @@ O Supabase fornece a identidade (Auth) e o banco (PostgreSQL). Todo acesso a dad
 | Pydantic | validação de entrada e saída |
 | SQLAlchemy + psycopg | ORM e driver do PostgreSQL |
 | Alembic | migrations |
-| PostgreSQL (Supabase) | banco de dados, com triggers e RLS |
+| PostgreSQL (Supabase) | banco de dados, com triggers, RLS e pg_cron |
 | Supabase Auth + PyJWT | login e validação do token |
-| httpx2 | chamadas à API de administração do Supabase Auth |
+| Supabase Storage | fotos de produto, anexos de chamado e fotos de avaliação |
+| httpx2 | chamadas às APIs de administração do Supabase (Auth e Storage) |
+| python-multipart | recebimento de arquivos (multipart/form-data) |
 | pytest + GitHub Actions | testes automatizados e CI |
 | Render | deploy |
 
@@ -62,7 +67,7 @@ src/
 ├── use_cases/      # regras de negócio
 ├── routes/         # rotas FastAPI, uma por área
 ├── middlewares/    # auth.py (token), permissoes.py (conta ativa e permissões), cors.py, erros.py, requisicao.py
-├── utils/          # cpf.py e supabase_admin.py (cliente do Supabase Auth)
+├── utils/          # cpf.py, supabase_admin.py (Auth), supabase_storage.py (Storage) e upload.py
 └── alembic/        # env.py e versions/ (migrations)
 scripts/            # criar_admin, carregar_demo e conferir_banco
 tests/              # testes do pytest
@@ -99,7 +104,7 @@ usuario: Usuario = Depends(get_usuario_ativo)                      # qualquer co
 
 Respostas: **401** sem token ou com token inválido; **403** conta não cadastrada, não ativa ou sem permissão; **503** se o Supabase não responder.
 
-**Cadastro.** Toda conta é criada pelo backend, que cria o login no Supabase Auth e a linha em `usuario` juntos (ADR 0008); o cadastro aberto no Auth fica desligado. O cliente se cadastra por `POST /clientes`; contas internas são criadas pelo Admin na Gestão, por convite ou com senha provisória.
+**Cadastro.** Toda conta é criada pelo backend, que cria o login no Supabase Auth e a linha em `usuario` juntos (ADR 0008); o cadastro aberto no Auth fica desligado. O cliente se cadastra por `POST /clientes`; contas internas são criadas pelo Admin na Gestão, por convite ou com senha provisória; a conta do cliente criada no caixa nasce sem senha e é ativada por link, confirmando o CPF (`POST /ativacao`, ADR 0013).
 
 ## Banco de dados
 
@@ -112,8 +117,12 @@ O backend usa duas conexões com o PostgreSQL do Supabase:
 
 **Duas camadas de proteção**, que valem para qualquer caminho, inclusive o painel do Supabase:
 
-- **Usuário restrito da API** (`api_casalorenzi`, migration `56799f788354`): não apaga dados (exceto as ligações da Gestão), não edita movimentações nem históricos, não altera o saldo do estoque direto e não lê o `auth.users`. Todas as tabelas têm RLS ligado, com uma regra que libera só ele.
+- **Usuário restrito da API** (`api_casalorenzi`, migration `56799f788354`): não apaga dados (exceto endereços salvos do cliente e as ligações da Gestão), não edita movimentações nem históricos, não altera o saldo do estoque direto e não lê o `auth.users`. Todas as tabelas têm RLS ligado, com uma regra que libera só ele.
 - **Triggers:** o saldo de `estoque` é atualizado pelo banco a cada movimentação e nunca fica negativo (ADR 0005); movimentações e históricos não são editados; as regras do Admin, do CD, do estorno e do item do chamado são garantidas no banco.
+
+**Prazos automáticos** (migration `03aeb347f6cf`, ADR 0012): a função `cancela_vencidos()` cancela o pedido cuja reserva de 15 minutos venceu (as peças voltam ao disponível e a cobrança pendente é recusada) e a retirada não feita em 7 dias (estorno pelo mesmo método e as peças voltam ao estoque online). O pg_cron a roda a cada minuto.
+
+**Arquivos** no Supabase Storage, em três buckets criados pela mesma migration: `produtos` (público, fotos de produto), `anexos` (privado, anexos de chamado) e `avaliacoes` (privado, fotos de avaliação). O backend confere tipo, conteúdo e tamanho antes de enviar, guarda só o caminho no banco e devolve link temporário (1 hora) para os arquivos privados.
 
 O histórico de estoque é calculado somando as movimentações até a data pedida, sem snapshot (ADR 0006). A rota `GET /estoque/divergencias` lista as linhas em que o saldo não bate com as movimentações e deve vir sempre vazia.
 
@@ -156,6 +165,7 @@ Com o servidor rodando: http://127.0.0.1:8000/docs (Swagger) e http://127.0.0.1:
 | `DATABASE_URL_DIRECT` | só para migrations | conexão do dono do banco: **Connect** → Direct connection (porta 5432) |
 | `CORS_ORIGINS` | não | frontends liberados, separados por vírgula e sem `/` no final. Vazio: só `http://localhost:5173` |
 | `CORS_ORIGIN_REGEX` | não | expressão regular para liberar vários endereços, como os previews da Vercel |
+| `URL_ATIVACAO` | não | página do frontend aberta pelo link de ativação da conta do caixa (ex.: `https://<projeto>.vercel.app/ativar`). Precisa estar em Redirect URLs do Supabase Auth; sem ela, o link abre a Site URL do projeto |
 | `DEMO_SENHA` | não | senha das contas criadas por `carregar_demo`; sem ela, o script pede na hora |
 
 Nas URLs do banco, codifique caracteres especiais da senha (`@` vira `%40`). O `.env.example` mostra o formato completo. O `.env` está no `.gitignore` e nunca deve ser commitado; peça os valores a quem mantém o projeto Supabase.
@@ -167,8 +177,8 @@ Rodam na raiz do repositório, com o venv ativo e o `.env` preenchido:
 | Comando | O que faz |
 |---|---|
 | `python -m scripts.criar_admin` | cria a primeira conta Admin (login no Supabase Auth + linha em `usuario`). Pede nome, e-mail e senha |
-| `python -m scripts.carregar_demo` | carrega o cenário de demonstração: unidades, catálogo, modelos de acesso, contas internas e de cliente e 30 dias de movimentações de estoque. Pode rodar de novo sem duplicar nada |
-| `python -m scripts.conferir_banco` | confere no banco de verdade as garantias do usuário restrito, do RLS e do saldo do estoque. Roda numa transação desfeita no final: nada fica gravado |
+| `python -m scripts.carregar_demo` | carrega o cenário de demonstração: unidades, catálogo, modelos de acesso, contas internas e de cliente, 30 dias de movimentações de estoque e pedidos em cada etapa (venda na loja com e sem CPF, entrega paga para preparar, retirada pronta, pedido entregue com avaliação, voto útil e denúncia pendente). Imprime os códigos de venda. Pode rodar de novo sem duplicar nada |
+| `python -m scripts.conferir_banco` | confere no banco de verdade as garantias do usuário restrito, do RLS, do saldo do estoque e do cancelamento da reserva vencida. Roda numa transação desfeita no final: nada fica gravado |
 
 ## Rotas
 
@@ -194,6 +204,40 @@ A lista completa, com parâmetros e formatos, está em `/docs`. Resumo por área
 | POST | `/produtos/{id}/variantes` | `gerenciar_catalogo` | cria variante (cor, tamanho, SKU e preço) |
 | PATCH | `/variantes/{id}` | `gerenciar_catalogo` | altera variante; mudar o preço grava o histórico |
 | GET | `/variantes/{id}/historico-preco` | `gerenciar_catalogo` | histórico de preço |
+| POST | `/produtos/{id}/imagens` | `gerenciar_catalogo` | envia foto (multipart; sem cor, vale para todas) |
+| PATCH | `/imagens/{id}` | `gerenciar_catalogo` | muda a cor ou a ordem da foto |
+
+As fotos aparecem em `imagens` de cada produto, com a URL pública.
+
+### Carrinho e pedidos (plataforma do cliente)
+
+| Método | Rota | Acesso | Descrição |
+|---|---|---|---|
+| POST | `/carrinho` | público | preços do momento, frete da entrega e lojas com tudo para retirada; não reserva nada |
+| GET, POST | `/enderecos` | cliente | endereços salvos |
+| PATCH, DELETE | `/enderecos/{id}` | cliente | altera ou apaga (o pedido guarda a própria cópia) |
+| POST | `/pedidos` | cliente | checkout: escolhe a unidade, reserva as peças por 15 minutos e cria o pedido aguardando pagamento |
+| GET | `/pedidos`, `/pedidos/{id}` | cliente | meus pedidos, com itens, pagamentos e endereço de entrega |
+| POST | `/pedidos/{id}/pagamentos` | cliente | cria a cobrança do valor que falta (Pix, crédito ou débito) no gateway simulado |
+| POST | `/pagamentos/{id}/simular` | cliente | gateway simulado: `{"aprovado": true}` paga o pedido e baixa o estoque (ADR 0011) |
+| POST | `/pedidos/{id}/cancelar` | cliente | cancela antes do pagamento e libera a reserva |
+| POST | `/pedidos/reivindicar` | cliente | liga à conta uma compra feita na loja sem CPF, pelo código do comprovante |
+| POST | `/ativacao` | token da conta do caixa | primeiro acesso: confirma o CPF e define a senha |
+
+### Vendas (plataforma interna)
+
+| Método | Rota | Acesso | Descrição |
+|---|---|---|---|
+| GET | `/vendas/pedidos`, `/vendas/pedidos/{id}` | qualquer permissão de vendas ou `atender_chamado` | pedidos, com filtros: status, canal, modalidade, unidade, código e `pronto_ha_mais_de_dias` |
+| POST | `/vendas/pedidos` | `registrar_venda_fisica` | venda na loja: nasce paga e entregue, baixa o estoque de loja física |
+| POST | `/vendas/pedidos/{id}/enviar` | `preparar_entregar_pedido` | entrega em casa paga → enviada |
+| POST | `/vendas/pedidos/{id}/pronto-retirada` | `preparar_entregar_pedido` | retirada paga → pronta (começa o prazo de 7 dias) |
+| POST | `/vendas/pedidos/{id}/entregar` | `preparar_entregar_pedido` | entrega o pedido enviado ou retirado (na retirada, confere o código) |
+| POST | `/vendas/pedidos/{id}/cancelar` | `cancelar_pedido_equipe` | antes do envio, com justificativa; se já pago, estorna tudo e devolve as peças ao estoque |
+| GET | `/vendas/clientes?cpf=` | `registrar_venda_fisica` ou `corrigir_cadastro_cliente` | busca o cliente pelo CPF no caixa |
+| POST | `/vendas/clientes` | `registrar_venda_fisica` | primeira compra na loja: cria a conta sem senha e devolve o link de ativação |
+| POST | `/vendas/clientes/{id}/link-ativacao` | `registrar_venda_fisica` ou `corrigir_cadastro_cliente` | gera outro link de ativação |
+| PATCH | `/vendas/clientes/{id}` | `corrigir_cadastro_cliente` | corrige e-mail ou CPF; CPF que já tem conta junta os pedidos nela |
 
 ### Estoque
 
@@ -234,6 +278,27 @@ A leitura exige alguma permissão da área (movimentar estoque, definir mínimo 
 | POST | `/atendimento/chamados/{id}/concluir` | `atender_chamado` | conclui com motivo |
 | GET, POST | `/atendimento/chamados/{id}/mensagens` | `atender_chamado` | mensagens (inclusive internas) e resposta |
 | GET | `/atendimento/chamados/{id}/historico` | `atender_chamado` | histórico de status, responsável e prioridade |
+| POST | `/chamados/{id}/anexos`, `/atendimento/chamados/{id}/anexos` | cliente / `atender_chamado` | mensagem com anexo (multipart: JPG, PNG, WEBP ou PDF de até 10 MB) |
+| GET | `/chamados/{id}/mensagens/{id_mensagem}/anexo`, `/atendimento/chamados/{id}/mensagens/{id_mensagem}/anexo` | cliente / `atender_chamado` | link temporário do anexo |
+| POST | `/atendimento/chamados/{id}/devolucao` | `atender_chamado` | devolução até 30 dias após a entrega: a peça entra no estoque da loja e o estorno sai do pagamento escolhido |
+| POST | `/atendimento/chamados/{id}/troca` | `atender_chamado` | troca por outra cor ou tamanho do mesmo produto, na mesma loja |
+| POST | `/atendimento/chamados/{id}/estornos` | `atender_chamado` | estorno sem troca nem devolução (pode ser parcial) |
+
+### Avaliações
+
+| Método | Rota | Acesso | Descrição |
+|---|---|---|---|
+| GET | `/produtos/{id}/avaliacoes` | público | avaliações publicadas, com a média das notas |
+| GET | `/avaliacoes/{id}` | público (oculta: só quem avaliou e a moderação) | detalhe com fotos |
+| POST | `/avaliacoes` | cliente | avalia um item de pedido entregue (uma vez por item) |
+| PATCH | `/avaliacoes/{id}` | cliente (autor) | edita nos 7 dias após a publicação |
+| POST | `/avaliacoes/{id}/fotos` | cliente (autor) | até 5 fotos (multipart) |
+| POST | `/avaliacoes/{id}/util` | cliente | voto útil, um por pessoa, não na própria |
+| POST | `/avaliacoes/{id}/denuncias` | cliente | denúncia, uma por pessoa, não na própria |
+| GET | `/moderacao/avaliacoes` | `moderar_avaliacoes` | todas, com denúncias pendentes |
+| POST | `/moderacao/avaliacoes/{id}/ocultar` | `moderar_avaliacoes` | oculta com motivo; as fotos saem do ar |
+| GET | `/moderacao/denuncias` | `moderar_avaliacoes` | denúncias (padrão: pendentes) |
+| POST | `/moderacao/denuncias/{id}/analisar` | `moderar_avaliacoes` | procedente oculta a avaliação; improcedente só encerra |
 
 ### Gestão
 
@@ -255,6 +320,8 @@ As escritas são só do Admin; a lista de unidades é pública porque a vitrine 
 ## Convenções da API
 
 - **Listas:** listagens grandes são paginadas com `limit` (padrão 50, máximo 200) e `offset`, e respondem `{"items": [...], "total", "limit", "offset"}`. Listas curtas respondem só `{"items": [...]}`.
+- **Arquivos:** enviados em `multipart/form-data`, no campo `arquivo`. Arquivos privados (anexos e fotos de avaliação) saem por link temporário, que vale 1 hora.
+- **Valores em dinheiro:** strings com duas casas decimais (`"219.90"`), para não perder centavos.
 - **Datas:** gravadas em `timestamptz`. Nos filtros, `AAAA-MM-DD` significa o fim do dia e `AAAA-MM-DDTHH:MM` uma hora exata, no horário de Brasília.
 - **Erros:** sempre no formato `{"detail": "..."}`.
 
@@ -296,7 +363,7 @@ A API é publicada no Render a cada merge na `main`.
 |---|---|
 | Build command | `pip install -r requirements.txt` |
 | Start command | `uvicorn src.app:app --host 0.0.0.0 --port $PORT` |
-| Variáveis de ambiente | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_PUBLISHABLE_KEY`, `DATABASE_URL` (usuário `api_casalorenzi`), `CORS_ORIGINS` (e `CORS_ORIGIN_REGEX`, se usar previews), `PYTHON_VERSION=3.14.3` |
+| Variáveis de ambiente | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_PUBLISHABLE_KEY`, `DATABASE_URL` (usuário `api_casalorenzi`), `CORS_ORIGINS` (e `CORS_ORIGIN_REGEX`, se usar previews), `URL_ATIVACAO`, `PYTHON_VERSION=3.14.3` |
 | Health check path | `/docs` (não use `/health`: o Render chama o health check com frequência e manteria conexões abertas no banco) |
 
 `DATABASE_URL_DIRECT` e `DEMO_SENHA` não vão para o Render: migrations e scripts rodam a partir da máquina de quem desenvolve. Se o Python mudar no Render, atualize também o `testes.yml`.
@@ -306,23 +373,26 @@ A API é publicada no Render a cada merge na `main`.
 - **URL base:** `https://grupo13-backend-megw.onrender.com` em produção e `http://127.0.0.1:8000` localmente. No frontend (Vite), fica numa variável de ambiente, como `VITE_API_URL`.
 - **Login:** o frontend faz login no Supabase Auth (ou por CPF, em `POST /login/cpf`) e envia o token em toda rota protegida, no header `Authorization: Bearer <access_token>`. A API não usa cookies.
 - **Tela inicial:** depois do login, `GET /me` diz o tipo de conta (decide entre plataforma interna e do cliente) e as permissões efetivas (decide quais blocos e abas aparecem).
+- **Visão Geral:** cada bloco é o `total` de uma lista com filtro: `GET /atendimento/chamados?sem_responsavel=true`, `?meus=true&status=em_andamento` e `?com_mensagem_nova=true`; `GET /estoque?abaixo_minimo=true`; `GET /transferencias?status=enviada` e `?status=solicitada` com `id_unidade` (o frontend separa as que chegam das que saem); `GET /vendas/pedidos?status=pago` e `?pronto_ha_mais_de_dias=5`; `GET /moderacao/denuncias`.
+- **Compra online:** `POST /carrinho` mostra frete e lojas; `POST /pedidos` reserva por 15 minutos; `POST /pedidos/{id}/pagamentos` cria a cobrança e `POST /pagamentos/{id}/simular` faz o papel do gateway. Reserva vencida cancela o pedido sozinha.
+- **Ativação da conta do caixa:** o link entregue pela loja abre `URL_ATIVACAO` com a sessão do Supabase na URL; a página entrega essa sessão ao cliente do Supabase e chama `POST /ativacao` com o CPF e a nova senha.
 - **CORS:** o navegador só deixa o frontend chamar a API se o endereço dele estiver em `CORS_ORIGINS`, sem `/` no final. Para os previews da Vercel, use `CORS_ORIGIN_REGEX`, por exemplo `https://<projeto>-.*\.vercel\.app`.
 
 ## Estado atual
 
-**Implementado e publicado:**
+**Implementado:**
 
-- contas: cadastro de cliente, login por e-mail (Supabase) ou CPF, perfil com permissões efetivas;
+- contas: cadastro de cliente, login por e-mail (Supabase) ou CPF, perfil com permissões efetivas, conta do caixa com ativação por link, correção de e-mail e CPF;
 - gestão: contas internas, modelos de acesso, exceções de permissão e unidades;
-- catálogo: categorias, produtos, variantes e histórico de preço, com vitrine pública;
+- catálogo: categorias, produtos, variantes, fotos e histórico de preço, com vitrine pública;
 - estoque: saldo por unidade e canal, movimentações, realocação, estoque mínimo, histórico em qualquer data, peças em trânsito, gráfico de evolução e conferência de divergências;
 - transferências com as etapas solicitada → enviada → recebida e cancelamento;
-- atendimento: chamados do cliente, fila da equipe, assumir, prioridade, mensagens internas, conclusão e histórico;
-- banco com 27 tabelas, triggers, RLS e usuário restrito para a API; 352 testes automatizados com CI.
+- vendas: carrinho com frete, checkout com reserva de 15 minutos, pagamento por gateway simulado, venda física, preparo, envio, retirada, entrega, cancelamento com estorno, reivindicação de compra e endereços salvos;
+- atendimento: chamados do cliente, fila da equipe, assumir, prioridade, mensagens internas, anexos, conclusão, histórico, troca, devolução e estorno;
+- avaliações: nota, texto e fotos, edição por 7 dias, voto útil, denúncia e moderação;
+- banco com 27 tabelas, triggers, RLS, usuário restrito e prazos automáticos pelo pg_cron; testes automatizados com CI.
 
-**Modelado no banco, ainda sem rotas:** vendas (pedidos, checkout com reserva, pagamentos e estornos), endereços do cliente e avaliações. As tabelas e regras já existem nas migrations e no [case](docs/case/Casa_Lorenzi_Case_Completo.md).
-
-**Planejado:** fotos de produto e anexos de chamado no Supabase Storage; ativação de conta criada no caixa.
+**Fora do escopo desta entrega:** gateway de pagamento real (ADR 0011), e-mails pelo servidor próprio (o link de ativação é entregue pela loja, ADR 0013) e as evoluções da seção 9 do [case](docs/case/Casa_Lorenzi_Case_Completo.md).
 
 ## Documentação do projeto
 
@@ -330,7 +400,7 @@ A API é publicada no Render a cada merge na `main`.
 |---|---|
 | [docs/case/Casa_Lorenzi_Case_Completo.md](docs/case/Casa_Lorenzi_Case_Completo.md) | referência do case: contexto, regras de negócio, permissões e modelo de dados |
 | [CONTEXT.md](CONTEXT.md) | glossário dos termos do domínio |
-| [docs/adr/](docs/adr/) | decisões de arquitetura difíceis de reverter (ADRs 0001 a 0010) |
+| [docs/adr/](docs/adr/) | decisões de arquitetura difíceis de reverter (ADRs 0001 a 0013) |
 | [ALEMBIC_GUIDE.md](ALEMBIC_GUIDE.md) | como criar e aplicar migrations |
 
 ## Como contribuir
@@ -358,3 +428,6 @@ A API é publicada no Render a cada merge na `main`.
 | `DLL load failed ... nome do arquivo ou a extensão é muito grande` | caminho da pasta longo demais para o Windows; clone o repositório (ou crie o venv) em um caminho mais curto |
 | Alembic trava ou não conecta pela conexão direta | a conexão direta do Supabase usa IPv6; se sua rede não tiver, use o Session pooler (porta 5432) em `DATABASE_URL_DIRECT` |
 | 401 `Token ausente` / `Token inválido` | header `Authorization` não enviado, token expirado ou de outro projeto |
+| 422 `A reserva de 15 minutos venceu` | o cliente demorou para pagar; o pedido é cancelado e é preciso fazer outro |
+| 503 `Não foi possível guardar o arquivo` | Storage fora do ar ou buckets não criados (rode `alembic upgrade head`) |
+| `Form data requires "python-multipart" to be installed` | dependências desatualizadas: rode `pip install -r requirements.txt` |

@@ -157,6 +157,13 @@ Valor de envio somado aos itens; zero na retirada e na venda física.
 **Pagamento**:
 Valor pago por um método (Pix, crédito, débito ou dinheiro) para um pedido; um pedido pode ter vários.
 
+**Cobrança**:
+Pagamento online que ainda aguarda a resposta do gateway; vence junto com a reserva.
+
+**Gateway simulado**:
+Papel do gateway de pagamento feito pelo próprio backend: aprova ou recusa a cobrança (ADR 0011).
+_Evite_: pagamento fake, mock
+
 **Estorno**:
 Devolução de dinheiro registrada separadamente, ligada a um pagamento original; pode ser parcial.
 _Evite_: reembolso, cancelamento de pagamento
