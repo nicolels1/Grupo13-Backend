@@ -423,6 +423,7 @@ Cores dos cabeçalhos: amarelo = catálogo, laranja = estoque, laranja-escuro = 
 - **Unidade:** abre filtrada pela unidade da pessoa; o seletor permite trocar para "Todas". Quem não tem unidade abre em "Todas". Não muda nenhuma regra de permissão, só o filtro inicial.
 - Com "Todas as unidades", as tabelas mostram a coluna Unidade; com uma unidade selecionada, a coluna some.
 - A Visão Geral identifica; as ações acontecem nas páginas de cada área. Não há configuração de estoque mínimo nela.
+- **Números e gráficos** (implementados em 07/10/2026, rota `GET /visao-geral/resumo`): vendas por dia nos últimos 14 dias e as 5 variantes mais vendidas em 7 dias (para quem vende ou Admin); chamados por status e por dia (para quem atende ou Admin); e, só para o Admin, "A rede agora" (cobertura de estoque em dias, ruptura online, vendas de 14 dias com variação, ticket médio, mediana da primeira resposta, avaliações e retiradas perto de vencer) e uma linha por unidade. A venda conta no dia do pagamento, sem os cancelados; os dias seguem o horário de Brasília.
 
 ### Identidade visual
 

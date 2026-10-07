@@ -191,6 +191,7 @@ A lista completa, com parâmetros e formatos, está em `/docs`. Resumo por área
 | POST | `/clientes` | público | cadastro de cliente (nome, e-mail, CPF e senha); as compras da loja com esse CPF na nota passam para a conta (`compras_ligadas`) |
 | POST | `/login/cpf` | público | login do cliente por CPF e senha; devolve a sessão do Supabase |
 | GET | `/me` | conta ativa | perfil, tipo de conta e permissões efetivas (monta a tela inicial) |
+| GET | `/visao-geral/resumo?id_unidade=` | conta interna | números e gráficos da Visão Geral; só as seções que a conta pode ver (as outras ficam ausentes) |
 
 ### Catálogo
 
@@ -226,7 +227,7 @@ As fotos aparecem em `imagens` de cada produto, com a URL pública.
 
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
-| GET | `/vendas/pedidos`, `/vendas/pedidos/{id}` | qualquer permissão de vendas ou `atender_chamado` | pedidos, com filtros: status, canal, modalidade, unidade, código e `pronto_ha_mais_de_dias` |
+| GET | `/vendas/pedidos`, `/vendas/pedidos/{id}` | qualquer permissão de vendas ou `atender_chamado` | pedidos, com filtros: status, canal, modalidade, unidade, código, `pronto_ha_mais_de_dias` e data de criação (`de`, `ate`; data sem hora vale o dia inteiro) |
 | POST | `/vendas/pedidos` | `registrar_venda_fisica` | venda na loja: nasce paga e entregue, baixa o estoque de loja física. CPF opcional (`cpf_nota`): com conta, liga o pedido; sem conta, fica guardado no pedido |
 | POST | `/vendas/pedidos/{id}/enviar` | `preparar_entregar_pedido` | entrega em casa paga → enviada |
 | POST | `/vendas/pedidos/{id}/pronto-retirada` | `preparar_entregar_pedido` | retirada paga → pronta (começa o prazo de 7 dias) |
@@ -380,7 +381,13 @@ A API é publicada no Render a cada merge na `main`.
 - **URL base:** `https://grupo13-backend-megw.onrender.com` em produção e `http://127.0.0.1:8000` localmente. No frontend (Vite), fica numa variável de ambiente, como `VITE_API_URL`.
 - **Login:** o frontend faz login no Supabase Auth (ou por CPF, em `POST /login/cpf`) e envia o token em toda rota protegida, no header `Authorization: Bearer <access_token>`. A API não usa cookies.
 - **Tela inicial:** depois do login, `GET /me` diz o tipo de conta (decide entre plataforma interna e do cliente) e as permissões efetivas (decide quais blocos e abas aparecem).
-- **Visão Geral:** cada bloco é o `total` de uma lista com filtro: `GET /atendimento/chamados?sem_responsavel=true`, `?meus=true&status=em_andamento` e `?com_mensagem_nova=true`; `GET /estoque?abaixo_minimo=true`; `GET /transferencias?status=enviada` e `?status=solicitada` com `id_unidade` (o frontend separa as que chegam das que saem); `GET /vendas/pedidos?status=pago` e `?pronto_ha_mais_de_dias=5`; `GET /moderacao/denuncias`.
+- **Visão Geral:** os números e gráficos vêm de `GET /visao-geral/resumo`, que só devolve as seções que a conta pode ver:
+  - `vendas_por_dia` (14 dias, pelo dia do pagamento, sem cancelados) e `mais_vendidas` (top 5 em 7 dias): permissões de venda ou Admin;
+  - `chamados` (abertos, em andamento, concluídos em 7 dias e por dia): `atender_chamado` ou Admin;
+  - `rede_agora` (cobertura em dias, ruptura online, vendas de 14 dias com variação, ticket médio, mediana da primeira resposta, avaliações e retiradas perto de vencer) e `por_unidade`: só Admin. `rede_agora` é sempre a rede inteira.
+
+  Os dias são no horário de Brasília. Os blocos de pendências continuam sendo o `total` de uma lista com filtro: `GET /atendimento/chamados?sem_responsavel=true`, `?meus=true&status=em_andamento` e `?com_mensagem_nova=true`; `GET /estoque?abaixo_minimo=true`; `GET /transferencias?status=enviada` e `?status=solicitada` com `id_unidade` (o frontend separa as que chegam das que saem); `GET /vendas/pedidos?status=pago` e `?pronto_ha_mais_de_dias=5`; `GET /moderacao/denuncias`.
+- **Vendas de hoje (Caixa):** `GET /vendas/pedidos?de=<hoje>&ate=<hoje>&id_unidade=<loja>`, com a data no formato `AAAA-MM-DD`.
 - **Compra online:** `POST /carrinho` mostra frete e lojas; `POST /pedidos` reserva por 15 minutos; `POST /pedidos/{id}/pagamentos` cria a cobrança e `POST /pagamentos/{id}/simular` faz o papel do gateway. Reserva vencida cancela o pedido sozinha.
 - **Compras da loja:** depois do `POST /clientes`, se `compras_ligadas` for maior que zero, as compras feitas em lojas com aquele CPF já aparecem em `GET /pedidos`.
 - **CORS:** o navegador só deixa o frontend chamar a API se o endereço dele estiver em `CORS_ORIGINS`, sem `/` no final. Para os previews da Vercel, use `CORS_ORIGIN_REGEX`, por exemplo `https://<projeto>-.*\.vercel\.app`.
@@ -398,6 +405,7 @@ A API é publicada no Render a cada merge na `main`.
 - atendimento: chamados do cliente, fila da equipe, assumir, prioridade, mensagens internas, anexos, conclusão, histórico, troca, devolução e estorno;
 - balcão: troca e devolução na loja sem chamado, para pedidos com ou sem conta, busca do pedido por código, número ou CPF e consulta de peça só de leitura;
 - avaliações: nota, texto e fotos, edição por 7 dias, voto útil, denúncia e moderação;
+- Visão Geral: resumo com vendas por dia, mais vendidas, chamados, números da rede e linha por unidade, conforme as permissões da conta;
 - banco com 27 tabelas, triggers, RLS, usuário restrito e prazos automáticos pelo pg_cron; testes automatizados com CI.
 
 **Fora do escopo desta entrega:** gateway de pagamento real (ADR 0011) e as evoluções da seção 9 do [case](docs/case/Casa_Lorenzi_Case_Completo.md).
