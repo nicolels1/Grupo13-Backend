@@ -34,13 +34,14 @@ def _paginacao(limit: int = Query(LIMITE_PADRAO, ge=1, le=LIMITE_MAXIMO), offset
 @router.get(
     "/produtos/{id_produto}/avaliacoes",
     response_model=AvaliacoesDoProduto,
-    description="Avaliações publicadas do produto, mais recentes primeiro, com a média das notas.",
+    description="Avaliações publicadas do produto, mais recentes primeiro, com a média e a contagem por nota.",
 )
 def do_produto(
-    id_produto: int, paginacao: dict = Depends(_paginacao), db: Session = Depends(get_db),
-    storage: SupabaseStorage = Depends(get_storage),
+    id_produto: int, paginacao: dict = Depends(_paginacao),
+    com_fotos: bool | None = Query(default=None, description="true: só avaliações com foto"),
+    db: Session = Depends(get_db), storage: SupabaseStorage = Depends(get_storage),
 ):
-    return avaliacoes.do_produto(db, storage, id_produto, **paginacao)
+    return avaliacoes.do_produto(db, storage, id_produto, com_fotos=com_fotos, **paginacao)
 
 
 @router.get("/avaliacoes/{id_avaliacao}", response_model=AvaliacaoSaida, responses=ERROS)
