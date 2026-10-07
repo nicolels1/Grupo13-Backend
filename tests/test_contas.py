@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from src.app import app
 from src.database.session import get_db
 from src.middlewares.permissoes import get_usuario_ativo
-from src.repositories import permissao_repository, usuario_repository
+from src.repositories import pedido_repository, permissao_repository, usuario_repository
 from src.routes.contas import get_supabase_admin, get_supabase_login
 from src.use_cases import contas
 from src.use_cases.erros import (
@@ -29,6 +29,9 @@ class SessaoFalsa:
 
     def add(self, objeto):
         self.adicionados.append(objeto)
+
+    def flush(self):
+        pass
 
     def commit(self):
         if self.erro_commit:
@@ -69,7 +72,13 @@ class AuthFalso:
 @pytest.fixture
 def banco(monkeypatch):
     # estado do "banco" usado pelas consultas dos repositories, trocadas por versões falsas
-    estado = SimpleNamespace(emails=set(), cpfs=set(), clientes={})
+    estado = SimpleNamespace(emails=set(), cpfs=set(), clientes={}, compras_da_loja={CPF: 2}, ligadas=[])
+
+    def ligar(db, cpf, id_cliente):
+        estado.ligadas.append((cpf, id_cliente))
+        return estado.compras_da_loja.get(cpf, 0)
+
+    monkeypatch.setattr(pedido_repository, "ligar_pedidos_pelo_cpf", ligar)
     monkeypatch.setattr(usuario_repository, "email_em_uso", lambda db, email: email in estado.emails)
     monkeypatch.setattr(usuario_repository, "cpf_em_uso", lambda db, cpf: cpf in estado.cpfs)
     monkeypatch.setattr(usuario_repository, "buscar_cliente_por_cpf", lambda db, cpf: estado.clientes.get(cpf))
@@ -85,13 +94,21 @@ def cadastrar(db, auth):
 def test_cadastro_cria_login_e_cliente_ativo(banco):
     db, auth = SessaoFalsa(), AuthFalso()
 
-    usuario = cadastrar(db, auth)
+    resposta = cadastrar(db, auth)
 
     assert auth.criados == ["ana@email.com"]
     assert db.commits == 1
+    [usuario] = db.adicionados
     assert (usuario.id_usuario, usuario.cpf) == (ID_LOGIN, CPF)
-    assert (usuario.tipo_conta, usuario.status_conta) == ("cliente", "ativa")
+    assert (resposta["tipo_conta"], resposta["status_conta"]) == ("cliente", "ativa")
     assert usuario.id_modelo_acesso is None
+
+
+def test_cadastro_liga_as_compras_da_loja_com_o_cpf_na_nota(banco):
+    resposta = cadastrar(SessaoFalsa(), AuthFalso())
+
+    assert banco.ligadas == [(CPF, ID_LOGIN)]
+    assert resposta["compras_ligadas"] == 2
 
 
 @pytest.mark.parametrize("campo, mensagem", [("emails", "E-mail já cadastrado"), ("cpfs", "CPF já cadastrado")])
@@ -163,7 +180,7 @@ def test_cpf_sem_cadastro_e_senha_errada_dao_a_mesma_resposta(banco):
     with pytest.raises(NaoAutenticado) as senha_errada:
         contas.entrar_com_cpf(None, AuthFalso(erro_login=erro), CPF, "errada")
 
-    assert sem_cadastro.value.mensagem == senha_errada.value.mensagem == "CPF ou senha inválidos"
+    assert sem_cadastro.value.mensagem == senha_errada.value.mensagem == "CPF ou senha incorretos"
 
 
 def test_login_de_conta_inativa_e_recusado(banco):
@@ -231,6 +248,7 @@ def test_post_clientes_responde_201_sem_cpf_nem_senha(client):
         "email": "ana@email.com",
         "tipo_conta": "cliente",
         "status_conta": "ativa",
+        "compras_ligadas": 2,
     }
 
 
@@ -268,7 +286,7 @@ def test_post_login_cpf_sem_cadastro_responde_401(client):
     resposta = client.post("/login/cpf", json={"cpf": "529.982.247-25", "senha": "senha"})
 
     assert resposta.status_code == 401
-    assert resposta.json() == {"detail": "CPF ou senha inválidos"}
+    assert resposta.json() == {"detail": "CPF ou senha incorretos"}
 
 
 def usuario_logado(**campos):

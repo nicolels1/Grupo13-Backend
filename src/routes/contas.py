@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
-from src.entities.contas import CadastroCliente, LoginCpf, Perfil, Sessao, UsuarioSaida
+from src.entities.contas import CadastroCliente, CadastroSaida, LoginCpf, Perfil, Sessao
 from src.middlewares.permissoes import get_usuario_ativo
 from src.models.contas import Usuario
 from src.use_cases import contas
@@ -23,7 +23,7 @@ def get_supabase_login() -> SupabaseLogin:
 @router.post(
     "/clientes",
     status_code=status.HTTP_201_CREATED,
-    response_model=UsuarioSaida,
+    response_model=CadastroSaida,
     responses={409: {"description": "E-mail ou CPF já cadastrado"}},
 )
 def cadastrar_cliente(
@@ -37,7 +37,7 @@ def cadastrar_cliente(
 @router.post(
     "/login/cpf",
     response_model=Sessao,
-    responses={401: {"description": "CPF ou senha inválidos"}, 403: {"description": "Conta não está ativa"}},
+    responses={401: {"description": "CPF ou senha incorretos (mesma resposta se o CPF não tem conta)"}, 403: {"description": "Conta não está ativa"}},
 )
 def entrar_com_cpf(
     dados: LoginCpf,
