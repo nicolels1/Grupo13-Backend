@@ -310,7 +310,7 @@ def responder_cobranca(db: Session, cliente: Usuario, id_pagamento: int, aprovad
     if reserva_vencida(pedido):
         cancelar_aguardando(db, pedido, lancamentos, "reserva_vencida")
     if pedido.status == "cancelado":
-        pagamentos.estornar(db, pedido, pagamento, pagamento.valor, lancamentos)
+        pagamentos.estornar(db, pedido, pagamento, pagamento.valor, lancamentos, "cancelamento")
     elif pagamentos.valor_pago(lancamentos) >= pedido.valor_total:
         baixar_venda_online(db, pedido, quantidades(repo.itens_do_pedido(db, pedido.id_pedido)))
         pedido.status = "pago"

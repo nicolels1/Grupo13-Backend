@@ -6,12 +6,13 @@ from src.utils.cpf import cpf_valido
 
 AGORA = datetime(2026, 10, 6, 15, 0, tzinfo=timezone.utc)
 
-# os 15 códigos da seção 6 do case; os três primeiros são da Gestão, só do Admin
+# os 16 códigos da seção 6 do case; os três primeiros são da Gestão, só do Admin
 GESTAO = {"gerenciar_contas", "gerenciar_modelos_acesso", "gerenciar_unidades"}
 CODIGOS = GESTAO | {
     "gerenciar_catalogo", "movimentar_estoque", "definir_estoque_minimo", "solicitar_transferencia",
     "enviar_transferencia", "receber_transferencia", "registrar_venda_fisica", "preparar_entregar_pedido",
     "cancelar_pedido_equipe", "corrigir_cadastro_cliente", "atender_chamado", "moderar_avaliacoes",
+    "registrar_troca_devolucao",
 }
 TIPO_POR_UNIDADE = {u["nome"]: u["tipo"] for u in demo.UNIDADES}
 
@@ -168,3 +169,10 @@ def test_venda_com_cpf_na_nota_so_carrega_uma_vez():
             return 1
 
     assert demo.carregar_venda_com_cpf_na_nota(SessaoComPedido()) is None
+
+
+def test_vendedor_fica_numa_loja_com_as_permissoes_do_balcao():
+    assert set(demo.MODELOS["Vendedor"]) == {
+        "registrar_venda_fisica", "registrar_troca_devolucao", "preparar_entregar_pedido"}
+    [vendedor] = [c for c in demo.CONTAS_INTERNAS if c["modelo"] == "Vendedor"]
+    assert TIPO_POR_UNIDADE[vendedor["unidade"]] == "loja"

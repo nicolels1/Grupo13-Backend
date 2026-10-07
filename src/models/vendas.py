@@ -103,6 +103,12 @@ class Pagamento(Base):
         ForeignKey("pagamento.id_pagamento", ondelete="RESTRICT")
     )
     id_chamado: Mapped[int | None] = mapped_column(ForeignKey("chamado.id_chamado", ondelete="RESTRICT"))
+    # estorno: de onde veio e, no balcão, quem registrou e em que loja (ADR 0015)
+    origem: Mapped[str | None] = mapped_column(String(20))
+    id_registrado_por: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("usuario.id_usuario", ondelete="RESTRICT")
+    )
+    id_unidade: Mapped[int | None] = mapped_column(ForeignKey("unidade.id_unidade", ondelete="RESTRICT"))
     metodo: Mapped[str] = mapped_column(String(20))
     id_transacao_gateway: Mapped[str | None] = mapped_column(String(100), unique=True)
     valor: Mapped[Decimal] = mapped_column(Numeric(10, 2))
@@ -123,6 +129,16 @@ class Pagamento(Base):
             "(tipo = 'estorno') = (id_pagamento_original IS NOT NULL)", name="estorno_exige_original"
         ),
         CheckConstraint("tipo = 'estorno' OR id_chamado IS NULL", name="chamado_so_em_estorno"),
+        CheckConstraint("origem IN ('cancelamento', 'atendimento', 'balcao')", name="origem_valida"),
+        CheckConstraint("(tipo = 'estorno') = (origem IS NOT NULL)", name="origem_so_em_estorno"),
+        CheckConstraint(
+            "origem IS DISTINCT FROM 'balcao' OR (id_registrado_por IS NOT NULL AND id_unidade IS NOT NULL)",
+            name="estorno_balcao_exige_funcionario_e_unidade",
+        ),
+        CheckConstraint(
+            "origem IS DISTINCT FROM 'atendimento' OR id_chamado IS NOT NULL",
+            name="estorno_atendimento_exige_chamado",
+        ),
     )
 
 

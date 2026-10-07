@@ -249,5 +249,7 @@ def trocar(id_chamado: int, dados: TrocaCriar, usuario: Usuario = Depends(ATENDE
     responses=ERROS_PEDIDO,
     description="Estorno sem troca nem devolução (ex.: problema na entrega). Pode ser parcial.",
 )
-def estornar(id_chamado: int, dados: EstornoPedido, _: Usuario = Depends(ATENDER), db: Session = Depends(get_db)):
-    return devolucoes.registrar_estorno(db, id_chamado, dados.id_pagamento, dados.valor)
+def estornar(
+    id_chamado: int, dados: EstornoPedido, usuario: Usuario = Depends(ATENDER), db: Session = Depends(get_db),
+):
+    return devolucoes.registrar_estorno(db, usuario, id_chamado, dados.id_pagamento, dados.valor)

@@ -163,5 +163,16 @@ class MovimentacaoEstoque(Base):
         CheckConstraint(
             "tipo NOT IN ('avaria', 'perda', 'ajuste') OR motivo IS NOT NULL", name="motivo_obrigatorio"
         ),
-        CheckConstraint("num_nonnulls(id_pedido, id_transferencia, id_chamado) <= 1", name="no_maximo_uma_origem"),
+        # troca e devolução podem ter pedido e chamado juntos (feitas pelo Atendimento, ADR 0015)
+        CheckConstraint(
+            "num_nonnulls(id_pedido, id_transferencia, id_chamado) <= 1 "
+            "OR (tipo IN ('devolucao', 'saida_troca') AND id_transferencia IS NULL)",
+            name="no_maximo_uma_origem",
+        ),
+        # troca e devolução sempre ligadas ao pedido, com chamado (Atendimento) ou funcionário (balcão)
+        CheckConstraint(
+            "tipo NOT IN ('devolucao', 'saida_troca') "
+            "OR (id_pedido IS NOT NULL AND (id_chamado IS NOT NULL OR id_usuario IS NOT NULL))",
+            name="troca_devolucao_com_pedido",
+        ),
     )

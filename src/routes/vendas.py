@@ -20,7 +20,7 @@ router = APIRouter(tags=["vendas"])
 # a página Pedidos aparece para quem tem alguma permissão de vendas; o atendente também consulta
 VER_PEDIDOS = exige_permissao(
     "registrar_venda_fisica", "preparar_entregar_pedido", "cancelar_pedido_equipe", "corrigir_cadastro_cliente",
-    "atender_chamado",
+    "registrar_troca_devolucao", "atender_chamado",
 )
 PREPARAR = exige_permissao("preparar_entregar_pedido")
 ATENDER_NO_CAIXA = exige_permissao("registrar_venda_fisica", "corrigir_cadastro_cliente")

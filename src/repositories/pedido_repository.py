@@ -1,9 +1,8 @@
 from datetime import datetime
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session
 
-from src.models.atendimento import Chamado
 from src.models.avaliacoes import Avaliacao
 from src.models.catalogo import Produto, Variante
 from src.models.contas import Usuario
@@ -56,7 +55,7 @@ def disponivel_online(db: Session, ids_variante: list[int]) -> list:
 
 def consulta_pedidos(
     id_cliente=None, status=None, canal=None, modalidade=None, id_unidade=None, codigo_venda=None,
-    pronto_antes_de: datetime | None = None,
+    pronto_antes_de: datetime | None = None, cpf: str | None = None, entregue_desde: datetime | None = None,
 ):
     consulta = (
         select(Pedido, Usuario.nome.label("cliente"), Unidade.nome.label("unidade"))
@@ -73,6 +72,11 @@ def consulta_pedidos(
             filtros.append(coluna == valor)
     if codigo_venda:
         filtros.append(func.upper(Pedido.codigo_venda) == codigo_venda.upper())
+    # CPF da conta ou CPF na nota (balcão de troca e devolução)
+    if cpf is not None:
+        filtros.append(or_(Pedido.cpf_nota == cpf, Usuario.cpf == cpf))
+    if entregue_desde is not None:
+        filtros.append(Pedido.entregue_em >= entregue_desde)
     if pronto_antes_de is not None:
         filtros.append(Pedido.status == "pronto_para_retirada")
         filtros.append(Pedido.pronto_retirada_em < pronto_antes_de)
@@ -134,13 +138,14 @@ def itens_do_pedido(db: Session, id_pedido: int) -> list[ItemPedido]:
     return list(db.scalars(consulta))
 
 
-# peças que já voltaram (devolucao) ou saíram em troca (saida_troca) pelos chamados do pedido
+# peças que já voltaram (devolucao) ou saíram em troca (saida_troca) no pedido, pelo Atendimento ou
+# no balcão: toda troca e devolução guarda o pedido (ADR 0015)
 def trocas_e_devolucoes(db: Session, id_pedido: int) -> list:
+    m = MovimentacaoEstoque
     consulta = (
-        select(MovimentacaoEstoque.tipo, MovimentacaoEstoque.id_variante, func.sum(MovimentacaoEstoque.quantidade))
-        .join(Chamado, Chamado.id_chamado == MovimentacaoEstoque.id_chamado)
-        .where(Chamado.id_pedido == id_pedido, MovimentacaoEstoque.tipo.in_(("devolucao", "saida_troca")))
-        .group_by(MovimentacaoEstoque.tipo, MovimentacaoEstoque.id_variante)
+        select(m.tipo, m.id_variante, func.sum(m.quantidade))
+        .where(m.id_pedido == id_pedido, m.tipo.in_(("devolucao", "saida_troca")))
+        .group_by(m.tipo, m.id_variante)
     )
     return list(db.execute(consulta).all())
 

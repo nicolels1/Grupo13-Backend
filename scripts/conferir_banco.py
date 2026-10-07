@@ -126,6 +126,9 @@ def conferir(db: Session) -> Conferencia:
     deve_recusar(c, db, "a API não lê o auth.users direto", "SELECT count(*) FROM auth.users")
 
     deve_recusar(c, db, "pedido não é apagado", "DELETE FROM pedido WHERE id_unidade = :u", local)
+    deve_recusar(c, db, "troca ou devolução sem pedido é recusada (ADR 0015)",
+                 "INSERT INTO movimentacao_estoque (id_variante, id_unidade, canal, tipo, quantidade) "
+                 "VALUES (:v, :u, 'loja_fisica', 'devolucao', 1)", local)
 
     # 5. o que a API precisa conseguir
     login = tentar(db, "SELECT login_por_email(:email)", {"email": f"ninguem-{sufixo}@casalorenzi.example"})
