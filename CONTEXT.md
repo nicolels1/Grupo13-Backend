@@ -177,6 +177,10 @@ Retorno de peças de um pedido entregue com estorno; o pedido continua entregue 
 **Troca**:
 Substituição de uma peça entregue por outra; não conta como devolução.
 
+**CPF na nota**:
+CPF informado na venda física por quem não tem conta; a compra passa para a conta criada pelo site com esse CPF.
+_Evite_: CPF do cliente (quando não há conta)
+
 **Reivindicação**:
 Associação, pelo código da venda, de uma compra feita sem CPF à conta do cliente; acontece uma única vez.
 
@@ -197,12 +201,6 @@ _Evite_: consumidor, comprador
 **Funcionário**:
 Pessoa com conta interna. Para comprar, usa uma conta de cliente pessoal.
 _Evite_: colaborador, usuário interno
-
-**Conta do caixa**:
-Conta de cliente criada por um vendedor na primeira compra física, sem senha.
-
-**Ativação**:
-Primeiro acesso a uma conta do caixa, que exige confirmar o CPF.
 
 **Desativação**:
 Bloqueio de uma conta ou registro sem apagá-lo.

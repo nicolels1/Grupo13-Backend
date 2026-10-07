@@ -10,10 +10,9 @@ from src.entities.vendas import VendaFisica
 from src.models.contas import Usuario
 from src.models.estoque import MovimentacaoEstoque
 from src.repositories import permissao_repository, pedido_repository, usuario_repository
-from src.routes.contas import get_supabase_admin
 from src.app import app
 from src.use_cases import clientes, pedidos, vendas
-from src.use_cases.erros import Conflito, RecursoNaoEncontrado, RegraDeNegocio
+from src.use_cases.erros import RegraDeNegocio
 from src.utils.supabase_admin import ErroSupabase
 from tests.apoio import ID_FUNCIONARIO, SessaoFalsa, api, funcionario  # noqa: F401
 from tests.apoio_vendas import (  # noqa: F401
@@ -52,16 +51,21 @@ def test_venda_fisica_nasce_paga_e_entregue(banco):
     assert saldo(banco, CAMISA, LOJA_SP, "loja_fisica") == (3, 0)
 
 
-def test_venda_fisica_com_cpf_liga_ao_cliente(banco):
+def test_cpf_com_conta_liga_o_pedido_a_ela(banco):
     com_estoque(banco, CAMISA, LOJA_SP, "loja_fisica", 5)
     banco.clientes_por_cpf[CPF] = SimpleNamespace(id_usuario=ID_CLIENTE)
-    pedido = vendas.registrar_venda_fisica(SessaoVendas(banco), funcionario(), venda(cpf_cliente="529.982.247-25"))
-    assert pedido["id_cliente"] == ID_CLIENTE
+    pedido = vendas.registrar_venda_fisica(SessaoVendas(banco), funcionario(), venda(cpf_nota="529.982.247-25"))
+    assert pedido["id_cliente"] == ID_CLIENTE and pedido["cpf_nota"] == CPF
 
 
-def test_cpf_sem_cadastro(banco):
-    with pytest.raises(RecursoNaoEncontrado, match="cadastre"):
-        vendas.registrar_venda_fisica(SessaoVendas(banco), funcionario(), venda(cpf_cliente=CPF))
+def test_cpf_sem_conta_fica_na_nota_sem_criar_conta(banco):
+    com_estoque(banco, CAMISA, LOJA_SP, "loja_fisica", 5)
+    db = SessaoVendas(banco)
+
+    pedido = vendas.registrar_venda_fisica(db, funcionario(), venda(cpf_nota=CPF))
+
+    assert pedido["id_cliente"] is None and pedido["cpf_nota"] == CPF
+    assert not [o for o in db.adicionados if isinstance(o, Usuario)]
 
 
 def test_pagamentos_precisam_fechar_o_total(banco):
@@ -85,7 +89,7 @@ def test_cd_nao_vende_na_loja(banco):
 
 def test_cpf_invalido_na_venda():
     with pytest.raises(ValidationError, match="CPF inválido"):
-        venda(cpf_cliente="123")
+        venda(cpf_nota="123")
 
 
 # ---------- preparo e entrega ----------
@@ -165,19 +169,11 @@ def test_rotas_de_vendas_exigem_permissao(api, banco):
     assert cliente_api.post("/vendas/pedidos", json=corpo).status_code == 403
 
 
-# ---------- contas do caixa e ativação ----------
+# ---------- clientes no caixa: busca e correção de cadastro ----------
 
 class AuthFalso:
-    def __init__(self, erro=None):
-        self.erro = erro
+    def __init__(self):
         self.chamadas = []
-        self.id_novo = uuid.UUID("66666666-6666-6666-6666-666666666666")
-
-    def gerar_link(self, tipo, email, redirecionar_para=None):
-        self.chamadas.append(("gerar_link", tipo, email))
-        if self.erro:
-            raise self.erro
-        return self.id_novo, f"https://teste/link/{tipo}"
 
     def __getattr__(self, nome):
         return lambda *args: self.chamadas.append((nome, *args))
@@ -185,91 +181,60 @@ class AuthFalso:
 
 @pytest.fixture
 def contas(monkeypatch):
-    estado = SimpleNamespace(usuarios={}, transferidos=[])
+    estado = SimpleNamespace(usuarios={}, transferidos=[], ligadas=[], compras_da_loja={CPF_CERTO: 2})
     por_cpf = lambda db, cpf: next((u for u in estado.usuarios.values() if u.cpf == cpf), None)  # noqa: E731
+
+    def ligar(db, cpf, id_cliente):
+        estado.ligadas.append((cpf, id_cliente))
+        return estado.compras_da_loja.get(cpf, 0)
+
     m = monkeypatch.setattr
-    m(usuario_repository, "cpf_em_uso", lambda db, cpf: por_cpf(db, cpf) is not None)
     m(usuario_repository, "email_em_uso", lambda db, e: any(u.email == e for u in estado.usuarios.values()))
     m(usuario_repository, "buscar_login", lambda db, e: None)
     m(usuario_repository, "buscar_cliente_por_cpf", por_cpf)
     m(permissao_repository, "buscar_usuario", lambda db, i: estado.usuarios.get(i))
     m(pedido_repository, "transferir_pedidos", lambda db, de, para: estado.transferidos.append((de, para)))
+    m(pedido_repository, "ligar_pedidos_pelo_cpf", ligar)
     return estado
 
 
-def conta(estado, id_usuario, cpf, status="pendente_ativacao", email=None):
+def conta(estado, id_usuario, cpf, status="ativa", email=None):
     usuario = Usuario(id_usuario=id_usuario, nome="Ana", email=email or f"{cpf}@x.com", cpf=cpf, tipo_conta="cliente",
                       status_conta=status)
     estado.usuarios[id_usuario] = usuario
     return usuario
 
 
-def test_cadastro_no_caixa_devolve_link(contas):
-    auth = AuthFalso()
-    resposta = clientes.cadastrar_no_caixa(SessaoFalsa(), auth, {"nome": "Ana", "cpf": CPF, "email": "ana@x.com"})
-    assert resposta["status_conta"] == "pendente_ativacao" and resposta["link_ativacao"] == "https://teste/link/invite"
-    assert resposta["id_usuario"] == auth.id_novo
-
-
-def test_cadastro_no_caixa_com_cpf_repetido(contas):
-    conta(contas, ID_CLIENTE, CPF)
-    with pytest.raises(Conflito, match="CPF"):
-        clientes.cadastrar_no_caixa(SessaoFalsa(), AuthFalso(), {"nome": "Ana", "cpf": CPF, "email": "b@x.com"})
-
-
-def test_falha_no_banco_apaga_o_login_do_caixa(contas):
-    auth = AuthFalso()
-    with pytest.raises(RuntimeError):
-        clientes.cadastrar_no_caixa(SessaoFalsa(erro_commit=RuntimeError("x")), auth,
-                                    {"nome": "Ana", "cpf": CPF, "email": "ana@x.com"})
-    assert ("apagar_login", auth.id_novo) in auth.chamadas
-
-
-def test_ativacao_confere_o_cpf(contas):
+def test_corrigir_cpf_liga_as_compras_da_loja_com_o_cpf_certo(contas):
     usuario = conta(contas, ID_CLIENTE, CPF)
-    auth = AuthFalso()
-    with pytest.raises(RegraDeNegocio, match="não confere"):
-        clientes.ativar(SessaoFalsa(), auth, str(ID_CLIENTE), CPF_CERTO, "segredo1")
 
-    clientes.ativar(SessaoFalsa(), auth, str(ID_CLIENTE), CPF, "segredo1")
+    resposta = clientes.corrigir(SessaoFalsa(), AuthFalso(), ID_CLIENTE, {"cpf": CPF_CERTO})
 
-    assert usuario.status_conta == "ativa" and ("definir_senha", ID_CLIENTE, "segredo1") in auth.chamadas
-
-
-def test_conta_ja_ativada(contas):
-    conta(contas, ID_CLIENTE, CPF, status="ativa")
-    with pytest.raises(RegraDeNegocio, match="já foi ativada"):
-        clientes.ativar(SessaoFalsa(), AuthFalso(), str(ID_CLIENTE), CPF, "segredo1")
-
-
-def test_novo_link_so_para_conta_pendente(contas):
-    conta(contas, ID_CLIENTE, CPF)
-    assert clientes.novo_link(SessaoFalsa(), AuthFalso(), ID_CLIENTE)["link_ativacao"].endswith("magiclink")
-    contas.usuarios[ID_CLIENTE].status_conta = "ativa"
-    with pytest.raises(RegraDeNegocio):
-        clientes.novo_link(SessaoFalsa(), AuthFalso(), ID_CLIENTE)
+    assert usuario.cpf == CPF_CERTO and contas.ligadas == [(CPF_CERTO, ID_CLIENTE)]
+    assert resposta["compras_ligadas"] == 2 and resposta["id_conta_mantida"] is None
 
 
 def test_corrigir_cpf_que_ja_tem_conta_junta_os_pedidos(contas):
     outro = uuid.UUID("77777777-7777-7777-7777-777777777777")
-    errada = conta(contas, ID_CLIENTE, CPF, status="ativa")
-    conta(contas, outro, CPF_CERTO, status="ativa")
+    errada = conta(contas, ID_CLIENTE, CPF)
+    conta(contas, outro, CPF_CERTO)
     auth = AuthFalso()
 
     resposta = clientes.corrigir(SessaoFalsa(), auth, ID_CLIENTE, {"cpf": CPF_CERTO})
 
     assert contas.transferidos == [(ID_CLIENTE, outro)] and resposta["id_conta_mantida"] == outro
+    assert contas.ligadas == [(CPF_CERTO, outro)] and resposta["compras_ligadas"] == 2
     assert errada.status_conta == "inativa" and ("bloquear_login", ID_CLIENTE) in auth.chamadas
 
 
-def test_corrigir_email_de_conta_pendente_gera_link_novo(contas):
+def test_corrigir_email_nao_liga_compras(contas):
     usuario = conta(contas, ID_CLIENTE, CPF)
     auth = AuthFalso()
 
     resposta = clientes.corrigir(SessaoFalsa(), auth, ID_CLIENTE, {"email": "certo@x.com"})
 
     assert usuario.email == "certo@x.com" and ("alterar_email", ID_CLIENTE, "certo@x.com") in auth.chamadas
-    assert resposta["link_ativacao"] is not None
+    assert contas.ligadas == [] and resposta["compras_ligadas"] == 0
 
 
 def test_corrigir_com_supabase_fora_do_ar(contas):
@@ -285,10 +250,9 @@ def test_busca_por_cpf_invalido(contas):
         clientes.buscar_por_cpf(SessaoFalsa(), "111")
 
 
-def test_rota_de_ativacao_usa_so_o_token(api, contas, monkeypatch):
-    from src.middlewares.auth import get_current_user
-    conta(contas, ID_CLIENTE, CPF)
-    app.dependency_overrides[get_current_user] = lambda: str(ID_CLIENTE)
-    app.dependency_overrides[get_supabase_admin] = AuthFalso
-    resposta = api(SessaoFalsa()).post("/ativacao", json={"cpf": CPF, "senha": "segredo1"})
-    assert resposta.status_code == 200 and resposta.json()["status_conta"] == "ativa"
+def test_caixa_nao_cria_conta_nem_ativa(api):
+    rotas = app.openapi()["paths"]
+    assert "/ativacao" not in rotas and "/vendas/clientes/{id_usuario}/link-ativacao" not in rotas
+    resposta = api(SessaoFalsa(), usuario=funcionario()).post(
+        "/vendas/clientes", json={"nome": "Ana", "cpf": CPF, "email": "a@x.com"})
+    assert resposta.status_code == 405

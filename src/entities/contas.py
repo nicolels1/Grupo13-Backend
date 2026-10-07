@@ -63,6 +63,10 @@ class UsuarioSaida(BaseModel):
     status_conta: str
 
 
+class CadastroSaida(UsuarioSaida):
+    compras_ligadas: int = Field(description="Compras feitas em lojas com este CPF na nota, agora na conta")
+
+
 class ModeloAcessoSaida(BaseModel):
     id_modelo: int
     nome: str

@@ -31,7 +31,7 @@ API da plataforma de estoque, vendas, catálogo, atendimento e avaliações da C
 Frontend (Vercel) ──HTTPS + token──▶ API FastAPI (Render, este repositório) ──▶ PostgreSQL (Supabase)
        │                                   │
        └── login no Supabase Auth          ├── valida o token com a chave pública do Supabase
-                                           ├── cria logins no Supabase Auth (cadastro, Gestão e caixa)
+                                           ├── cria logins no Supabase Auth (cadastro e Gestão)
                                            └── envia e lê arquivos no Supabase Storage
 ```
 
@@ -104,7 +104,7 @@ usuario: Usuario = Depends(get_usuario_ativo)                      # qualquer co
 
 Respostas: **401** sem token ou com token inválido; **403** conta não cadastrada, não ativa ou sem permissão; **503** se o Supabase não responder.
 
-**Cadastro.** Toda conta é criada pelo backend, que cria o login no Supabase Auth e a linha em `usuario` juntos (ADR 0008); o cadastro aberto no Auth fica desligado. O cliente se cadastra por `POST /clientes`; contas internas são criadas pelo Admin na Gestão, por convite ou com senha provisória; a conta do cliente criada no caixa nasce sem senha e é ativada por link, confirmando o CPF (`POST /ativacao`, ADR 0013).
+**Cadastro.** Toda conta é criada pelo backend, que cria o login no Supabase Auth e a linha em `usuario` juntos (ADR 0008); o cadastro aberto no Auth fica desligado. O cliente se cadastra por `POST /clientes`; contas internas são criadas pelo Admin na Gestão, por convite ou com senha provisória. O caixa da loja não cria conta: o CPF informado na venda fica no pedido (`cpf_nota`) e, quando a pessoa se cadastra pelo site com ele, as compras passam para a conta nova (ADR 0014). O login por CPF responde "CPF ou senha incorretos" tanto para CPF sem conta quanto para senha errada.
 
 ## Banco de dados
 
@@ -165,7 +165,6 @@ Com o servidor rodando: http://127.0.0.1:8000/docs (Swagger) e http://127.0.0.1:
 | `DATABASE_URL_DIRECT` | só para migrations | conexão do dono do banco: **Connect** → Direct connection (porta 5432) |
 | `CORS_ORIGINS` | não | frontends liberados, separados por vírgula e sem `/` no final. Vazio: só `http://localhost:5173` |
 | `CORS_ORIGIN_REGEX` | não | expressão regular para liberar vários endereços, como os previews da Vercel |
-| `URL_ATIVACAO` | não | página do frontend aberta pelo link de ativação da conta do caixa (ex.: `https://<projeto>.vercel.app/ativar`). Precisa estar em Redirect URLs do Supabase Auth; sem ela, o link abre a Site URL do projeto |
 | `DEMO_SENHA` | não | senha das contas criadas por `carregar_demo`; sem ela, o script pede na hora |
 
 Nas URLs do banco, codifique caracteres especiais da senha (`@` vira `%40`). O `.env.example` mostra o formato completo. O `.env` está no `.gitignore` e nunca deve ser commitado; peça os valores a quem mantém o projeto Supabase.
@@ -177,7 +176,7 @@ Rodam na raiz do repositório, com o venv ativo e o `.env` preenchido:
 | Comando | O que faz |
 |---|---|
 | `python -m scripts.criar_admin` | cria a primeira conta Admin (login no Supabase Auth + linha em `usuario`). Pede nome, e-mail e senha |
-| `python -m scripts.carregar_demo` | carrega o cenário de demonstração: unidades, catálogo, modelos de acesso, contas internas e de cliente, 30 dias de movimentações de estoque e pedidos em cada etapa (venda na loja com e sem CPF, entrega paga para preparar, retirada pronta, pedido entregue com avaliação, voto útil e denúncia pendente). Imprime os códigos de venda. Pode rodar de novo sem duplicar nada |
+| `python -m scripts.carregar_demo` | carrega o cenário de demonstração: unidades, catálogo, modelos de acesso, contas internas e de cliente, 30 dias de movimentações de estoque e pedidos em cada etapa (venda na loja com e sem CPF, entrega paga para preparar, retirada pronta, pedido entregue com avaliação, voto útil e denúncia pendente, e uma venda com CPF na nota de alguém sem conta). Imprime os códigos de venda e esse CPF. Pode rodar de novo sem duplicar nada |
 | `python -m scripts.conferir_banco` | confere no banco de verdade as garantias do usuário restrito, do RLS, do saldo do estoque e do cancelamento da reserva vencida. Roda numa transação desfeita no final: nada fica gravado |
 
 ## Rotas
@@ -189,7 +188,7 @@ A lista completa, com parâmetros e formatos, está em `/docs`. Resumo por área
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
 | GET | `/health` | público | consulta o banco; 503 se ele não responder |
-| POST | `/clientes` | público | cadastro de cliente (nome, e-mail, CPF e senha) |
+| POST | `/clientes` | público | cadastro de cliente (nome, e-mail, CPF e senha); as compras da loja com esse CPF na nota passam para a conta (`compras_ligadas`) |
 | POST | `/login/cpf` | público | login do cliente por CPF e senha; devolve a sessão do Supabase |
 | GET | `/me` | conta ativa | perfil, tipo de conta e permissões efetivas (monta a tela inicial) |
 
@@ -222,22 +221,19 @@ As fotos aparecem em `imagens` de cada produto, com a URL pública.
 | POST | `/pagamentos/{id}/simular` | cliente | gateway simulado: `{"aprovado": true}` paga o pedido e baixa o estoque (ADR 0011) |
 | POST | `/pedidos/{id}/cancelar` | cliente | cancela antes do pagamento e libera a reserva |
 | POST | `/pedidos/reivindicar` | cliente | liga à conta uma compra feita na loja sem CPF, pelo código do comprovante |
-| POST | `/ativacao` | token da conta do caixa | primeiro acesso: confirma o CPF e define a senha |
 
 ### Vendas (plataforma interna)
 
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
 | GET | `/vendas/pedidos`, `/vendas/pedidos/{id}` | qualquer permissão de vendas ou `atender_chamado` | pedidos, com filtros: status, canal, modalidade, unidade, código e `pronto_ha_mais_de_dias` |
-| POST | `/vendas/pedidos` | `registrar_venda_fisica` | venda na loja: nasce paga e entregue, baixa o estoque de loja física |
+| POST | `/vendas/pedidos` | `registrar_venda_fisica` | venda na loja: nasce paga e entregue, baixa o estoque de loja física. CPF opcional (`cpf_nota`): com conta, liga o pedido; sem conta, fica guardado no pedido |
 | POST | `/vendas/pedidos/{id}/enviar` | `preparar_entregar_pedido` | entrega em casa paga → enviada |
 | POST | `/vendas/pedidos/{id}/pronto-retirada` | `preparar_entregar_pedido` | retirada paga → pronta (começa o prazo de 7 dias) |
 | POST | `/vendas/pedidos/{id}/entregar` | `preparar_entregar_pedido` | entrega o pedido enviado ou retirado (na retirada, confere o código) |
 | POST | `/vendas/pedidos/{id}/cancelar` | `cancelar_pedido_equipe` | antes do envio, com justificativa; se já pago, estorna tudo e devolve as peças ao estoque |
-| GET | `/vendas/clientes?cpf=` | `registrar_venda_fisica` ou `corrigir_cadastro_cliente` | busca o cliente pelo CPF no caixa |
-| POST | `/vendas/clientes` | `registrar_venda_fisica` | primeira compra na loja: cria a conta sem senha e devolve o link de ativação |
-| POST | `/vendas/clientes/{id}/link-ativacao` | `registrar_venda_fisica` ou `corrigir_cadastro_cliente` | gera outro link de ativação |
-| PATCH | `/vendas/clientes/{id}` | `corrigir_cadastro_cliente` | corrige e-mail ou CPF; CPF que já tem conta junta os pedidos nela |
+| GET | `/vendas/clientes?cpf=` | `registrar_venda_fisica` ou `corrigir_cadastro_cliente` | mostra no caixa se o CPF já tem conta |
+| PATCH | `/vendas/clientes/{id}` | `corrigir_cadastro_cliente` | corrige e-mail ou CPF; CPF que já tem conta junta os pedidos nela, e as compras com o CPF certo na nota vão para a conta |
 
 ### Estoque
 
@@ -363,7 +359,7 @@ A API é publicada no Render a cada merge na `main`.
 |---|---|
 | Build command | `pip install -r requirements.txt` |
 | Start command | `uvicorn src.app:app --host 0.0.0.0 --port $PORT` |
-| Variáveis de ambiente | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_PUBLISHABLE_KEY`, `DATABASE_URL` (usuário `api_casalorenzi`), `CORS_ORIGINS` (e `CORS_ORIGIN_REGEX`, se usar previews), `URL_ATIVACAO`, `PYTHON_VERSION=3.14.3` |
+| Variáveis de ambiente | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_PUBLISHABLE_KEY`, `DATABASE_URL` (usuário `api_casalorenzi`), `CORS_ORIGINS` (e `CORS_ORIGIN_REGEX`, se usar previews), `PYTHON_VERSION=3.14.3` |
 | Health check path | `/docs` (não use `/health`: o Render chama o health check com frequência e manteria conexões abertas no banco) |
 
 `DATABASE_URL_DIRECT` e `DEMO_SENHA` não vão para o Render: migrations e scripts rodam a partir da máquina de quem desenvolve. Se o Python mudar no Render, atualize também o `testes.yml`.
@@ -375,24 +371,24 @@ A API é publicada no Render a cada merge na `main`.
 - **Tela inicial:** depois do login, `GET /me` diz o tipo de conta (decide entre plataforma interna e do cliente) e as permissões efetivas (decide quais blocos e abas aparecem).
 - **Visão Geral:** cada bloco é o `total` de uma lista com filtro: `GET /atendimento/chamados?sem_responsavel=true`, `?meus=true&status=em_andamento` e `?com_mensagem_nova=true`; `GET /estoque?abaixo_minimo=true`; `GET /transferencias?status=enviada` e `?status=solicitada` com `id_unidade` (o frontend separa as que chegam das que saem); `GET /vendas/pedidos?status=pago` e `?pronto_ha_mais_de_dias=5`; `GET /moderacao/denuncias`.
 - **Compra online:** `POST /carrinho` mostra frete e lojas; `POST /pedidos` reserva por 15 minutos; `POST /pedidos/{id}/pagamentos` cria a cobrança e `POST /pagamentos/{id}/simular` faz o papel do gateway. Reserva vencida cancela o pedido sozinha.
-- **Ativação da conta do caixa:** o link entregue pela loja abre `URL_ATIVACAO` com a sessão do Supabase na URL; a página entrega essa sessão ao cliente do Supabase e chama `POST /ativacao` com o CPF e a nova senha.
+- **Compras da loja:** depois do `POST /clientes`, se `compras_ligadas` for maior que zero, as compras feitas em lojas com aquele CPF já aparecem em `GET /pedidos`.
 - **CORS:** o navegador só deixa o frontend chamar a API se o endereço dele estiver em `CORS_ORIGINS`, sem `/` no final. Para os previews da Vercel, use `CORS_ORIGIN_REGEX`, por exemplo `https://<projeto>-.*\.vercel\.app`.
 
 ## Estado atual
 
 **Implementado:**
 
-- contas: cadastro de cliente, login por e-mail (Supabase) ou CPF, perfil com permissões efetivas, conta do caixa com ativação por link, correção de e-mail e CPF;
+- contas: cadastro de cliente (com as compras da loja ligadas pelo CPF na nota), login por e-mail (Supabase) ou CPF, perfil com permissões efetivas, correção de e-mail e CPF;
 - gestão: contas internas, modelos de acesso, exceções de permissão e unidades;
 - catálogo: categorias, produtos, variantes, fotos e histórico de preço, com vitrine pública;
 - estoque: saldo por unidade e canal, movimentações, realocação, estoque mínimo, histórico em qualquer data, peças em trânsito, gráfico de evolução e conferência de divergências;
 - transferências com as etapas solicitada → enviada → recebida e cancelamento;
-- vendas: carrinho com frete, checkout com reserva de 15 minutos, pagamento por gateway simulado, venda física, preparo, envio, retirada, entrega, cancelamento com estorno, reivindicação de compra e endereços salvos;
+- vendas: carrinho com frete, checkout com reserva de 15 minutos, pagamento por gateway simulado, venda física com CPF na nota opcional, preparo, envio, retirada, entrega, cancelamento com estorno, reivindicação de compra e endereços salvos;
 - atendimento: chamados do cliente, fila da equipe, assumir, prioridade, mensagens internas, anexos, conclusão, histórico, troca, devolução e estorno;
 - avaliações: nota, texto e fotos, edição por 7 dias, voto útil, denúncia e moderação;
 - banco com 27 tabelas, triggers, RLS, usuário restrito e prazos automáticos pelo pg_cron; testes automatizados com CI.
 
-**Fora do escopo desta entrega:** gateway de pagamento real (ADR 0011), e-mails pelo servidor próprio (o link de ativação é entregue pela loja, ADR 0013) e as evoluções da seção 9 do [case](docs/case/Casa_Lorenzi_Case_Completo.md).
+**Fora do escopo desta entrega:** gateway de pagamento real (ADR 0011) e as evoluções da seção 9 do [case](docs/case/Casa_Lorenzi_Case_Completo.md).
 
 ## Documentação do projeto
 
@@ -400,7 +396,7 @@ A API é publicada no Render a cada merge na `main`.
 |---|---|
 | [docs/case/Casa_Lorenzi_Case_Completo.md](docs/case/Casa_Lorenzi_Case_Completo.md) | referência do case: contexto, regras de negócio, permissões e modelo de dados |
 | [CONTEXT.md](CONTEXT.md) | glossário dos termos do domínio |
-| [docs/adr/](docs/adr/) | decisões de arquitetura difíceis de reverter (ADRs 0001 a 0013) |
+| [docs/adr/](docs/adr/) | decisões de arquitetura difíceis de reverter (ADRs 0001 a 0014) |
 | [ALEMBIC_GUIDE.md](ALEMBIC_GUIDE.md) | como criar e aplicar migrations |
 
 ## Como contribuir
@@ -427,6 +423,7 @@ A API é publicada no Render a cada merge na `main`.
 | `DLL load failed while importing pq: Uma política de Controle de Aplicativo bloqueou este arquivo` | o Smart App Control do Windows bloqueou o driver psycopg; a API, o Alembic e os scripts não rodam nessa máquina enquanto o bloqueio existir; os testes continuam rodando no GitHub (CI) |
 | `DLL load failed ... nome do arquivo ou a extensão é muito grande` | caminho da pasta longo demais para o Windows; clone o repositório (ou crie o venv) em um caminho mais curto |
 | Alembic trava ou não conecta pela conexão direta | a conexão direta do Supabase usa IPv6; se sua rede não tiver, use o Session pooler (porta 5432) em `DATABASE_URL_DIRECT` |
+| 401 `CPF ou senha incorretos` | CPF sem conta ou senha errada (a resposta é a mesma de propósito); a pessoa pode criar a conta com esse CPF |
 | 401 `Token ausente` / `Token inválido` | header `Authorization` não enviado, token expirado ou de outro projeto |
 | 422 `A reserva de 15 minutos venceu` | o cliente demorou para pagar; o pedido é cancelado e é preciso fazer outro |
 | 503 `Não foi possível guardar o arquivo` | Storage fora do ar ou buckets não criados (rode `alembic upgrade head`) |

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from src.database.session import get_db
 from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Pagina, campos_alterados
 from src.entities.vendas import (
-    CancelamentoEquipe, ClienteCaixaCriar, ClienteComLink, ClienteCorrigir, ClienteResumo, Entrega, Modalidade,
+    CancelamentoEquipe, ClienteCorrigido, ClienteCorrigir, ClienteResumo, Entrega, Modalidade,
     PedidoSaida, StatusPedido, VendaFisica,
 )
 from src.middlewares.permissoes import exige_permissao
@@ -67,7 +67,8 @@ def detalhar(id_pedido: int, _: Usuario = Depends(VER_PEDIDOS), db: Session = De
     response_model=PedidoSaida,
     responses=ERROS,
     description="Venda física: nasce paga e entregue e baixa o estoque de loja física. "
-                "Os pagamentos precisam somar o total.",
+                "Os pagamentos precisam somar o total. O caixa não cria conta: CPF com conta liga o pedido; "
+                "CPF sem conta fica no pedido (cpf_nota) até o cadastro pelo site.",
 )
 def registrar_venda_fisica(
     dados: VendaFisica, vendedor: Usuario = Depends(exige_permissao("registrar_venda_fisica")),
@@ -124,34 +125,12 @@ def buscar_cliente(
     return clientes.buscar_por_cpf(db, cpf)
 
 
-@router.post(
-    "/vendas/clientes",
-    status_code=status.HTTP_201_CREATED,
-    response_model=ClienteComLink,
-    responses=ERROS,
-    description="Primeira compra na loja: cria a conta sem senha e devolve o link de ativação.",
-)
-def cadastrar_cliente(
-    dados: ClienteCaixaCriar, _: Usuario = Depends(exige_permissao("registrar_venda_fisica")),
-    db: Session = Depends(get_db), auth: SupabaseAdmin = Depends(get_supabase_admin),
-):
-    return clientes.cadastrar_no_caixa(db, auth, dados.model_dump())
-
-
-@router.post("/vendas/clientes/{id_usuario}/link-ativacao", response_model=ClienteComLink, responses=ERROS)
-def novo_link(
-    id_usuario: uuid.UUID, _: Usuario = Depends(ATENDER_NO_CAIXA), db: Session = Depends(get_db),
-    auth: SupabaseAdmin = Depends(get_supabase_admin),
-):
-    return clientes.novo_link(db, auth, id_usuario)
-
-
 @router.patch(
     "/vendas/clientes/{id_usuario}",
-    response_model=ClienteComLink,
+    response_model=ClienteCorrigido,
     responses=ERROS,
     description="Corrige e-mail ou CPF com documento. Se o CPF certo já tem conta, os pedidos passam "
-                "para ela e esta conta é desativada.",
+                "para ela e esta conta é desativada. As compras da loja com o CPF certo na nota vão para a conta.",
 )
 def corrigir_cliente(
     id_usuario: uuid.UUID, dados: ClienteCorrigir,

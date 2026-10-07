@@ -145,6 +145,15 @@ def trocas_e_devolucoes(db: Session, id_pedido: int) -> list:
     return list(db.execute(consulta).all())
 
 
+# compras da loja com o CPF na nota e ainda sem conta passam para a conta desse CPF (ADR 0014);
+# devolve quantas foram ligadas
+def ligar_pedidos_pelo_cpf(db: Session, cpf: str, id_cliente) -> int:
+    resultado = db.execute(
+        update(Pedido).where(Pedido.cpf_nota == cpf, Pedido.id_cliente.is_(None)).values(id_cliente=id_cliente)
+    )
+    return resultado.rowcount
+
+
 # correção de CPF que já tinha conta: os pedidos passam para a conta certa (case, seção 5)
 def transferir_pedidos(db: Session, de, para) -> None:
     db.execute(update(Pedido).where(Pedido.id_cliente == de).values(id_cliente=para))

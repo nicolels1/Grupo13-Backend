@@ -3,7 +3,7 @@ import logging
 from sqlalchemy.orm import Session
 
 from src.models.contas import Usuario
-from src.repositories import permissao_repository, usuario_repository
+from src.repositories import pedido_repository, permissao_repository, usuario_repository
 from src.use_cases.erros import (
     Conflito, ErroNegocio, MuitasTentativas, NaoAutenticado, RegraDeNegocio, SemPermissao,
     ServicoIndisponivel,
@@ -13,7 +13,7 @@ from src.utils.supabase_admin import ErroSupabase
 
 logger = logging.getLogger(__name__)
 
-LOGIN_INVALIDO = "CPF ou senha inválidos"
+LOGIN_INVALIDO = "CPF ou senha incorretos"
 
 
 # respostas do Supabase Auth viram erros com mensagem para o usuário (usado também na Gestão)
@@ -31,8 +31,9 @@ def traduzir_erro_auth(erro: ErroSupabase) -> ErroNegocio:
 
 
 # cliente se cadastra pelo site (ADR 0008): o backend valida, cria o login já
-# confirmado e grava a linha de USUARIO; se a gravação falhar, apaga o login criado
-def cadastrar_cliente(db: Session, auth, nome: str, email: str, cpf: str, senha: str) -> Usuario:
+# confirmado e grava a linha de USUARIO; se a gravação falhar, apaga o login criado.
+# As compras da loja com esse CPF na nota passam para a conta nova (ADR 0014)
+def cadastrar_cliente(db: Session, auth, nome: str, email: str, cpf: str, senha: str) -> dict:
     if usuario_repository.email_em_uso(db, email):
         raise Conflito("E-mail já cadastrado")
     if usuario_repository.cpf_em_uso(db, cpf):
@@ -53,6 +54,8 @@ def cadastrar_cliente(db: Session, auth, nome: str, email: str, cpf: str, senha:
     )
     try:
         db.add(usuario)
+        db.flush()  # a conta existe antes de os pedidos apontarem para ela
+        ligadas = pedido_repository.ligar_pedidos_pelo_cpf(db, cpf, id_usuario)
         db.commit()
     except Exception:
         db.rollback()
@@ -62,7 +65,10 @@ def cadastrar_cliente(db: Session, auth, nome: str, email: str, cpf: str, senha:
             # o erro original continua sendo o que importa; o login sem USUARIO fica registrado
             logger.error("login %s ficou sem linha em USUARIO e não pôde ser apagado", id_usuario)
         raise
-    return usuario
+    return {
+        "id_usuario": usuario.id_usuario, "nome": usuario.nome, "email": usuario.email,
+        "tipo_conta": usuario.tipo_conta, "status_conta": usuario.status_conta, "compras_ligadas": ligadas,
+    }
 
 
 # login por CPF: o backend acha o e-mail do cliente e pede a sessão ao Supabase,

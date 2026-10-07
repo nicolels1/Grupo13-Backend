@@ -104,6 +104,10 @@ CLIENTES = [
     dict(nome="Fernanda Lima", email=f"fernanda.lima@{DOMINIO_PESSOAL}", cpf=_cpf_de("258147369")),
 ]
 
+# CPF de quem comprou na loja e ainda não tem conta: ao se cadastrar pelo site com ele,
+# a compra aparece em Meus pedidos (ADR 0014)
+CPF_NA_NOTA = _cpf_de("605944493")
+
 # estoque mínimo por canal nas lojas: algumas variantes terminam abaixo e geram alerta
 MINIMO_LOJA_FISICA = 4
 MINIMO_ONLINE_CD = 15
@@ -356,7 +360,7 @@ def carregar_vendas(db: Session) -> dict:
     codigos = {}
     for cpf, variante in ((marina.cpf, na_loja[0]), (None, na_loja[1])):
         pedido = vendas.registrar_venda_fisica(db, vendedora, {
-            "id_unidade": paulista.id_unidade, "cpf_cliente": cpf,
+            "id_unidade": paulista.id_unidade, "cpf_nota": cpf,
             "itens": [{"id_variante": variante.id_variante, "quantidade": 1}],
             "pagamentos": [{"metodo": "cartao_debito" if cpf else "dinheiro", "valor": variante.preco}],
         })
@@ -407,6 +411,23 @@ def carregar_vendas(db: Session) -> dict:
     return codigos
 
 
+def carregar_venda_com_cpf_na_nota(db: Session) -> str | None:
+    """Venda na loja com o CPF na nota de alguém sem conta. Só roda uma vez: se já existe pedido com
+    esse CPF na nota (ou uma conta com ele), não faz nada. Devolve o código da venda."""
+    ja_existe = db.scalar(select(Pedido.id_pedido).where(Pedido.cpf_nota == CPF_NA_NOTA).limit(1))
+    if ja_existe is not None or usuario_repository.cpf_em_uso(db, CPF_NA_NOTA):
+        return None
+    vendedora = _conta(db, f"fernanda.lima@{DOMINIO_CORPORATIVO}")
+    paulista = db.scalar(select(Unidade).where(Unidade.nome == "Loja Paulista"))
+    variante = _skus_disponiveis(db, paulista, "loja_fisica")[0]
+    pedido = vendas.registrar_venda_fisica(db, vendedora, {
+        "id_unidade": paulista.id_unidade, "cpf_nota": CPF_NA_NOTA,
+        "itens": [{"id_variante": variante.id_variante, "quantidade": 1}],
+        "pagamentos": [{"metodo": "pix", "valor": variante.preco}],
+    })
+    return pedido["codigo_venda"]
+
+
 def main() -> None:
     # importado aqui para os dados e as funções acima poderem ser usados (e testados) sem conectar no banco
     from src.database.session import SessionLocal
@@ -424,6 +445,7 @@ def main() -> None:
             contas = carregar_contas(db, SupabaseAdmin(), senha)
             movimentacoes = carregar_estoque(db, agora)
             codigos = carregar_vendas(db)
+            codigo_cpf_na_nota = carregar_venda_com_cpf_na_nota(db)
         except (ErroSupabase, RuntimeError, ErroNegocio) as erro:
             raise SystemExit(str(erro))
 
@@ -437,6 +459,11 @@ def main() -> None:
             print(f"  {codigo}  {descricao}")
     else:
         print("Pedidos: já existiam pedidos no banco, nada novo")
+    cpf = f"{CPF_NA_NOTA[:3]}.{CPF_NA_NOTA[3:6]}.{CPF_NA_NOTA[6:9]}-{CPF_NA_NOTA[9:]}"
+    if codigo_cpf_na_nota:
+        print(f"  {codigo_cpf_na_nota}  venda na loja com CPF na nota {cpf}, sem conta: cadastre-se pelo site com ele")
+    else:
+        print(f"Venda com CPF na nota ({cpf}): já existia, nada novo")
 
 
 if __name__ == "__main__":

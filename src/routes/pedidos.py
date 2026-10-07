@@ -3,17 +3,13 @@ from sqlalchemy.orm import Session
 
 from src.database.session import get_db
 from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Pagina
-from src.entities.contas import UsuarioSaida
 from src.entities.vendas import (
-    Ativacao, Carrinho, Checkout, CobrancaCriar, PedidoSaida, Reivindicacao, RespostaGateway, ResumoCarrinho,
+    Carrinho, Checkout, CobrancaCriar, PedidoSaida, Reivindicacao, RespostaGateway, ResumoCarrinho,
     StatusPedido,
 )
-from src.middlewares.auth import get_current_user
 from src.middlewares.permissoes import exige_cliente
 from src.models.contas import Usuario
-from src.routes.contas import get_supabase_admin
-from src.use_cases import clientes, pedidos
-from src.utils.supabase_admin import SupabaseAdmin
+from src.use_cases import pedidos
 
 router = APIRouter(tags=["pedidos"])
 
@@ -111,18 +107,3 @@ def cancelar(id_pedido: int, cliente: Usuario = Depends(exige_cliente), db: Sess
 )
 def reivindicar(dados: Reivindicacao, cliente: Usuario = Depends(exige_cliente), db: Session = Depends(get_db)):
     return pedidos.reivindicar(db, cliente, dados.codigo_venda)
-
-
-# a conta criada no caixa entra pelo link do Supabase e ainda não está ativa: por isso usa só o token
-@router.post(
-    "/ativacao",
-    response_model=UsuarioSaida,
-    responses={401: ERROS[401], 403: {"description": "Usuário não cadastrado"},
-               422: {"description": "CPF não confere ou conta já ativada"}},
-    description="Primeiro acesso da conta criada no caixa: confirma o CPF e define a senha.",
-)
-def ativar_conta(
-    dados: Ativacao, id_usuario: str = Depends(get_current_user), db: Session = Depends(get_db),
-    auth: SupabaseAdmin = Depends(get_supabase_admin),
-):
-    return clientes.ativar(db, auth, id_usuario, dados.cpf, dados.senha)

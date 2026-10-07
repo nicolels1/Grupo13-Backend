@@ -68,13 +68,14 @@ class PagamentoFisico(BaseModel):
     valor: Valor = Field(gt=0, max_digits=10, decimal_places=2)
 
 
-# venda na loja: nasce paga e entregue. CPF opcional (o vendedor pede, sem exigir)
+# venda na loja: nasce paga e entregue. CPF opcional (o vendedor pede, sem exigir). O caixa não
+# cria conta: CPF com conta liga o pedido a ela; CPF sem conta fica guardado no pedido (ADR 0014)
 class VendaFisica(Carrinho):
     id_unidade: int
-    cpf_cliente: str | None = None
+    cpf_nota: str | None = Field(default=None, description="CPF na nota, com ou sem máscara")
     pagamentos: list[PagamentoFisico] = Field(min_length=1, max_length=5)
 
-    @field_validator("cpf_cliente")
+    @field_validator("cpf_nota")
     @classmethod
     def validar_cpf(cls, valor: str | None) -> str | None:
         return _cpf(valor) if valor else None
@@ -139,6 +140,7 @@ class PedidoSaida(BaseModel):
     id_unidade: int
     unidade: str
     id_registrado_por: uuid.UUID | None
+    cpf_nota: str | None = Field(description="CPF informado na venda física")
     canal: str
     modalidade: str | None
     status: StatusPedido
@@ -192,24 +194,6 @@ class ResumoCarrinho(BaseModel):
 
 # ---------- clientes no caixa ----------
 
-class ClienteCaixaCriar(BaseModel):
-    nome: str = Field(min_length=2, max_length=150)
-    cpf: str
-    email: str = Field(pattern=PADRAO_EMAIL, max_length=255)
-
-    _limpa = field_validator("nome", "email", mode="before")(sem_espacos)
-
-    @field_validator("cpf")
-    @classmethod
-    def validar_cpf(cls, valor: str) -> str:
-        return _cpf(valor)
-
-    @field_validator("email")
-    @classmethod
-    def email_minusculo(cls, valor: str) -> str:
-        return valor.lower()
-
-
 # correção na loja, com documento: e-mail e/ou CPF
 class ClienteCorrigir(BaseModel):
     email: str | None = Field(default=None, pattern=PADRAO_EMAIL, max_length=255)
@@ -238,21 +222,8 @@ class ClienteResumo(BaseModel):
     status_conta: str
 
 
-class ClienteComLink(ClienteResumo):
-    link_ativacao: str | None = Field(
-        description="Link do primeiro acesso (vale pelo prazo do Supabase). O e-mail só chega com servidor "
-                    "de e-mail próprio; enquanto isso, a loja entrega o link ao cliente"
-    )
+class ClienteCorrigido(ClienteResumo):
     id_conta_mantida: uuid.UUID | None = Field(
         default=None, description="Na correção de CPF que já tinha conta: a conta que ficou com os pedidos",
     )
-
-
-class Ativacao(BaseModel):
-    cpf: str
-    senha: str = Field(min_length=6, max_length=72)
-
-    @field_validator("cpf")
-    @classmethod
-    def validar_cpf(cls, valor: str) -> str:
-        return _cpf(valor)
+    compras_ligadas: int = Field(description="Compras da loja com esse CPF na nota que passaram para a conta")

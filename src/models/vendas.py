@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Numeric, String, Text, Uuid, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Numeric, String, Text, Uuid, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database.base import Base
@@ -20,6 +20,8 @@ class Pedido(Base):
     id_registrado_por: Mapped[uuid.UUID | None] = mapped_column(  # funcionário da venda física
         Uuid, ForeignKey("usuario.id_usuario", ondelete="RESTRICT")
     )
+    # CPF informado na venda física de quem ainda não tem conta; o cadastro pelo site liga o pedido (ADR 0014)
+    cpf_nota: Mapped[str | None] = mapped_column(String(11))
     canal: Mapped[str] = mapped_column(String(20))
     modalidade: Mapped[str | None] = mapped_column(String(20))  # só na venda online
     status: Mapped[str] = mapped_column(String(30))
@@ -68,6 +70,10 @@ class Pedido(Base):
             name="cancelamento_equipe_exige_autor",
         ),
         CheckConstraint("valor_frete >= 0 AND valor_total >= 0", name="valores_nao_negativos"),
+        CheckConstraint("cpf_nota IS NULL OR canal = 'loja_fisica'", name="cpf_nota_so_loja_fisica"),
+        CheckConstraint("cpf_nota ~ '^[0-9]{11}$'", name="cpf_nota_so_digitos"),
+        # busca dos pedidos ainda sem conta no cadastro pelo site
+        Index("ix_pedido_cpf_nota_sem_cliente", "cpf_nota", postgresql_where=text("id_cliente IS NULL")),
     )
 
 
