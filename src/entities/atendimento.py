@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
@@ -47,6 +48,34 @@ class ChamadoAlterar(BaseModel):
 
 class ChamadoConcluir(BaseModel):
     motivo: MotivoConclusao
+
+
+# ---------- troca, devolução e estorno (pedido do chamado) ----------
+
+class ItemDevolvido(BaseModel):
+    id_variante: int
+    quantidade: int = Field(gt=0)
+
+
+class EstornoPedido(BaseModel):
+    id_pagamento: int = Field(description="Pagamento aprovado do pedido de onde o valor sai")
+    valor: Decimal = Field(gt=0, max_digits=10, decimal_places=2)
+
+
+# a peça entra no estoque de loja física da loja que recebeu; o estorno volta pelo mesmo método
+class DevolucaoCriar(BaseModel):
+    id_unidade: int = Field(description="Loja que recebeu a peça")
+    itens: list[ItemDevolvido] = Field(min_length=1)
+    estornos: list[EstornoPedido] = Field(min_length=1)
+
+
+class ItemTrocado(ItemDevolvido):
+    id_variante_nova: int = Field(description="Outra cor ou tamanho do mesmo produto")
+
+
+class TrocaCriar(BaseModel):
+    id_unidade: int = Field(description="Loja que recebeu a peça e entregou a nova")
+    itens: list[ItemTrocado] = Field(min_length=1)
 
 
 # ---------- saída ----------

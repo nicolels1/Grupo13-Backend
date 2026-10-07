@@ -20,6 +20,10 @@ def travar_chamado(db: Session, id_chamado: int) -> Chamado | None:
     return db.scalar(select(Chamado).where(Chamado.id_chamado == id_chamado).with_for_update())
 
 
+def buscar_mensagem(db: Session, id_mensagem: int) -> Mensagem | None:
+    return db.get(Mensagem, id_mensagem)
+
+
 def buscar_pedido(db: Session, id_pedido: int) -> Pedido | None:
     return db.get(Pedido, id_pedido)
 
