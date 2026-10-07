@@ -1,16 +1,18 @@
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
 from src.entities.catalogo import (
-    CategoriaAlterar, CategoriaCriar, CategoriaSaida, HistoricoPrecoSaida, ProdutoAlterar, ProdutoCriar,
-    ProdutoSaida, VarianteAlterar, VarianteCriar, VarianteSaida,
+    CategoriaAlterar, CategoriaCriar, CategoriaSaida, HistoricoPrecoSaida, ImagemAlterar, ImagemSaida,
+    ProdutoAlterar, ProdutoCriar, ProdutoSaida, VarianteAlterar, VarianteCriar, VarianteSaida,
 )
 from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Lista, Pagina, campos_alterados
 from src.middlewares.permissoes import exige_permissao, get_usuario_opcional
 from src.models.contas import Usuario
 from src.repositories import catalogo_repository
 from src.use_cases import catalogo
+from src.utils.supabase_storage import SupabaseStorage
+from src.utils.upload import get_storage, ler_upload
 
 router = APIRouter(tags=["catalogo"])
 
@@ -137,3 +139,42 @@ def historico_preco(
     usuario: Usuario = Depends(exige_permissao("gerenciar_catalogo")),
 ):
     return {"items": catalogo.historico_preco(db, id_variante, em)}
+
+
+# ---------- fotos (gerenciar_catalogo) ----------
+
+ERROS_FOTO = {
+    404: {"description": "Produto ou foto não encontrada"},
+    422: {"description": "Arquivo não aceito ou cor que o produto não tem"},
+    503: {"description": "Storage indisponível"},
+}
+
+
+@router.post(
+    "/produtos/{id_produto}/imagens",
+    status_code=status.HTTP_201_CREATED,
+    response_model=ImagemSaida,
+    responses=ERROS_FOTO,
+    description="Envia uma foto (JPG, PNG ou WEBP de até 5 MB) como multipart/form-data. "
+                "Sem cor, vale para todas; sem ordem, entra no fim.",
+)
+def adicionar_imagem(
+    id_produto: int,
+    arquivo: UploadFile = File(),
+    cor: str | None = Form(None),
+    ordem: int | None = Form(None, ge=1),
+    db: Session = Depends(get_db),
+    storage: SupabaseStorage = Depends(get_storage),
+    usuario: Usuario = Depends(exige_permissao("gerenciar_catalogo")),
+):
+    return catalogo.adicionar_imagem(db, storage, id_produto, ler_upload(arquivo), cor or None, ordem)
+
+
+@router.patch("/imagens/{id_imagem}", response_model=ImagemSaida, responses=ERROS_FOTO)
+def alterar_imagem(
+    id_imagem: int,
+    dados: ImagemAlterar,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(exige_permissao("gerenciar_catalogo")),
+):
+    return catalogo.alterar_imagem(db, id_imagem, campos_alterados(dados, nullaveis=("cor",)))

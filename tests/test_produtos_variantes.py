@@ -32,6 +32,7 @@ def banco(monkeypatch):
         i: [v for v in estado.variantes.values() if v.id_produto == i] for i in ids
     })
     monkeypatch.setattr(r, "buscar_variante", lambda db, i: estado.variantes.get(i))
+    monkeypatch.setattr(r, "imagens_dos_produtos", lambda db, ids: {i: [] for i in ids})
     monkeypatch.setattr(r, "variante_por_sku", lambda db, sku: next(
         (v for v in estado.variantes.values() if v.sku.upper() == sku.upper()), None))
     monkeypatch.setattr(r, "variante_por_cor_e_tamanho", lambda db, p, cor, tam: next(

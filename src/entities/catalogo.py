@@ -113,6 +113,22 @@ class ProdutoAlterar(BaseModel):
     _limpa = field_validator("nome", "descricao_tecnica", "descricao_cliente", mode="before")(sem_espacos)
 
 
+class ImagemSaida(BaseModel):
+    id_imagem: int
+    id_produto: int
+    cor: str | None = Field(description="Vazia: vale para todas as cores")
+    ordem: int
+    url: str
+
+
+# a foto em si não muda: para trocar, envie outra e mude a ordem
+class ImagemAlterar(BaseModel):
+    cor: str | None = Field(default=None, max_length=50, description="null: passa a valer para todas as cores")
+    ordem: int | None = Field(default=None, ge=1)
+
+    _limpa = field_validator("cor", mode="before")(sem_espacos)
+
+
 class ProdutoSaida(BaseModel):
     id_produto: int
     id_categoria: int
@@ -121,6 +137,7 @@ class ProdutoSaida(BaseModel):
     descricao_cliente: str
     ativo: bool
     variantes: list[VarianteSaida]
+    imagens: list[ImagemSaida] = Field(default_factory=list, description="Na ordem de exibição")
 
 
 class HistoricoPrecoSaida(BaseModel):
