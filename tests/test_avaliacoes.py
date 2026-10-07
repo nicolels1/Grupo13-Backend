@@ -1,7 +1,9 @@
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
+from sqlalchemy.dialects import postgresql
 
 from src.app import app
 from src.models.avaliacoes import Avaliacao, DenunciaAvaliacao, FotoAvaliacao, VotoUtil
@@ -214,3 +216,70 @@ def test_rota_de_foto(api, banco):
     resposta = api(SessaoAvaliacoes(banco), usuario=cliente()).post(
         f"/avaliacoes/{id_avaliacao}/fotos", files={"arquivo": ("f.png", PNG, "image/png")})
     assert resposta.status_code == 201 and len(resposta.json()["fotos"]) == 1
+
+
+# ---------- avaliações do produto (vitrine) ----------
+
+@pytest.fixture
+def do_produto(monkeypatch):
+    estado = SimpleNamespace(filtros=None)
+
+    def listar(db, limit, offset, **filtros):
+        estado.filtros = filtros
+        return [], 0
+
+    m = monkeypatch.setattr
+    m(avaliacao_repository, "listar_avaliacoes", listar)
+    m(avaliacao_repository, "media_do_produto", lambda db, i: Decimal("4.5"))
+    m(avaliacao_repository, "contagem_por_nota", lambda db, i: {5: 3, 4: 1})
+    m(avaliacao_repository, "fotos_das_avaliacoes", lambda db, ids: {})
+    return estado
+
+
+def test_avaliacoes_do_produto_contam_de_5_a_1_com_zero_nas_que_faltam(do_produto):
+    resultado = avaliacoes.do_produto(SessaoFalsa(), StorageFalso(), 1, 10, 0)
+
+    assert resultado["media"] == Decimal("4.5")
+    assert [(c["nota"], c["quantidade"]) for c in resultado["contagem_por_nota"]] == [
+        (5, 3), (4, 1), (3, 0), (2, 0), (1, 0)]
+    assert do_produto.filtros == {"id_produto": 1, "status": "publicada", "com_fotos": None}
+
+
+def test_rota_filtra_avaliacoes_com_fotos(api, do_produto):
+    app.dependency_overrides[get_storage] = StorageFalso
+
+    resposta = api(SessaoFalsa()).get("/produtos/1/avaliacoes", params={"com_fotos": "true"})
+
+    assert resposta.status_code == 200
+    assert do_produto.filtros["com_fotos"] is True
+    assert len(resposta.json()["contagem_por_nota"]) == 5
+
+
+# ---------- consultas: o SQL monta para o PostgreSQL ----------
+
+def sql(consulta):
+    return str(consulta.compile(dialect=postgresql.dialect()))
+
+
+@pytest.mark.parametrize("com_fotos, comparacao", [(True, "> %"), (False, "= %")])
+def test_filtro_de_fotos_conta_as_fotos_da_avaliacao(com_fotos, comparacao):
+    consulta = sql(avaliacao_repository.consulta_avaliacoes(id_produto=1, com_fotos=com_fotos))
+
+    trecho_fotos = consulta.split("FROM foto_avaliacao")[1]
+    assert "foto_avaliacao.id_avaliacao = avaliacao.id_avaliacao" in trecho_fotos
+    assert comparacao in trecho_fotos
+
+
+def test_contagem_por_nota_agrupa_as_publicadas_do_produto():
+    class SessaoQueGuarda:
+        consulta = None
+
+        def execute(self, consulta):
+            self.consulta = consulta
+            return [(5, 2), (3, 1)]
+
+    db = SessaoQueGuarda()
+
+    assert avaliacao_repository.contagem_por_nota(db, 1) == {5: 2, 3: 1}
+    texto = sql(db.consulta)
+    assert "GROUP BY avaliacao.nota" in texto and "avaliacao.status = " in texto

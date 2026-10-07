@@ -199,7 +199,7 @@ A lista completa, com parâmetros e formatos, está em `/docs`. Resumo por área
 |---|---|---|---|
 | GET | `/categorias` | público | categorias |
 | POST, PATCH | `/categorias`, `/categorias/{id}` | `gerenciar_catalogo` | cria e altera categoria |
-| GET | `/produtos`, `/produtos/{id}` | público | vitrine: sem login, só produtos e variantes ativos; quem gerencia o catálogo vê tudo |
+| GET | `/produtos`, `/produtos/{id}` | público | vitrine: sem login, só produtos e variantes ativos; quem gerencia o catálogo vê tudo. Cada variante diz se tem peça para vender online (`disponivel`, sem a quantidade). A lista filtra por `tamanho` e `disponivel` e ordena por `nome`, `novidades`, `menor_preco` ou `maior_preco` |
 | POST, PATCH | `/produtos`, `/produtos/{id}` | `gerenciar_catalogo` | cria e altera produto |
 | POST | `/produtos/{id}/variantes` | `gerenciar_catalogo` | cria variante (cor, tamanho, SKU e preço) |
 | PATCH | `/variantes/{id}` | `gerenciar_catalogo` | altera variante; mudar o preço grava o histórico |
@@ -296,7 +296,7 @@ Vale para qualquer pedido entregue há no máximo 30 dias, com ou sem conta, e s
 
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
-| GET | `/produtos/{id}/avaliacoes` | público | avaliações publicadas, com a média das notas |
+| GET | `/produtos/{id}/avaliacoes` | público | avaliações publicadas, com a média e a contagem de cada nota; `com_fotos=true` traz só as com foto |
 | GET | `/avaliacoes/{id}` | público (oculta: só quem avaliou e a moderação) | detalhe com fotos |
 | POST | `/avaliacoes` | cliente | avalia um item de pedido entregue (uma vez por item) |
 | PATCH | `/avaliacoes/{id}` | cliente (autor) | edita nos 7 dias após a publicação |

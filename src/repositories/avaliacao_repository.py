@@ -44,7 +44,8 @@ def _contagem(modelo, *condicoes):
     return select(func.count()).select_from(modelo).where(*condicoes).correlate(Avaliacao).scalar_subquery()
 
 
-def consulta_avaliacoes(id_avaliacao=None, id_produto=None, status=None, com_denuncia_pendente=None) -> Select:
+def consulta_avaliacoes(id_avaliacao=None, id_produto=None, status=None, com_denuncia_pendente=None,
+                        com_fotos=None) -> Select:
     pendentes = _contagem(
         DenunciaAvaliacao, DenunciaAvaliacao.id_avaliacao == Avaliacao.id_avaliacao,
         DenunciaAvaliacao.status == "pendente",
@@ -70,6 +71,9 @@ def consulta_avaliacoes(id_avaliacao=None, id_produto=None, status=None, com_den
             filtros.append(coluna == valor)
     if com_denuncia_pendente is not None:
         filtros.append(pendentes > 0 if com_denuncia_pendente else pendentes == 0)
+    if com_fotos is not None:
+        fotos = _contagem(FotoAvaliacao, FotoAvaliacao.id_avaliacao == Avaliacao.id_avaliacao)
+        filtros.append(fotos > 0 if com_fotos else fotos == 0)
     return consulta.where(*filtros)
 
 
@@ -90,6 +94,18 @@ def media_do_produto(db: Session, id_produto: int):
         .join(Variante, Variante.id_variante == ItemPedido.id_variante)
         .where(Variante.id_produto == id_produto, Avaliacao.status == "publicada")
     )
+
+
+# quantas avaliações publicadas o produto tem de cada nota (só as notas que aparecem)
+def contagem_por_nota(db: Session, id_produto: int) -> dict[int, int]:
+    consulta = (
+        select(Avaliacao.nota, func.count())
+        .join(ItemPedido, ItemPedido.id_item == Avaliacao.id_item_pedido)
+        .join(Variante, Variante.id_variante == ItemPedido.id_variante)
+        .where(Variante.id_produto == id_produto, Avaliacao.status == "publicada")
+        .group_by(Avaliacao.nota)
+    )
+    return {nota: quantidade for nota, quantidade in db.execute(consulta)}
 
 
 def fotos_das_avaliacoes(db: Session, ids: list[int]) -> dict[int, list[FotoAvaliacao]]:

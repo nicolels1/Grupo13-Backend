@@ -91,6 +91,14 @@ class VarianteSaida(BaseModel):
     tamanho: str
     preco: Decimal
     ativo: bool
+    disponivel: bool | None = Field(
+        default=None,
+        description="Tem peça para vender online (sem a quantidade). Vem na lista e no detalhe do produto",
+    )
+
+
+# ordem da lista de produtos; novidades = cadastrados por último primeiro
+OrdemProdutos = Literal["nome", "novidades", "menor_preco", "maior_preco"]
 
 
 class ProdutoCriar(BaseModel):

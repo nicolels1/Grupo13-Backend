@@ -83,9 +83,20 @@ def montar_imagem(imagem: ImagemProduto) -> dict:
     }
 
 
+# disponivel só diz se dá para comprar online, nunca a quantidade; fica vazio quando não foi consultado
+def montar_variante(variante: Variante, disponiveis: set[int] | None = None) -> dict:
+    return {
+        "id_variante": variante.id_variante, "id_produto": variante.id_produto, "sku": variante.sku,
+        "cor": variante.cor, "tamanho": variante.tamanho, "preco": variante.preco, "ativo": variante.ativo,
+        "disponivel": None if disponiveis is None else variante.id_variante in disponiveis,
+    }
+
+
 def montar_produto(
     produto: Produto, variantes: list[Variante], publico: bool = False, imagens: list[ImagemProduto] = (),
+    disponiveis: set[int] | None = None,
 ) -> dict:
+    visiveis = [v for v in variantes if v.ativo] if publico else variantes
     return {
         "id_produto": produto.id_produto,
         "id_categoria": produto.id_categoria,
@@ -93,9 +104,13 @@ def montar_produto(
         "descricao_tecnica": None if publico else produto.descricao_tecnica,
         "descricao_cliente": produto.descricao_cliente,
         "ativo": produto.ativo,
-        "variantes": [v for v in variantes if v.ativo] if publico else variantes,
+        "variantes": [montar_variante(v, disponiveis) for v in visiveis],
         "imagens": [montar_imagem(i) for i in imagens],
     }
+
+
+def _disponiveis(db: Session, variantes: dict[int, list[Variante]]) -> set[int]:
+    return repo.ids_disponiveis_online(db, [v.id_variante for lista in variantes.values() for v in lista])
 
 
 def listar_produtos(db: Session, limit: int, offset: int, publico: bool = False, **filtros) -> dict:
@@ -105,7 +120,10 @@ def listar_produtos(db: Session, limit: int, offset: int, publico: bool = False,
     ids = [p.id_produto for p in produtos]
     variantes = repo.variantes_dos_produtos(db, ids)
     imagens = repo.imagens_dos_produtos(db, ids)
-    itens = [montar_produto(p, variantes[p.id_produto], publico, imagens[p.id_produto]) for p in produtos]
+    disponiveis = _disponiveis(db, variantes)
+    itens = [
+        montar_produto(p, variantes[p.id_produto], publico, imagens[p.id_produto], disponiveis) for p in produtos
+    ]
     return {"items": itens, "total": total, "limit": limit, "offset": offset}
 
 
@@ -113,9 +131,10 @@ def buscar_produto(db: Session, id_produto: int, publico: bool = False) -> dict:
     produto = _produto_ou_404(db, id_produto)
     if publico and (not produto.ativo or not repo.buscar_categoria(db, produto.id_categoria).ativo):
         raise RecursoNaoEncontrado("Produto não encontrado")
+    variantes = repo.variantes_dos_produtos(db, [id_produto])
     return montar_produto(
-        produto, repo.variantes_dos_produtos(db, [id_produto])[id_produto], publico,
-        repo.imagens_dos_produtos(db, [id_produto])[id_produto],
+        produto, variantes[id_produto], publico, repo.imagens_dos_produtos(db, [id_produto])[id_produto],
+        _disponiveis(db, variantes),
     )
 
 

@@ -72,10 +72,15 @@ def _de_outra_pessoa(db: Session, cliente: Usuario, id_avaliacao: int) -> Avalia
 
 # ---------- leitura ----------
 
-def do_produto(db: Session, storage, id_produto: int, limit: int, offset: int) -> dict:
-    linhas, total = repo.listar_avaliacoes(db, limit, offset, id_produto=id_produto, status="publicada")
+# a média e a contagem por nota valem para o produto todo, mesmo com o filtro de fotos
+def do_produto(db: Session, storage, id_produto: int, limit: int, offset: int, com_fotos: bool | None = None) -> dict:
+    linhas, total = repo.listar_avaliacoes(
+        db, limit, offset, id_produto=id_produto, status="publicada", com_fotos=com_fotos,
+    )
+    contagem = repo.contagem_por_nota(db, id_produto)
     return {**_pagina(_montar(db, storage, linhas), total, limit, offset),
-            "media": repo.media_do_produto(db, id_produto)}
+            "media": repo.media_do_produto(db, id_produto),
+            "contagem_por_nota": [{"nota": nota, "quantidade": contagem.get(nota, 0)} for nota in range(5, 0, -1)]}
 
 
 # publicada: qualquer pessoa vê; oculta: só quem avaliou (sem as fotos) e a moderação

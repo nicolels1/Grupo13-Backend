@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.dialects import postgresql
 
 from src.app import app
 from src.database.session import get_db
@@ -35,7 +36,7 @@ def banco(monkeypatch):
         variantes=[variante(50), variante(51, ativo=False)],
         categorias={1: CategoriaProduto(id_categoria=1, nome="Camisas", ativo=True),
                     2: CategoriaProduto(id_categoria=2, nome="Antigas", ativo=False)},
-        filtros=None, historico_em="nao chamado",
+        filtros=None, historico_em="nao chamado", com_peca={50},
     )
 
     def listar(db, limit, offset, **filtros):
@@ -55,6 +56,7 @@ def banco(monkeypatch):
         i: [v for v in estado.variantes if v.id_produto == i] for i in ids})
     m(catalogo_repository, "historico_preco", historico)
     m(catalogo_repository, "imagens_dos_produtos", lambda db, ids: {i: [] for i in ids})
+    m(catalogo_repository, "ids_disponiveis_online", lambda db, ids: {i for i in ids if i in estado.com_peca})
     return estado
 
 
@@ -76,7 +78,7 @@ def test_vitrine_so_lista_ativos_mesmo_pedindo_inativos(banco):
     assert banco.filtros == {"ativo": True, "categoria_ativa": True}
     [item] = resultado["items"]
     assert item["descricao_tecnica"] is None
-    assert [v.id_variante for v in item["variantes"]] == [50]  # a variante desativada some
+    assert [v["id_variante"] for v in item["variantes"]] == [50]  # a variante desativada some
 
 
 def test_equipe_do_catalogo_ve_inativos_e_descricao_tecnica(banco):
@@ -96,6 +98,22 @@ def test_produto_desativado_ou_de_categoria_desativada_some_da_vitrine(banco, ca
         catalogo.buscar_produto(SessaoFalsa(), 5, publico=True)
 
     assert catalogo.buscar_produto(SessaoFalsa(), 5)["ativo"] == campos.get("ativo", True)
+
+
+# ---------- disponível online ----------
+
+def test_variante_diz_se_tem_peca_online(banco):
+    banco.variantes.append(variante(52))
+
+    [item] = catalogo.listar_produtos(SessaoFalsa(), 10, 0, publico=True)["items"]
+    detalhe = catalogo.buscar_produto(SessaoFalsa(), 5, publico=True)
+
+    for produto_montado in (item, detalhe):
+        assert {v["id_variante"]: v["disponivel"] for v in produto_montado["variantes"]} == {50: True, 52: False}
+
+
+def test_variante_sem_consulta_de_estoque_fica_sem_disponivel():
+    assert catalogo.montar_variante(variante(50))["disponivel"] is None
 
 
 # ---------- histórico de preço com data ----------
@@ -139,6 +157,26 @@ def test_equipe_do_catalogo_ve_a_descricao_tecnica(client, monkeypatch):
     assert item["descricao_tecnica"] == "algodão 30.1"
 
 
+def test_rota_repassa_tamanho_disponivel_e_ordem(client, banco):
+    resposta = client().get("/produtos", params={"tamanho": "M", "disponivel": "true", "ordem": "menor_preco"})
+
+    assert resposta.status_code == 200
+    assert resposta.json()["items"][0]["variantes"][0]["disponivel"] is True
+    assert banco.filtros["tamanho"] == "M"
+    assert banco.filtros["disponivel"] is True
+    assert banco.filtros["ordem"] == "menor_preco"
+
+
+def test_lista_sem_ordem_continua_por_nome(client, banco):
+    client().get("/produtos")
+
+    assert banco.filtros["ordem"] == "nome"
+
+
+def test_ordem_desconhecida_responde_422(client):
+    assert client().get("/produtos", params={"ordem": "aleatoria"}).status_code == 422
+
+
 def test_token_invalido_na_vitrine_responde_401(banco):
     app.dependency_overrides[get_db] = lambda: SessaoFalsa()
     try:
@@ -147,3 +185,65 @@ def test_token_invalido_na_vitrine_responde_401(banco):
         app.dependency_overrides.clear()
 
     assert resposta.status_code == 401
+
+
+# ---------- consultas: o SQL monta para o PostgreSQL ----------
+
+class SessaoQueGuarda:
+    """Guarda as consultas que o repository mandaria ao banco e devolve resultados vazios."""
+
+    def __init__(self):
+        self.consultas = []
+
+    def scalar(self, consulta):
+        self.consultas.append(consulta)
+        return 0
+
+    def scalars(self, consulta):
+        self.consultas.append(consulta)
+        return []
+
+    def execute(self, consulta):
+        self.consultas.append(consulta)
+        return []
+
+
+def sql(consulta):
+    return str(consulta.compile(dialect=postgresql.dialect()))
+
+
+@pytest.mark.parametrize("ordem", ["nome", "novidades", "menor_preco", "maior_preco"])
+def test_lista_de_produtos_monta_com_filtros_e_cada_ordem(ordem):
+    db = SessaoQueGuarda()
+
+    catalogo_repository.listar_produtos(db, 12, 0, tamanho="M", disponivel=True, ordem=ordem)
+
+    contagem, pagina = (sql(c) for c in db.consultas)
+    assert "estoque.canal" in contagem and "variante.tamanho" in contagem
+    assert "ORDER BY" in pagina
+
+
+def test_disponivel_falso_lista_quem_nao_tem_peca_online():
+    db = SessaoQueGuarda()
+
+    catalogo_repository.listar_produtos(db, 12, 0, disponivel=False)
+
+    assert "NOT IN" in sql(db.consultas[1])
+
+
+def test_disponivel_online_desconta_o_reservado_e_ignora_a_vitrine_fisica():
+    db = SessaoQueGuarda()
+
+    catalogo_repository.ids_disponiveis_online(db, [50, 51])
+
+    consulta = sql(db.consultas[0])
+    assert "estoque.quantidade - estoque.quantidade_reservada" in consulta
+    assert "estoque.canal = %(canal_1)s" in consulta
+    assert db.consultas[0].compile().params["canal_1"] == "online"
+
+
+def test_disponivel_online_sem_variantes_nao_consulta():
+    db = SessaoQueGuarda()
+
+    assert catalogo_repository.ids_disponiveis_online(db, []) == set()
+    assert db.consultas == []

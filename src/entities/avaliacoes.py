@@ -78,12 +78,20 @@ class AvaliacaoSaida(BaseModel):
     denuncias_pendentes: int | None = None
 
 
+class ContagemPorNota(BaseModel):
+    nota: int
+    quantidade: int
+
+
 class AvaliacoesDoProduto(BaseModel):
     items: list[AvaliacaoSaida]
     total: int
     limit: int
     offset: int
     media: Decimal | None = Field(description="Média das notas publicadas, com uma casa decimal")
+    contagem_por_nota: list[ContagemPorNota] = Field(
+        description="Avaliações publicadas de cada nota, de 5 a 1 (todas, mesmo com o filtro de fotos)"
+    )
 
 
 class DenunciaSaida(BaseModel):
