@@ -181,6 +181,9 @@ Substituição de uma peça entregue por outra; não conta como devolução.
 CPF informado na venda física por quem não tem conta; a compra passa para a conta criada pelo site com esse CPF.
 _Evite_: CPF do cliente (quando não há conta)
 
+**Balcão**:
+Atendimento presencial na loja, sem chamado: venda física, troca e devolução registradas pela pessoa da equipe naquela loja.
+
 **Reivindicação**:
 Associação, pelo código da venda, de uma compra feita sem CPF à conta do cliente; acontece uma única vez.
 

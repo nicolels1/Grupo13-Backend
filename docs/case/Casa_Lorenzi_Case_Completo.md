@@ -1,6 +1,6 @@
 # Casa Lorenzi — Case de Tech (Trainee Insper Jr. 2026.2)
 
-Documento consolidado com o contexto do case, as decisões tomadas ao longo do projeto e o modelo de dados. Atualizado em 07/10/2026 com os ajustes da Entrega 2 (histórico e tela inicial), a implementação de vendas, avaliações e arquivos e o CPF na nota.
+Documento consolidado com o contexto do case, as decisões tomadas ao longo do projeto e o modelo de dados. Atualizado em 07/10/2026 com os ajustes da Entrega 2 (histórico e tela inicial), a implementação de vendas, avaliações e arquivos, o CPF na nota e a troca e devolução no balcão.
 
 ---
 
@@ -45,7 +45,7 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 - **Duas camadas de proteção:**
   - **Triggers no banco** (já implementados): recusam editar movimentações, históricos e o saldo do estoque direto, e garantem as regras do Admin (inclusive Gestão só no Admin), do CD, do estorno e do item do chamado. Valem para qualquer caminho, inclusive o painel do Supabase (ADRs 0009 e 0010).
   - **Usuário de banco restrito para o FastAPI** (`api_casalorenzi`, migration `56799f788354`): não pode apagar dados, exceto endereços salvos do cliente e as duas tabelas de ligação da Gestão (`modelo_permissao` e `usuario_permissao_excecao`: tirar uma permissão de um modelo ou remover uma exceção apaga a linha que liga um ao outro). Também não edita movimentações, histórico de chamados e histórico de preço, não altera o saldo do estoque direto e só lê a lista de permissões. Uma regra de RLS em cada tabela libera só ele. Ele não lê o `auth.users`: duas funções do banco respondem só o que a Gestão precisa (se um e-mail já tem login e se o login foi confirmado). As migrations continuam com o usuário completo. O trigger que atualiza o saldo roda como `SECURITY DEFINER`.
-- **Situação em 06/10/2026:** os triggers do saldo e da Gestão, o `SECURITY DEFINER` e o usuário restrito estão aplicados no banco, e a API local já conecta como `api_casalorenzi`. O script `scripts/conferir_banco.py` confere, no banco de verdade, que as garantias valem (todas passaram em 06/10/2026). A migration `03aeb347f6cf` (prazos e Storage) está aplicada; falta a `bc431a82c8bf` (CPF na nota, ver seção 10).
+- **Situação em 06/10/2026:** os triggers do saldo e da Gestão, o `SECURITY DEFINER` e o usuário restrito estão aplicados no banco, e a API local já conecta como `api_casalorenzi`. O script `scripts/conferir_banco.py` confere, no banco de verdade, que as garantias valem (todas passaram em 06/10/2026). A migration `03aeb347f6cf` (prazos e Storage) está aplicada; a `bc431a82c8bf` (CPF na nota) também; falta a `221981ca8429` (troca e devolução no balcão, ver seção 10).
 - **Prazos automáticos:** a função `cancela_vencidos()` do banco cancela reservas vencidas (15 min) e retiradas vencidas (7 dias), e o pg_cron do Supabase a roda a cada minuto, mesmo com a API dormindo (ADR 0012).
 - A chave de serviço do Supabase fica só no backend.
 - FastAPI conecta pelo pooler; migrations do Alembic usam conexão direta.
@@ -114,7 +114,7 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 
 ### Revisão do Matias no modelo (05/10/2026)
 
-- "Preparar pedido" e "entregar pedido na loja" viraram uma permissão só (`preparar_entregar_pedido`); o sistema tem 15 códigos de permissão.
+- "Preparar pedido" e "entregar pedido na loja" viraram uma permissão só (`preparar_entregar_pedido`); o sistema tinha 15 códigos de permissão (16 a partir da troca e devolução no balcão, 07/10/2026).
 - As permissões da Gestão são só do Admin, sem exceção, garantido por trigger.
 - Lista de valores aceitos para cada campo de status e tipo, garantida por `CHECK` no banco.
 - Triggers de proteção no banco (ADRs 0009 e 0010) e ADR 0008 para o cadastro feito pelo backend.
@@ -135,6 +135,14 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 - Saem a conta do caixa, o link de ativação e a rota de ativação (ADR 0014 substitui a 0013).
 - Login por CPF com mensagem única ("CPF ou senha incorretos"), sem revelar se o CPF tem conta.
 - A notinha traz só o código da venda.
+
+### Troca e devolução no balcão (07/10/2026)
+
+- Troca, devolução e estorno ficam ligados ao pedido; o chamado vira opcional: obrigatório pelo Atendimento, ausente no balcão (ADR 0015).
+- No balcão ficam registradas a pessoa da equipe e a loja, com a permissão nova `registrar_troca_devolucao` (16º código).
+- Vale para qualquer pedido entregue há no máximo 30 dias, com ou sem conta. A equipe acha o pedido pelo código da venda, pelo número do pedido ou pelo CPF.
+- Todo estorno tem origem: cancelamento, atendimento ou balcão.
+- Modelo de acesso novo **Vendedor**, para o balcão da loja.
 
 ### Decisões-chave e alternativas descartadas
 
@@ -162,6 +170,7 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 | Gateway de pagamento simulado pelo backend | Integrar o sandbox de um gateway real | O fluxo da venda fica completo sem conta, chaves nem webhook externos; trocar depois muda só quem aprova (ADR 0011) |
 | Prazos cancelados pelo banco com pg_cron | Cancelar só quando alguém consulta | Vale mesmo com a API dormindo no Render e não deixa peça presa na reserva (ADR 0012) |
 | CPF na nota sem conta; compras ligadas no cadastro pelo site | Criar conta no caixa e ativar por link | O cliente não precisa de e-mail nem de link na loja; risco aceito: quem cadastrar o CPF de outra pessoa vê as compras dela, sem poder trocar nem devolver (ADR 0014) |
+| Troca e devolução no balcão sem chamado, ligadas ao pedido | Abrir um chamado para cada troca no balcão | Um passo só no balcão e atende quem não tem conta; o banco registra quem fez e onde (ADR 0015) |
 | Frete fixo, grátis a partir de um valor | Frete por distância | O frete não muda entre o carrinho e o checkout, quando a unidade é escolhida |
 
 ---
@@ -209,7 +218,7 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 - Valor total = itens + frete; frete zero na retirada e na venda física. Na entrega em casa, R$ 19,90, grátis a partir de R$ 299,00 em itens. O item guarda o preço do momento da compra.
 - Pagamento online pelo gateway simulado: a cobrança nasce pendente e é aprovada ou recusada; recusada, o cliente tenta de novo enquanto a reserva vale (ADR 0011).
 - Vários pagamentos por pedido; fica pago quando aprovados − estornos aprovados ≥ total. Métodos: Pix, crédito, débito e dinheiro (só loja física).
-- **Estorno:** lançamento próprio, ligado ao pagamento original e, em troca/devolução, ao chamado. Pode ser parcial e volta pelo mesmo método. Com vários pagamentos, o atendente escolhe de qual sai.
+- **Estorno:** lançamento próprio, ligado ao pagamento original. Pode ser parcial e volta pelo mesmo método. Com vários pagamentos, quem atende escolhe de qual sai. Todo estorno tem uma origem: **atendimento** (ligado ao chamado), **balcão** (com a pessoa da equipe e a loja) ou **cancelamento** (pela equipe, retirada vencida ou pagamento depois da reserva vencida).
 
 ### Clientes e contas
 
@@ -234,7 +243,7 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 - Status: aberto, em andamento, concluído, sem reabertura. Motivo de conclusão: resolvido, desistência ou sem resposta.
 - Fila geral: quem tem permissão assume, define prioridade e pode repassar. Chamado assumido não pode ser assumido por outro ao mesmo tempo. Mudanças de status, responsável ou prioridade vão para o histórico, nunca editado.
 - Mensagens podem ser internas (invisíveis ao cliente). Toda mensagem tem texto ou anexo; anexo em área privada do Storage.
-- Troca e devolução: até 30 dias após a entrega, em qualquer loja. A peça devolvida entra no estoque de loja física daquela loja, e a peça nova da troca sai dele. Estorno ligado ao chamado.
+- Troca e devolução: até 30 dias após a entrega, em qualquer loja (nunca no CD), para qualquer pedido entregue, com ou sem conta. A peça devolvida entra no estoque de loja física daquela loja, e a peça nova da troca sai dele. Ficam ligadas ao pedido: pelo Atendimento, também ao chamado; no balcão, sem chamado, com a pessoa da equipe e a loja (ADR 0015). No balcão, o pedido é achado pelo código da venda, pelo número do pedido ou pelo CPF (da conta ou na nota, entregues nos últimos 30 dias).
 
 ### Avaliações
 
@@ -261,22 +270,26 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 
 Cada funcionário está ligado a um modelo de acesso e pode ter exceções individuais que acrescentam ou retiram permissões. Mudar um modelo afeta todos os ligados; as exceções continuam valendo.
 
-| Área | Permissões | Admin | Funcionário | Estoquista | Atendente |
-| --- | --- | --- | --- | --- | --- |
-| Contas | gerenciar contas; gerenciar modelos de acesso | sim | — | — | — |
-| Catálogo | gerenciar produtos e categorias | sim | — | — | — |
-| Unidades | gerenciar unidades | sim | — | — | — |
-| Estoque | movimentar estoque; definir estoque mínimo | sim | sim | sim | — |
-| Transferência | solicitar; enviar; receber | sim | sim | sim | — |
-| Vendas | registrar venda física; preparar e entregar pedido; cancelar pela equipe; corrigir cadastro de cliente | sim | sim | — | — |
-| Atendimento | atender chamado | sim | sim | — | sim |
-| Avaliações | moderar avaliações | sim | — | — | sim |
+| Área | Permissões | Admin | Funcionário | Estoquista | Atendente | Vendedor |
+| --- | --- | --- | --- | --- | --- | --- |
+| Contas | gerenciar contas; gerenciar modelos de acesso | sim | — | — | — | — |
+| Catálogo | gerenciar produtos e categorias | sim | — | — | — | — |
+| Unidades | gerenciar unidades | sim | — | — | — | — |
+| Estoque | movimentar estoque; definir estoque mínimo | sim | sim | sim | — | — |
+| Transferência | solicitar; enviar; receber | sim | sim | sim | — | — |
+| Vendas | registrar venda física; preparar e entregar pedido | sim | sim | — | — | sim |
+| Vendas | cancelar pela equipe; corrigir cadastro de cliente | sim | sim | — | — | — |
+| Balcão | registrar troca e devolução | sim | sim | — | — | sim |
+| Atendimento | atender chamado | sim | sim | — | sim | — |
+| Avaliações | moderar avaliações | sim | — | — | sim | — |
+
+- O **Vendedor** trabalha no balcão de uma loja: a conta fica ligada a ela. Consulta o estoque das unidades só para ler (sem as permissões de estoque). A troca pelo Atendimento continua usando `atender_chamado`.
 
 - Existe um único modelo Admin, com todas as permissões (inclusive futuras), sem aceitar retirada.
 - Sempre há pelo menos uma conta ativa no Admin; modelo com pessoas ligadas não pode ser desativado.
 - Permissões lidas do banco a cada ação: mudanças valem na hora.
 - As três permissões da Gestão (gerenciar contas, gerenciar modelos de acesso e gerenciar unidades) são só do Admin: não entram em outro modelo nem em exceção. Exceção só vale para conta interna. As regras do Admin são garantidas por trigger no banco (ADRs 0009 e 0010).
-- No sistema, cada permissão tem um código. São 15: `gerenciar_contas`, `gerenciar_modelos_acesso`, `gerenciar_catalogo`, `gerenciar_unidades`, `movimentar_estoque`, `definir_estoque_minimo`, `solicitar_transferencia`, `enviar_transferencia`, `receber_transferencia`, `registrar_venda_fisica`, `preparar_entregar_pedido`, `cancelar_pedido_equipe`, `corrigir_cadastro_cliente`, `atender_chamado`, `moderar_avaliacoes`.
+- No sistema, cada permissão tem um código. São 16: `gerenciar_contas`, `gerenciar_modelos_acesso`, `gerenciar_catalogo`, `gerenciar_unidades`, `movimentar_estoque`, `definir_estoque_minimo`, `solicitar_transferencia`, `enviar_transferencia`, `receber_transferencia`, `registrar_venda_fisica`, `preparar_entregar_pedido`, `cancelar_pedido_equipe`, `corrigir_cadastro_cliente`, `atender_chamado`, `moderar_avaliacoes`, `registrar_troca_devolucao`.
 
 ---
 
@@ -300,7 +313,7 @@ Campos com `?` aceitam vazio. A chave primária vem primeiro. No banco, nomes fi
 | --- | --- | --- |
 | UNIDADE | id_unidade, nome (único), tipo, despacha_online, rua, numero, complemento?, bairro, cidade, uf, cep, ativo | ESTOQUE, PEDIDO, TRANSFERENCIA (1:N) |
 | ESTOQUE | id_variante + id_unidade + canal, quantidade, quantidade_reservada, estoque_minimo?, minimo_alterado_por?, minimo_alterado_em?, atualizado_em | MOVIMENTACAO_ESTOQUE (1:N) |
-| MOVIMENTACAO_ESTOQUE | id_movimentacao, id_variante, id_unidade, canal, id_usuario?, tipo, quantidade, motivo?, id_pedido?, id_transferencia?, id_chamado?, criado_em | no máximo uma origem |
+| MOVIMENTACAO_ESTOQUE | id_movimentacao, id_variante, id_unidade, canal, id_usuario?, tipo, quantidade, motivo?, id_pedido?, id_transferencia?, id_chamado?, criado_em | no máximo uma origem; troca e devolução sempre com o pedido e, além dele, o chamado ou a pessoa da equipe |
 | TRANSFERENCIA | id_transferencia, id_unidade_origem, id_unidade_destino, status, id_solicitante, id_enviado_por?, id_recebido_por?, id_cancelado_por?, motivo_cancelamento?, solicitada_em, enviada_em?, recebida_em?, cancelada_em? | ITEM_TRANSFERENCIA (1:N) |
 | ITEM_TRANSFERENCIA | id_item_transferencia, id_transferencia, id_variante, canal_saida, canal_entrada, quantidade_solicitada, quantidade_enviada?, quantidade_recebida? | TRANSFERENCIA, VARIANTE |
 
@@ -310,7 +323,7 @@ Campos com `?` aceitam vazio. A chave primária vem primeiro. No banco, nomes fi
 | --- | --- | --- |
 | PEDIDO | id_pedido, codigo_venda (único), id_cliente?, id_unidade, id_registrado_por?, cpf_nota?, canal, modalidade?, status, motivo_cancelamento?, id_cancelado_por?, justificativa_cancelamento?, devolucao, valor_frete, valor_total, pronto_retirada_em?, reserva_expira_em?, pago_em?, enviado_em?, entregue_em?, cancelado_em?, criado_em, atualizado_em | ITEM_PEDIDO, PAGAMENTO (1:N); ENDERECO_ENTREGA (1:0..1) |
 | ITEM_PEDIDO | id_item, id_pedido, id_variante, quantidade, preco_unitario | AVALIACAO (1:0..1) |
-| PAGAMENTO | id_pagamento, id_pedido, tipo, id_pagamento_original?, id_chamado?, metodo, id_transacao_gateway? (único), valor, status, criado_em, atualizado_em | PEDIDO; PAGAMENTO (estorno → original); CHAMADO |
+| PAGAMENTO | id_pagamento, id_pedido, tipo, id_pagamento_original?, id_chamado?, origem?, id_registrado_por?, id_unidade?, metodo, id_transacao_gateway? (único), valor, status, criado_em, atualizado_em | PEDIDO; PAGAMENTO (estorno → original); CHAMADO |
 | ENDERECO_ENTREGA | id_pedido, rua, numero, complemento?, bairro, cidade, uf, cep | PEDIDO (só na entrega) |
 | ENDERECO_CLIENTE | id_endereco, id_cliente, rua, numero, complemento?, bairro, cidade, uf, cep | USUARIO |
 
@@ -360,6 +373,7 @@ Campos de status e de tipo só aceitam os valores abaixo, sempre em minúsculas 
 | pagamento.tipo | pagamento, estorno |
 | pagamento.metodo | pix, cartao_credito, cartao_debito, dinheiro |
 | pagamento.status | pendente, aprovado, recusado |
+| pagamento.origem | cancelamento, atendimento, balcao (só em estorno) |
 | usuario.tipo_conta | interna, cliente |
 | usuario.status_conta | pendente_ativacao, ativa, inativa |
 | usuario_permissao_excecao.efeito | acrescentar, retirar |
@@ -446,4 +460,5 @@ Cada uma precisa estar resolvida antes da banca (08/10/2026).
 | 3 | Conferência de divergência de estoque | Rota `GET /estoque/divergencias`; `scripts/conferir_banco.py` confirmou em 06/10/2026 que ela fica vazia | ✅ Resolvido |
 | 4 | Vendas, avaliações e arquivos no banco | Migration `03aeb347f6cf` aplicada (função dos prazos, pg_cron e buckets) e `scripts/conferir_banco.py` rodado | ✅ Resolvido |
 | 5 | Variáveis do Render | `SUPABASE_SERVICE_ROLE_KEY` e `SUPABASE_PUBLISHABLE_KEY` configuradas; o login por CPF em produção responde como esperado | ✅ Resolvido |
-| 6 | CPF na nota no banco | Aplicar a migration `bc431a82c8bf` (`alembic upgrade head`): cria a coluna `pedido.cpf_nota`. Sem ela, as rotas de pedidos, vendas, avaliações e o cadastro pelo site falham em produção | ⚠️ Código pronto — falta aplicar antes do merge |
+| 6 | CPF na nota no banco | Migration `bc431a82c8bf` aplicada: coluna `pedido.cpf_nota` | ✅ Resolvido |
+| 7 | Troca e devolução no balcão no banco | Aplicar a migration `221981ca8429` (`alembic upgrade head`): permissão nova, origem do estorno e as regras novas de troca e devolução, e a função do pg_cron atualizada. Depois, rodar `scripts/conferir_banco.py` e `scripts/carregar_demo.py` (modelo Vendedor e conta do Bruno) | ⚠️ Código pronto — falta aplicar antes do merge |

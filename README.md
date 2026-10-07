@@ -90,7 +90,7 @@ rota (routes/) → token (middlewares/auth.py) → conta ativa e permissão (mid
 - Toda conta tem tipo `interna` ou `cliente` e status `ativa`, `pendente_ativacao` ou `inativa`. Só conta ativa usa a API.
 - A conta interna está ligada a um **modelo de acesso** (Admin, Funcionário, Estoquista, Atendente…) e pode ter **exceções** que acrescentam ou retiram permissões.
 - O Admin tem todas as permissões. As permissões da Gestão (`gerenciar_contas`, `gerenciar_modelos_acesso`, `gerenciar_unidades`) são só dele, garantido por trigger (ADRs 0009 e 0010).
-- São 15 códigos de permissão; a lista e a tabela por modelo estão na seção 6 do [case](docs/case/Casa_Lorenzi_Case_Completo.md).
+- São 16 códigos de permissão; a lista e a tabela por modelo estão na seção 6 do [case](docs/case/Casa_Lorenzi_Case_Completo.md).
 
 Dependências prontas para proteger uma rota (`src/middlewares/permissoes.py`):
 
@@ -118,7 +118,7 @@ O backend usa duas conexões com o PostgreSQL do Supabase:
 **Duas camadas de proteção**, que valem para qualquer caminho, inclusive o painel do Supabase:
 
 - **Usuário restrito da API** (`api_casalorenzi`, migration `56799f788354`): não apaga dados (exceto endereços salvos do cliente e as ligações da Gestão), não edita movimentações nem históricos, não altera o saldo do estoque direto e não lê o `auth.users`. Todas as tabelas têm RLS ligado, com uma regra que libera só ele.
-- **Triggers:** o saldo de `estoque` é atualizado pelo banco a cada movimentação e nunca fica negativo (ADR 0005); movimentações e históricos não são editados; as regras do Admin, do CD, do estorno e do item do chamado são garantidas no banco.
+- **Triggers e restrições:** o saldo de `estoque` é atualizado pelo banco a cada movimentação e nunca fica negativo (ADR 0005); movimentações e históricos não são editados; as regras do Admin, do CD, do estorno e do item do chamado são garantidas no banco. Toda troca e devolução tem o pedido e o chamado ou a pessoa da equipe, e todo estorno tem origem (`cancelamento`, `atendimento` ou `balcao`, ADR 0015).
 
 **Prazos automáticos** (migration `03aeb347f6cf`, ADR 0012): a função `cancela_vencidos()` cancela o pedido cuja reserva de 15 minutos venceu (as peças voltam ao disponível e a cobrança pendente é recusada) e a retirada não feita em 7 dias (estorno pelo mesmo método e as peças voltam ao estoque online). O pg_cron a roda a cada minuto.
 
@@ -176,8 +176,8 @@ Rodam na raiz do repositório, com o venv ativo e o `.env` preenchido:
 | Comando | O que faz |
 |---|---|
 | `python -m scripts.criar_admin` | cria a primeira conta Admin (login no Supabase Auth + linha em `usuario`). Pede nome, e-mail e senha |
-| `python -m scripts.carregar_demo` | carrega o cenário de demonstração: unidades, catálogo, modelos de acesso, contas internas e de cliente, 30 dias de movimentações de estoque e pedidos em cada etapa (venda na loja com e sem CPF, entrega paga para preparar, retirada pronta, pedido entregue com avaliação, voto útil e denúncia pendente, e uma venda com CPF na nota de alguém sem conta). Imprime os códigos de venda e esse CPF. Pode rodar de novo sem duplicar nada |
-| `python -m scripts.conferir_banco` | confere no banco de verdade as garantias do usuário restrito, do RLS, do saldo do estoque e do cancelamento da reserva vencida. Roda numa transação desfeita no final: nada fica gravado |
+| `python -m scripts.carregar_demo` | carrega o cenário de demonstração: unidades, catálogo, modelos de acesso, contas internas e de cliente, 30 dias de movimentações de estoque e pedidos em cada etapa (venda na loja com e sem CPF, entrega paga para preparar, retirada pronta, pedido entregue com avaliação, voto útil e denúncia pendente, e uma venda com CPF na nota de alguém sem conta). Também cria o modelo Vendedor, com uma conta na Loja Pinheiros, e completa as permissões dos modelos que já existiam. Imprime os códigos de venda e esse CPF. Pode rodar de novo sem duplicar nada |
+| `python -m scripts.conferir_banco` | confere no banco de verdade as garantias do usuário restrito, do RLS, do saldo do estoque, da troca e devolução sempre ligadas ao pedido e do cancelamento da reserva vencida. Roda numa transação desfeita no final: nada fica gravado |
 
 ## Rotas
 
@@ -280,6 +280,17 @@ A leitura exige alguma permissão da área (movimentar estoque, definir mínimo 
 | POST | `/atendimento/chamados/{id}/troca` | `atender_chamado` | troca por outra cor ou tamanho do mesmo produto, na mesma loja |
 | POST | `/atendimento/chamados/{id}/estornos` | `atender_chamado` | estorno sem troca nem devolução (pode ser parcial) |
 
+### Balcão (troca e devolução sem chamado)
+
+| Método | Rota | Acesso | Descrição |
+|---|---|---|---|
+| GET | `/balcao/pedidos?codigo_venda=` / `?id_pedido=` / `?cpf=` | `registrar_troca_devolucao` | acha o pedido (um filtro só); pelo CPF da conta ou na nota, os entregues nos últimos 30 dias |
+| POST | `/balcao/pedidos/{id}/devolucao` | `registrar_troca_devolucao` | a peça entra no estoque de loja física da loja; estorno pelo mesmo meio de pagamento |
+| POST | `/balcao/pedidos/{id}/troca` | `registrar_troca_devolucao` | troca por outra cor ou tamanho do mesmo produto, na mesma loja |
+| GET | `/balcao/estoque` | `registrar_venda_fisica` ou `registrar_troca_devolucao` | consultar peça: estoque das unidades, só leitura |
+
+Vale para qualquer pedido entregue há no máximo 30 dias, com ou sem conta, e só em loja (nunca no CD). O banco registra quem fez e em que loja (ADR 0015).
+
 ### Avaliações
 
 | Método | Rota | Acesso | Descrição |
@@ -304,7 +315,7 @@ As escritas são só do Admin; a lista de unidades é pública porque a vitrine 
 |---|---|---|---|
 | GET | `/unidades`, `/unidades/{id}` | público | lojas e CDs |
 | POST, PATCH | `/unidades`, `/unidades/{id}` | `gerenciar_unidades` | cria e altera unidade (desativar em vez de apagar) |
-| GET | `/permissoes` | `gerenciar_modelos_acesso` | os 15 códigos de permissão |
+| GET | `/permissoes` | `gerenciar_modelos_acesso` | os 16 códigos de permissão |
 | GET, POST | `/modelos-acesso` | `gerenciar_modelos_acesso` | lista e cria modelo |
 | GET, PATCH | `/modelos-acesso/{id}` | `gerenciar_modelos_acesso` | detalhe; altera nome ou ativo |
 | PUT | `/modelos-acesso/{id}/permissoes` | `gerenciar_modelos_acesso` | troca as permissões do modelo |
@@ -385,6 +396,7 @@ A API é publicada no Render a cada merge na `main`.
 - transferências com as etapas solicitada → enviada → recebida e cancelamento;
 - vendas: carrinho com frete, checkout com reserva de 15 minutos, pagamento por gateway simulado, venda física com CPF na nota opcional, preparo, envio, retirada, entrega, cancelamento com estorno, reivindicação de compra e endereços salvos;
 - atendimento: chamados do cliente, fila da equipe, assumir, prioridade, mensagens internas, anexos, conclusão, histórico, troca, devolução e estorno;
+- balcão: troca e devolução na loja sem chamado, para pedidos com ou sem conta, busca do pedido por código, número ou CPF e consulta de peça só de leitura;
 - avaliações: nota, texto e fotos, edição por 7 dias, voto útil, denúncia e moderação;
 - banco com 27 tabelas, triggers, RLS, usuário restrito e prazos automáticos pelo pg_cron; testes automatizados com CI.
 
@@ -396,7 +408,7 @@ A API é publicada no Render a cada merge na `main`.
 |---|---|
 | [docs/case/Casa_Lorenzi_Case_Completo.md](docs/case/Casa_Lorenzi_Case_Completo.md) | referência do case: contexto, regras de negócio, permissões e modelo de dados |
 | [CONTEXT.md](CONTEXT.md) | glossário dos termos do domínio |
-| [docs/adr/](docs/adr/) | decisões de arquitetura difíceis de reverter (ADRs 0001 a 0014) |
+| [docs/adr/](docs/adr/) | decisões de arquitetura difíceis de reverter (ADRs 0001 a 0015) |
 | [ALEMBIC_GUIDE.md](ALEMBIC_GUIDE.md) | como criar e aplicar migrations |
 
 ## Como contribuir
