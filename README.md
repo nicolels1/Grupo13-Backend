@@ -214,7 +214,7 @@ As fotos aparecem em `imagens` de cada produto, com a URL pública.
 
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
-| POST | `/carrinho` | público | preços do momento, frete da entrega e lojas com tudo para retirada; não reserva nada |
+| POST | `/carrinho` | público | preços do momento, frete da entrega (com o valor mínimo do frete grátis) e lojas com tudo para retirada; não reserva nada |
 | GET, POST | `/enderecos` | cliente | endereços salvos |
 | PATCH, DELETE | `/enderecos/{id}` | cliente | altera ou apaga (o pedido guarda a própria cópia) |
 | POST | `/pedidos` | cliente | checkout: escolhe a unidade, reserva as peças por 15 minutos e cria o pedido aguardando pagamento |
