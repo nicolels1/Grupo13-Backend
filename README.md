@@ -290,7 +290,7 @@ A leitura exige alguma permissão da área (movimentar estoque, definir mínimo 
 | GET | `/balcao/pedidos?codigo_venda=` / `?id_pedido=` / `?cpf=` | `registrar_troca_devolucao` | acha o pedido (um filtro só); pelo CPF da conta ou na nota, os entregues nos últimos 30 dias |
 | POST | `/balcao/pedidos/{id}/devolucao` | `registrar_troca_devolucao` | a peça entra no estoque de loja física da loja; estorno pelo mesmo meio de pagamento |
 | POST | `/balcao/pedidos/{id}/troca` | `registrar_troca_devolucao` | troca por outra cor ou tamanho do mesmo produto, na mesma loja |
-| GET | `/balcao/estoque` | `registrar_venda_fisica` ou `registrar_troca_devolucao` | consultar peça: estoque das unidades, só leitura |
+| GET | `/balcao/estoque` | `registrar_venda_fisica`, `registrar_troca_devolucao` ou `atender_chamado` | consultar peça: estoque das unidades, só leitura (o atendimento usa na troca pelo chamado) |
 
 Vale para qualquer pedido entregue há no máximo 30 dias, com ou sem conta, e só em loja (nunca no CD). O banco registra quem fez e em que loja (ADR 0015).
 

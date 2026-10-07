@@ -255,3 +255,17 @@ def test_vendedor_consulta_peca_sem_permissao_de_estoque(api, monkeypatch):
                                                   "preparar_entregar_pedido"})
     assert cliente_api.get("/balcao/estoque", params={"busca": "camisa"}).status_code == 200
     assert cliente_api.get("/estoque").status_code == 403
+
+
+def test_atendente_consulta_peca_para_a_troca_pelo_chamado(api, monkeypatch):
+    monkeypatch.setattr(estoque_repository, "listar_estoque", lambda db, limit, offset, **f: ([], 0))
+    cliente_api = _vendedor_api(api, monkeypatch, {"atender_chamado"})
+    assert cliente_api.get("/balcao/estoque", params={"busca": "camisa"}).status_code == 200
+    # só leitura: continua sem as rotas de estoque nem as do balcão
+    assert cliente_api.get("/estoque").status_code == 403
+    assert cliente_api.get("/balcao/pedidos", params={"id_pedido": 1}).status_code == 403
+
+
+def test_consultar_peca_exige_alguma_permissao_do_balcao_ou_do_atendimento(api, monkeypatch):
+    cliente_api = _vendedor_api(api, monkeypatch, {"movimentar_estoque"})
+    assert cliente_api.get("/balcao/estoque").status_code == 403

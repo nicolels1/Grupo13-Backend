@@ -14,8 +14,9 @@ router = APIRouter(tags=["balcão"])
 
 # troca e devolução na loja, sem chamado (ADR 0015); pelo Atendimento continua com atender_chamado
 BALCAO = exige_permissao("registrar_troca_devolucao")
-# consultar peça no balcão: quem vende ou troca vê o estoque das unidades, só para ler
-CONSULTAR_PECA = exige_permissao("registrar_venda_fisica", "registrar_troca_devolucao")
+# consultar peça: quem vende ou troca no balcão, e quem registra troca pelo chamado (atendimento),
+# vê o estoque das unidades, só para ler
+CONSULTAR_PECA = exige_permissao("registrar_venda_fisica", "registrar_troca_devolucao", "atender_chamado")
 ERROS = {
     401: {"description": "Sem login válido"},
     403: {"description": "Sem permissão"},
