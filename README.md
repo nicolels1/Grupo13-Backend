@@ -120,6 +120,8 @@ O backend usa duas conexões com o PostgreSQL do Supabase:
 - **Usuário restrito da API** (`api_casalorenzi`, migration `56799f788354`): não apaga dados (exceto endereços salvos do cliente e as ligações da Gestão), não edita movimentações nem históricos, não altera o saldo do estoque direto e não lê o `auth.users`. Todas as tabelas têm RLS ligado, com uma regra que libera só ele.
 - **Triggers e restrições:** o saldo de `estoque` é atualizado pelo banco a cada movimentação e nunca fica negativo (ADR 0005); movimentações e históricos não são editados; as regras do Admin, do CD, do estorno e do item do chamado são garantidas no banco. Toda troca e devolução tem o pedido e o chamado ou a pessoa da equipe, e todo estorno tem origem (`cancelamento`, `atendimento` ou `balcao`, ADR 0015).
 
+**Busca da vitrine** (migration `5809c1f5a848`): liga as extensões `unaccent` e `pg_trgm` (esquema `extensions`) e cria `texto_de_busca()` (sem acento e minúsculo) e `semelhanca_de_palavra()` (semelhança entre palavras inteiras), funções do dono liberadas só para o usuário da API, como `login_por_email`.
+
 **Prazos automáticos** (migration `03aeb347f6cf`, ADR 0012): a função `cancela_vencidos()` cancela o pedido cuja reserva de 15 minutos venceu (as peças voltam ao disponível e a cobrança pendente é recusada) e a retirada não feita em 7 dias (estorno pelo mesmo método e as peças voltam ao estoque online). O pg_cron a roda a cada minuto.
 
 **Arquivos** no Supabase Storage, em três buckets criados pela mesma migration: `produtos` (público, fotos de produto), `anexos` (privado, anexos de chamado) e `avaliacoes` (privado, fotos de avaliação). O backend confere tipo, conteúdo e tamanho antes de enviar, guarda só o caminho no banco e devolve link temporário (1 hora) para os arquivos privados.
@@ -200,7 +202,7 @@ A lista completa, com parâmetros e formatos, está em `/docs`. Resumo por área
 | GET | `/categorias` | público | categorias |
 | POST, PATCH | `/categorias`, `/categorias/{id}` | `gerenciar_catalogo` | cria e altera categoria |
 | GET | `/produtos/tamanhos` | público | tamanhos à venda na vitrine, na ordem da grade (filtra por `id_categoria` e `busca`) |
-| GET | `/produtos`, `/produtos/{id}` | público | vitrine: sem login, só produtos e variantes ativos; quem gerencia o catálogo vê tudo. Cada variante diz se tem peça para vender online (`disponivel`, sem a quantidade). A lista filtra por `tamanho` (repetível: `?tamanho=P&tamanho=M`) e `disponivel` e ordena por `nome`, `novidades`, `menor_preco` ou `maior_preco` |
+| GET | `/produtos`, `/produtos/{id}` | público | vitrine: sem login, só produtos e variantes ativos; quem gerencia o catálogo vê tudo. Cada variante diz se tem peça para vender online (`disponivel`, sem a quantidade). A lista filtra por `tamanho` (repetível: `?tamanho=P&tamanho=M`) e `disponivel` e ordena por `relevancia` (padrão com busca), `nome`, `novidades`, `menor_preco` ou `maior_preco`. A `busca` ignora acentos e procura no nome, categoria, cores e descrição, pelo começo das palavras e por semelhança (erros de digitação, camisa e camiseta); sem resultado, a vitrine traz peças parecidas ou as novidades e avisa em `busca_alternativa` |
 | POST, PATCH | `/produtos`, `/produtos/{id}` | `gerenciar_catalogo` | cria e altera produto |
 | POST | `/produtos/{id}/variantes` | `gerenciar_catalogo` | cria variante (cor, tamanho, SKU e preço) |
 | PATCH | `/variantes/{id}` | `gerenciar_catalogo` | altera variante; mudar o preço grava o histórico |
