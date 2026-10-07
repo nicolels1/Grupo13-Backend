@@ -1,3 +1,5 @@
+import re
+import unicodedata
 import uuid
 
 from sqlalchemy.orm import Session
@@ -113,10 +115,46 @@ def _disponiveis(db: Session, variantes: dict[int, list[Variante]]) -> set[int]:
     return repo.ids_disponiveis_online(db, [v.id_variante for lista in variantes.values() for v in lista])
 
 
-def listar_produtos(db: Session, limit: int, offset: int, publico: bool = False, **filtros) -> dict:
+# o que a pessoa digitou vira palavras sem acento, minúsculas, só letras e números
+# ("Calça  jeans!" → ["calca", "jeans"]); o banco compara com o texto do produto do mesmo jeito
+MAXIMO_DE_PALAVRAS = 6
+
+
+def palavras_da_busca(busca: str | None) -> list[str]:
+    if not busca:
+        return []
+    sem_acento = unicodedata.normalize("NFD", busca.lower())
+    sem_acento = "".join(letra for letra in sem_acento if not unicodedata.combining(letra))
+    palavras = re.findall(r"[a-z0-9]+", sem_acento)
+    return list(dict.fromkeys(palavras))[:MAXIMO_DE_PALAVRAS]
+
+
+# com busca e sem ordem escolhida, os mais parecidos vêm primeiro; sem busca, por nome
+def _ordem_padrao(ordem: str | None, palavras: list[str]) -> str:
+    if ordem:
+        return ordem
+    return "relevancia" if palavras else "nome"
+
+
+# na vitrine, uma busca sem resultado não termina em lista vazia: tenta as peças parecidas de longe
+# e, se nem isso, mostra as novidades. busca_alternativa diz qual das duas, para a loja avisar que
+# não é exatamente o que foi digitado
+def listar_produtos(db: Session, limit: int, offset: int, publico: bool = False, busca: str | None = None,
+                    ordem: str | None = None, **filtros) -> dict:
     if publico:
         filtros.update(ativo=True, categoria_ativa=True)
-    produtos, total = repo.listar_produtos(db, limit, offset, **filtros)
+    palavras = palavras_da_busca(busca)
+    ordem = _ordem_padrao(ordem, palavras)
+    produtos, total = repo.listar_produtos(db, limit, offset, palavras=palavras or None, ordem=ordem, **filtros)
+    alternativa = None
+    if publico and palavras and total == 0:
+        produtos, total = repo.listar_produtos(
+            db, limit, offset, palavras=palavras, aproximada=True, ordem="relevancia", **filtros,
+        )
+        alternativa = "parecidas"
+        if total == 0:
+            produtos, total = repo.listar_produtos(db, limit, offset, ordem="novidades", **filtros)
+            alternativa = "novidades" if total else None
     ids = [p.id_produto for p in produtos]
     variantes = repo.variantes_dos_produtos(db, ids)
     imagens = repo.imagens_dos_produtos(db, ids)
@@ -124,7 +162,7 @@ def listar_produtos(db: Session, limit: int, offset: int, publico: bool = False,
     itens = [
         montar_produto(p, variantes[p.id_produto], publico, imagens[p.id_produto], disponiveis) for p in produtos
     ]
-    return {"items": itens, "total": total, "limit": limit, "offset": offset}
+    return {"items": itens, "total": total, "limit": limit, "offset": offset, "busca_alternativa": alternativa}
 
 
 # letras na ordem da grade (PP a XG), depois números em ordem crescente, depois o resto (ex.: U)
@@ -140,7 +178,8 @@ def _ordem_do_tamanho(tamanho: str) -> tuple:
 
 
 def tamanhos_a_venda(db: Session, id_categoria: int | None = None, busca: str | None = None) -> list[str]:
-    return sorted(repo.tamanhos_a_venda(db, id_categoria, busca), key=_ordem_do_tamanho)
+    palavras = palavras_da_busca(busca) or None
+    return sorted(repo.tamanhos_a_venda(db, id_categoria, palavras), key=_ordem_do_tamanho)
 
 
 def buscar_produto(db: Session, id_produto: int, publico: bool = False) -> dict:

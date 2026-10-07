@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from src.entities.comum import sem_espacos
+from src.entities.comum import Pagina, sem_espacos
 
 
 # ---------- categoria ----------
@@ -97,8 +97,9 @@ class VarianteSaida(BaseModel):
     )
 
 
-# ordem da lista de produtos; novidades = cadastrados por último primeiro
-OrdemProdutos = Literal["nome", "novidades", "menor_preco", "maior_preco"]
+# ordem da lista de produtos; novidades = cadastrados por último primeiro;
+# relevancia = mais parecidos com a busca primeiro (padrão quando há busca)
+OrdemProdutos = Literal["relevancia", "nome", "novidades", "menor_preco", "maior_preco"]
 
 
 class ProdutoCriar(BaseModel):
@@ -146,6 +147,14 @@ class ProdutoSaida(BaseModel):
     ativo: bool
     variantes: list[VarianteSaida]
     imagens: list[ImagemSaida] = Field(default_factory=list, description="Na ordem de exibição")
+
+
+class PaginaProdutos(Pagina[ProdutoSaida]):
+    busca_alternativa: Literal["parecidas", "novidades"] | None = Field(
+        default=None,
+        description="Só na vitrine, quando a busca não achou nada: 'parecidas' traz as peças mais próximas "
+                    "do termo; 'novidades', as mais recentes. Vazio quando achou o que foi buscado",
+    )
 
 
 class HistoricoPrecoSaida(BaseModel):

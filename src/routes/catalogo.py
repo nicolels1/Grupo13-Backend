@@ -4,9 +4,10 @@ from sqlalchemy.orm import Session
 from src.database.session import get_db
 from src.entities.catalogo import (
     CategoriaAlterar, CategoriaCriar, CategoriaSaida, HistoricoPrecoSaida, ImagemAlterar, ImagemSaida,
-    OrdemProdutos, ProdutoAlterar, ProdutoCriar, ProdutoSaida, VarianteAlterar, VarianteCriar, VarianteSaida,
+    OrdemProdutos, PaginaProdutos, ProdutoAlterar, ProdutoCriar, ProdutoSaida, VarianteAlterar, VarianteCriar,
+    VarianteSaida,
 )
-from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Lista, Pagina, campos_alterados
+from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Lista, campos_alterados
 from src.middlewares.permissoes import exige_permissao, get_usuario_opcional
 from src.models.contas import Usuario
 from src.repositories import catalogo_repository
@@ -57,11 +58,15 @@ ERROS_PRODUTO = {
 
 # público. Sem login (ou sem gerenciar_catalogo): só produtos e variantes ativos, sem a descrição
 # técnica, e o filtro "ativo" é ignorado. Com gerenciar_catalogo: tudo, e "ativo" filtra. Lista paginada
-@router.get("/produtos", response_model=Pagina[ProdutoSaida])
+@router.get("/produtos", response_model=PaginaProdutos)
 def listar_produtos(
     id_categoria: int | None = None,
     ativo: bool | None = Query(default=None, description="Só para quem gerencia o catálogo"),
-    busca: str | None = Query(default=None, max_length=100, description="Parte do nome do produto"),
+    busca: str | None = Query(
+        default=None, max_length=100,
+        description="Sem acento e sem a palavra exata: procura no nome, categoria, cores e descrição, "
+                    "pelo começo das palavras e por semelhança (erros de digitação, camisa ~ camiseta)",
+    ),
     tamanho: list[str] | None = Query(
         default=None, max_length=20,
         description="Só produtos com algum desses tamanhos à venda; repita para vários (?tamanho=P&tamanho=M)",
@@ -69,8 +74,10 @@ def listar_produtos(
     disponivel: bool | None = Query(
         default=None, description="true: só produtos com peça para vender online (nos tamanhos, se informados)"
     ),
-    ordem: OrdemProdutos = Query(
-        default="nome", description="nome, novidades, menor_preco ou maior_preco (pela variante mais barata)"
+    ordem: OrdemProdutos | None = Query(
+        default=None,
+        description="relevancia (padrão com busca), nome (padrão sem busca), novidades, menor_preco ou "
+                    "maior_preco (pela variante mais barata)",
     ),
     limit: int = Query(LIMITE_PADRAO, ge=1, le=LIMITE_MAXIMO),
     offset: int = Query(0, ge=0),
