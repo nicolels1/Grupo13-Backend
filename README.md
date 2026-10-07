@@ -199,6 +199,7 @@ A lista completa, com parâmetros e formatos, está em `/docs`. Resumo por área
 |---|---|---|---|
 | GET | `/categorias` | público | categorias |
 | POST, PATCH | `/categorias`, `/categorias/{id}` | `gerenciar_catalogo` | cria e altera categoria |
+| GET | `/produtos/tamanhos` | público | tamanhos à venda na vitrine, na ordem da grade (filtra por `id_categoria` e `busca`) |
 | GET | `/produtos`, `/produtos/{id}` | público | vitrine: sem login, só produtos e variantes ativos; quem gerencia o catálogo vê tudo. Cada variante diz se tem peça para vender online (`disponivel`, sem a quantidade). A lista filtra por `tamanho` e `disponivel` e ordena por `nome`, `novidades`, `menor_preco` ou `maior_preco` |
 | POST, PATCH | `/produtos`, `/produtos/{id}` | `gerenciar_catalogo` | cria e altera produto |
 | POST | `/produtos/{id}/variantes` | `gerenciar_catalogo` | cria variante (cor, tamanho, SKU e preço) |
