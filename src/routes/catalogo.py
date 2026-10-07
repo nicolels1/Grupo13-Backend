@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from src.database.session import get_db
 from src.entities.catalogo import (
     CategoriaAlterar, CategoriaCriar, CategoriaSaida, HistoricoPrecoSaida, ImagemAlterar, ImagemSaida,
-    ProdutoAlterar, ProdutoCriar, ProdutoSaida, VarianteAlterar, VarianteCriar, VarianteSaida,
+    OrdemProdutos, ProdutoAlterar, ProdutoCriar, ProdutoSaida, VarianteAlterar, VarianteCriar, VarianteSaida,
 )
 from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Lista, Pagina, campos_alterados
 from src.middlewares.permissoes import exige_permissao, get_usuario_opcional
@@ -62,6 +62,13 @@ def listar_produtos(
     id_categoria: int | None = None,
     ativo: bool | None = Query(default=None, description="Só para quem gerencia o catálogo"),
     busca: str | None = Query(default=None, max_length=100, description="Parte do nome do produto"),
+    tamanho: str | None = Query(default=None, max_length=20, description="Só produtos com esse tamanho à venda"),
+    disponivel: bool | None = Query(
+        default=None, description="true: só produtos com peça para vender online (no tamanho, se informado)"
+    ),
+    ordem: OrdemProdutos = Query(
+        default="nome", description="nome, novidades, menor_preco ou maior_preco (pela variante mais barata)"
+    ),
     limit: int = Query(LIMITE_PADRAO, ge=1, le=LIMITE_MAXIMO),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
@@ -69,7 +76,7 @@ def listar_produtos(
 ):
     return catalogo.listar_produtos(
         db, limit, offset, publico=catalogo.visao_publica(db, usuario),
-        id_categoria=id_categoria, ativo=ativo, busca=busca,
+        id_categoria=id_categoria, ativo=ativo, busca=busca, tamanho=tamanho, disponivel=disponivel, ordem=ordem,
     )
 
 

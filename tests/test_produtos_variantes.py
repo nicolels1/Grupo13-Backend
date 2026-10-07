@@ -33,6 +33,7 @@ def banco(monkeypatch):
     })
     monkeypatch.setattr(r, "buscar_variante", lambda db, i: estado.variantes.get(i))
     monkeypatch.setattr(r, "imagens_dos_produtos", lambda db, ids: {i: [] for i in ids})
+    monkeypatch.setattr(r, "ids_disponiveis_online", lambda db, ids: set())
     monkeypatch.setattr(r, "variante_por_sku", lambda db, sku: next(
         (v for v in estado.variantes.values() if v.sku.upper() == sku.upper()), None))
     monkeypatch.setattr(r, "variante_por_cor_e_tamanho", lambda db, p, cor, tam: next(
@@ -68,7 +69,7 @@ def test_cria_produto_com_variantes_e_historico_de_preco(banco):
 
     produto = catalogo.criar_produto(db, ID_FUNCIONARIO, novo_produto())
 
-    assert [v.sku for v in produto["variantes"]] == ["CAM-AZ-M", "CAM-AZ-G"]
+    assert [v["sku"] for v in produto["variantes"]] == ["CAM-AZ-M", "CAM-AZ-G"]
     registros = historicos(db)
     assert len(registros) == 2
     assert all(h.preco_anterior is None and h.preco_novo == Decimal("59.90") for h in registros)

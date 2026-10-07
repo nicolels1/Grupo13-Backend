@@ -1,9 +1,10 @@
 from datetime import datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
 from src.models.catalogo import CategoriaProduto, HistoricoPreco, ImagemProduto, Produto, Variante
+from src.models.estoque import Estoque, Unidade
 
 
 def listar_categorias(db: Session, ativo: bool | None = None) -> list[CategoriaProduto]:
@@ -24,11 +25,52 @@ def categoria_por_nome(db: Session, nome: str) -> CategoriaProduto | None:
 
 # ---------- produto e variante ----------
 
+# variantes ativas com peça para vender online: estoque menos o reservado no canal online de uma
+# unidade ativa, a mesma conta do checkout. A vitrine física não entra: o site não vende dela
+def _variantes_disponiveis_online(tamanho: str | None = None) -> Select:
+    consulta = (
+        select(Variante.id_variante, Variante.id_produto)
+        .join(Estoque, Estoque.id_variante == Variante.id_variante)
+        .join(Unidade, Unidade.id_unidade == Estoque.id_unidade)
+        .where(Variante.ativo, Unidade.ativo, Estoque.canal == "online",
+               Estoque.quantidade - Estoque.quantidade_reservada > 0)
+    )
+    if tamanho:
+        consulta = consulta.where(Variante.tamanho == tamanho)
+    return consulta
+
+
+def ids_disponiveis_online(db: Session, ids_variante: list[int]) -> set[int]:
+    if not ids_variante:
+        return set()
+    consulta = _variantes_disponiveis_online().where(Variante.id_variante.in_(ids_variante))
+    return {linha.id_variante for linha in db.execute(consulta)}
+
+
+# preço "a partir de" do produto: a variante ativa mais barata
+_MENOR_PRECO = (
+    select(func.min(Variante.preco))
+    .where(Variante.id_produto == Produto.id_produto, Variante.ativo)
+    .correlate(Produto)
+    .scalar_subquery()
+)
+
+# novidades: sem data de cadastro no produto, o número maior é o mais novo
+ORDENS = {
+    "nome": (Produto.nome, Produto.id_produto),
+    "novidades": (Produto.id_produto.desc(),),
+    "menor_preco": (_MENOR_PRECO.asc().nulls_last(), Produto.nome, Produto.id_produto),
+    "maior_preco": (_MENOR_PRECO.desc().nulls_last(), Produto.nome, Produto.id_produto),
+}
+
+
 # uma página de produtos e o total; busca no nome sem diferenciar maiúsculas
 # categoria_ativa=True: só produtos de categorias ativas (visão pública)
+# tamanho: com variante ativa nesse tamanho; disponivel: com peça para vender online (no tamanho, se houver)
 def listar_produtos(db: Session, limit: int, offset: int, id_categoria: int | None = None,
                     ativo: bool | None = None, busca: str | None = None,
-                    categoria_ativa: bool | None = None) -> tuple[list[Produto], int]:
+                    categoria_ativa: bool | None = None, tamanho: str | None = None,
+                    disponivel: bool | None = None, ordem: str = "nome") -> tuple[list[Produto], int]:
     consulta = select(Produto)
     if categoria_ativa is not None:
         consulta = consulta.join(CategoriaProduto, CategoriaProduto.id_categoria == Produto.id_categoria).where(
@@ -40,8 +82,15 @@ def listar_produtos(db: Session, limit: int, offset: int, id_categoria: int | No
         consulta = consulta.where(Produto.ativo == ativo)
     if busca:
         consulta = consulta.where(Produto.nome.ilike(f"%{busca}%"))
+    if tamanho:
+        consulta = consulta.where(Produto.id_produto.in_(
+            select(Variante.id_produto).where(Variante.tamanho == tamanho, Variante.ativo)
+        ))
+    if disponivel is not None:
+        com_peca = Produto.id_produto.in_(_variantes_disponiveis_online(tamanho).with_only_columns(Variante.id_produto))
+        consulta = consulta.where(com_peca if disponivel else ~com_peca)
     total = db.scalar(select(func.count()).select_from(consulta.subquery()))
-    pagina = consulta.order_by(Produto.nome, Produto.id_produto).limit(limit).offset(offset)
+    pagina = consulta.order_by(*ORDENS[ordem]).limit(limit).offset(offset)
     return list(db.scalars(pagina)), total
 
 
