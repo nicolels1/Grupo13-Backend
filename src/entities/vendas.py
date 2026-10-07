@@ -189,6 +189,9 @@ class ResumoCarrinho(BaseModel):
     itens: list[ItemResumo]
     valor_itens: Valor
     frete_entrega: Valor = Field(description="Grátis a partir do valor mínimo; zero na retirada")
+    frete_gratis_a_partir_de: Valor = Field(
+        description="Valor mínimo em itens para o frete da entrega sair grátis (para a loja mostrar quanto falta)"
+    )
     total_entrega: Valor
     total_retirada: Valor
     entrega_disponivel: bool = Field(description="Algum CD ou loja que despacha tem todos os itens")

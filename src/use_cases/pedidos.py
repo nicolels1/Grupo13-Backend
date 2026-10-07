@@ -205,6 +205,7 @@ def resumo_carrinho(db: Session, itens: list[dict]) -> dict:
     frete = calcular_frete(valor_itens, "entrega")
     return {
         "itens": resumo, "valor_itens": valor_itens, "frete_entrega": frete,
+        "frete_gratis_a_partir_de": FRETE_GRATIS_A_PARTIR_DE,
         "total_entrega": valor_itens + frete, "total_retirada": valor_itens,
         "entrega_disponivel": escolher_unidade_entrega(candidatas, "", "") is not None,
         "lojas_retirada": lojas_para_retirada(candidatas),
