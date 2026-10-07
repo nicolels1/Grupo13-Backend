@@ -1,6 +1,6 @@
 # Casa Lorenzi — Case de Tech (Trainee Insper Jr. 2026.2)
 
-Documento consolidado com o contexto do case, as decisões tomadas ao longo do projeto e o modelo de dados. Atualizado em 06/10/2026 com os ajustes da Entrega 2 (histórico e tela inicial) e com a implementação de vendas, avaliações e arquivos.
+Documento consolidado com o contexto do case, as decisões tomadas ao longo do projeto e o modelo de dados. Atualizado em 07/10/2026 com os ajustes da Entrega 2 (histórico e tela inicial), a implementação de vendas, avaliações e arquivos e o CPF na nota.
 
 ---
 
@@ -45,7 +45,7 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 - **Duas camadas de proteção:**
   - **Triggers no banco** (já implementados): recusam editar movimentações, históricos e o saldo do estoque direto, e garantem as regras do Admin (inclusive Gestão só no Admin), do CD, do estorno e do item do chamado. Valem para qualquer caminho, inclusive o painel do Supabase (ADRs 0009 e 0010).
   - **Usuário de banco restrito para o FastAPI** (`api_casalorenzi`, migration `56799f788354`): não pode apagar dados, exceto endereços salvos do cliente e as duas tabelas de ligação da Gestão (`modelo_permissao` e `usuario_permissao_excecao`: tirar uma permissão de um modelo ou remover uma exceção apaga a linha que liga um ao outro). Também não edita movimentações, histórico de chamados e histórico de preço, não altera o saldo do estoque direto e só lê a lista de permissões. Uma regra de RLS em cada tabela libera só ele. Ele não lê o `auth.users`: duas funções do banco respondem só o que a Gestão precisa (se um e-mail já tem login e se o login foi confirmado). As migrations continuam com o usuário completo. O trigger que atualiza o saldo roda como `SECURITY DEFINER`.
-- **Situação em 06/10/2026:** os triggers do saldo e da Gestão, o `SECURITY DEFINER` e o usuário restrito estão aplicados no banco, e a API local já conecta como `api_casalorenzi`. O script `scripts/conferir_banco.py` confere, no banco de verdade, que as garantias valem (todas passaram em 06/10/2026). Falta aplicar a migration `03aeb347f6cf` e conferir a `DATABASE_URL` do Render (ver seção 10).
+- **Situação em 06/10/2026:** os triggers do saldo e da Gestão, o `SECURITY DEFINER` e o usuário restrito estão aplicados no banco, e a API local já conecta como `api_casalorenzi`. O script `scripts/conferir_banco.py` confere, no banco de verdade, que as garantias valem (todas passaram em 06/10/2026). A migration `03aeb347f6cf` (prazos e Storage) está aplicada; falta a `bc431a82c8bf` (CPF na nota, ver seção 10).
 - **Prazos automáticos:** a função `cancela_vencidos()` do banco cancela reservas vencidas (15 min) e retiradas vencidas (7 dias), e o pg_cron do Supabase a roda a cada minuto, mesmo com a API dormindo (ADR 0012).
 - A chave de serviço do Supabase fica só no backend.
 - FastAPI conecta pelo pooler; migrations do Alembic usam conexão direta.
@@ -95,7 +95,7 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 - Estoque de cada loja separado por **canal** (loja física e online), com realocação entre canais; CD só online.
 - **Reserva de estoque** no checkout online por 15 minutos.
 - **Estorno** como registro próprio (permite estorno parcial).
-- Ativação de conta criada no caixa exige confirmar o CPF.
+- Ativação de conta criada no caixa exige confirmar o CPF → **revisado**: o caixa não cria mais conta (ADR 0014).
 - Pedido devolvido continua **entregue**, com indicação de devolução.
 - Transferência pode ser cancelada antes do envio.
 
@@ -124,9 +124,17 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 - **Frete** da entrega em casa: R$ 19,90, grátis a partir de R$ 299,00 em itens. O cliente vê o frete no carrinho, antes de a unidade ser escolhida no checkout.
 - **Pagamento online** por gateway simulado: a cobrança nasce pendente e uma rota aprova ou recusa (ADR 0011).
 - **Prazos** da reserva e da retirada cancelados pelo banco, com pg_cron (ADR 0012).
-- **Link de ativação** da conta do caixa gerado sem e-mail e entregue pela loja ao cliente (ADR 0013).
+- **Link de ativação** da conta do caixa gerado sem e-mail e entregue pela loja ao cliente (ADR 0013) → **revisado** no dia seguinte (ADR 0014).
 - **Troca** por outra cor ou tamanho do mesmo produto, sem estorno; devolução com estorno escolhido pelo atendente.
 - **Denúncia procedente** oculta a avaliação com o motivo da denúncia (ou outro informado pela moderação).
+
+### CPF na nota (07/10/2026)
+
+- O caixa não cria mais conta. O CPF continua opcional: com conta, liga o pedido a ela; sem conta, fica no pedido como **CPF na nota** (`pedido.cpf_nota`).
+- Ao criar a conta pelo site com esse CPF, as compras da loja passam para ela, sem código de confirmação. O mesmo vale na correção de CPF feita na loja.
+- Saem a conta do caixa, o link de ativação e a rota de ativação (ADR 0014 substitui a 0013).
+- Login por CPF com mensagem única ("CPF ou senha incorretos"), sem revelar se o CPF tem conta.
+- A notinha traz só o código da venda.
 
 ### Decisões-chave e alternativas descartadas
 
@@ -143,8 +151,8 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 | Uma tabela de usuários | Tabelas separadas cliente/funcionário | Mensagens e histórico têm autores dos dois lados |
 | Avaliação ligada ao item do pedido | Qualquer cliente avaliar o produto | Só quem comprou avalia, uma vez por compra |
 | Pedido devolvido continua entregue | Novo status "devolvido" | O status não perde a informação de entrega |
-| Ativação do caixa exige confirmar CPF | Aceitar risco de e-mail errado | Quem recebeu o link por engano não vê os dados do cliente |
-| Ativação sem limite de tentativas, só com o prazo do link (24h) | Bloquear a conta após 5 erros, com desbloqueio numa loja | O cliente não precisa ir à loja para destravar a conta; menos regra para construir antes da banca |
+| Ativação do caixa exige confirmar CPF (substituída pela ADR 0014) | Aceitar risco de e-mail errado | Quem recebeu o link por engano não vê os dados do cliente |
+| Ativação sem limite de tentativas, só com o prazo do link (substituída pela ADR 0014) | Bloquear a conta após 5 erros, com desbloqueio numa loja | O cliente não precisa ir à loja para destravar a conta; menos regra para construir antes da banca |
 | Histórico de estoque calculado somando as movimentações | Foto diária do estoque (snapshot) | Exato até o segundo e sem uma segunda fonte que possa divergir; o volume do case não exige foto (ADR 0006) |
 | Saldo atualizado por trigger, nunca negativo | Backend atualizar saldo e movimentação juntos | Nenhum fluxo consegue mudar um sem o outro, então o histórico não mente (ADR 0005) |
 | Histórico de preço em tabela própria | Só o preço pago no item do pedido | Responde quanto a peça custava em qualquer data, mesmo sem venda |
@@ -153,7 +161,7 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 | Regras entre tabelas garantidas por trigger (Admin, CD, estorno, item do chamado) | Validar só no backend | Valem para qualquer caminho, inclusive o painel do Supabase (ADRs 0009 e 0010) |
 | Gateway de pagamento simulado pelo backend | Integrar o sandbox de um gateway real | O fluxo da venda fica completo sem conta, chaves nem webhook externos; trocar depois muda só quem aprova (ADR 0011) |
 | Prazos cancelados pelo banco com pg_cron | Cancelar só quando alguém consulta | Vale mesmo com a API dormindo no Render e não deixa peça presa na reserva (ADR 0012) |
-| Link de ativação entregue pela loja | Depender do e-mail do Supabase | Funciona antes do servidor de e-mail próprio (ADR 0013) |
+| CPF na nota sem conta; compras ligadas no cadastro pelo site | Criar conta no caixa e ativar por link | O cliente não precisa de e-mail nem de link na loja; risco aceito: quem cadastrar o CPF de outra pessoa vê as compras dela, sem poder trocar nem devolver (ADR 0014) |
 | Frete fixo, grátis a partir de um valor | Frete por distância | O frete não muda entre o carrinho e o checkout, quando a unidade é escolhida |
 
 ---
@@ -190,7 +198,7 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 ### Vendas e pedidos
 
 - Toda venda vira pedido, com canal online ou loja física, saindo de uma única unidade.
-- **Venda física:** registrada por funcionário (gravado no pedido). Nasce entregue, com pagamento aprovado e baixa do estoque de loja física no ato.
+- **Venda física:** registrada por funcionário (gravado no pedido). Nasce entregue, com pagamento aprovado e baixa do estoque de loja física no ato. A notinha traz o código da venda.
 - **Venda online:** exige conta; modalidade entrega em casa ou retirada. Pagamento sempre online. O checkout reserva as peças no estoque online por 15 minutos; o estoque baixa quando o pagamento é aprovado. Reserva vencida cancela o pedido. A cobrança Pix expira junto, e pagamento tardio é estornado automaticamente.
 - **Entrega em casa:** sai de um CD com todos os itens disponíveis no online; se nenhum tiver, de uma loja que despacha, priorizando mesma cidade, depois mesmo estado, desempate pelo maior estoque. O pedido guarda cópia do endereço.
 - **Retirada:** o cliente escolhe uma loja com todos os itens no estoque online e tem 7 dias para retirar; senão, cancelamento com estorno e retorno ao estoque. Na retirada, mostra o código do pedido e um documento.
@@ -213,10 +221,11 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 - Admin cria conta interna sem senha, por convite do Auth. Recuperação de senha pelo Auth. Links valem até 24h e podem ser reenviados.
 - Enquanto o servidor de e-mail próprio não estiver configurado, o convite não chega a quem não é da equipe do projeto Supabase. Por isso o Admin também pode criar a conta interna com uma **senha provisória**, que a pessoa troca depois; sem senha provisória, vale o convite.
 - Desativar uma conta bloqueia o login no Auth.
-- **Na loja física:** o vendedor pede o CPF (sem exigir). Na primeira compra, cadastra nome, CPF e e-mail (conta sem senha); nas próximas, basta o CPF.
-- **Ativação** de conta do caixa exige confirmar o CPF na página do link. Até ativar, a conta só faz isso. Não há limite de tentativas: o link vale 24h e pode ser reenviado. Enquanto o servidor de e-mail próprio não estiver configurado, a loja recebe o link e o entrega ao cliente (ADR 0013).
+- **Na loja física:** o vendedor pede o CPF (sem exigir) e o caixa nunca cria conta. CPF de quem tem conta liga o pedido a ela; CPF sem conta fica no pedido como **CPF na nota** (ADR 0014).
+- Ao criar a conta pelo site, as compras com aquele CPF na nota e ainda sem cliente passam para a conta nova, sem código de confirmação. O mesmo acontece quando uma correção de CPF feita na loja passa a apontar para aquele CPF. Risco aceito: quem cadastrar primeiro o CPF de outra pessoa vê as compras dela na loja, mas não troca nem devolve (exige peça e documento); o dono corrige o CPF em qualquer loja.
 - Quem comprou sem CPF pode **reivindicar** a compra pelo código da venda no comprovante, uma única vez. Sem o código, não há troca nem devolução.
-- E-mail ou CPF errados são corrigidos em qualquer loja, com documento. Corrigir o CPF reenvia o link. Se o CPF certo já tiver conta, os pedidos passam para ela e a errada é desativada.
+- O login por CPF responde a mesma mensagem ("CPF ou senha incorretos") para CPF sem conta e senha errada, com "Criar conta" sempre visível.
+- E-mail ou CPF errados são corrigidos em qualquer loja, com documento. Se o CPF certo já tiver conta, os pedidos passam para ela e a errada é desativada.
 - Cliente pode ter vários endereços salvos e apagá-los (o pedido guarda sua cópia).
 
 ### Atendimento
@@ -229,7 +238,7 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 
 ### Avaliações
 
-- Só quem recebeu a peça avalia: uma avaliação por item de pedido entregue, nota 1 a 5, texto opcional, até 5 fotos. Compra física sem CPF só depois de reivindicada.
+- Só quem recebeu a peça avalia: uma avaliação por item de pedido entregue, nota 1 a 5, texto opcional, até 5 fotos. Compra física só depois de estar na conta (pelo CPF na nota ou pela reivindicação).
 - Publicada na hora; o cliente edita por 7 dias e não apaga. A equipe pode ocultar, com motivo, e as fotos saem do ar.
 - Outros clientes votam "Útil" (um voto cada) e podem denunciar uma vez por avaliação. Ninguém vota nem denuncia a própria.
 
@@ -299,7 +308,7 @@ Campos com `?` aceitam vazio. A chave primária vem primeiro. No banco, nomes fi
 
 | Tabela | Campos | Liga com |
 | --- | --- | --- |
-| PEDIDO | id_pedido, codigo_venda (único), id_cliente?, id_unidade, id_registrado_por?, canal, modalidade?, status, motivo_cancelamento?, id_cancelado_por?, justificativa_cancelamento?, devolucao, valor_frete, valor_total, pronto_retirada_em?, reserva_expira_em?, pago_em?, enviado_em?, entregue_em?, cancelado_em?, criado_em, atualizado_em | ITEM_PEDIDO, PAGAMENTO (1:N); ENDERECO_ENTREGA (1:0..1) |
+| PEDIDO | id_pedido, codigo_venda (único), id_cliente?, id_unidade, id_registrado_por?, cpf_nota?, canal, modalidade?, status, motivo_cancelamento?, id_cancelado_por?, justificativa_cancelamento?, devolucao, valor_frete, valor_total, pronto_retirada_em?, reserva_expira_em?, pago_em?, enviado_em?, entregue_em?, cancelado_em?, criado_em, atualizado_em | ITEM_PEDIDO, PAGAMENTO (1:N); ENDERECO_ENTREGA (1:0..1) |
 | ITEM_PEDIDO | id_item, id_pedido, id_variante, quantidade, preco_unitario | AVALIACAO (1:0..1) |
 | PAGAMENTO | id_pagamento, id_pedido, tipo, id_pagamento_original?, id_chamado?, metodo, id_transacao_gateway? (único), valor, status, criado_em, atualizado_em | PEDIDO; PAGAMENTO (estorno → original); CHAMADO |
 | ENDERECO_ENTREGA | id_pedido, rua, numero, complemento?, bairro, cidade, uf, cep | PEDIDO (só na entrega) |
@@ -423,7 +432,6 @@ O modelo já foi pensado para não travar nela:
 - Reabastecimento automático (sugerir transferência do CD quando a loja fica abaixo do mínimo) — já suportado pelo modelo.
 - Completar uma retirada por transferência — exigiria ligar pedido a um envio.
 - Troca com envio para casa — exigiria ligar chamado a um envio.
-- Limite de velocidade na rota de ativação (ex.: poucas tentativas de CPF por minuto), para dificultar adivinhar o CPF dentro do prazo do link — não muda o banco.
 
 ---
 
@@ -436,6 +444,6 @@ Cada uma precisa estar resolvida antes da banca (08/10/2026).
 | 1 | Usuário de banco restrito para o FastAPI | Migration `56799f788354` aplicada e senha definida; a API local já conecta com ele. Conferir se a `DATABASE_URL` do Render também usa `api_casalorenzi` | ⚠️ Conferir o Render |
 | 2 | Trigger do saldo compatível com o usuário restrito | `scripts/conferir_banco.py` confirmou em 06/10/2026 que a movimentação atualiza o saldo e que o saldo não muda direto | ✅ Resolvido |
 | 3 | Conferência de divergência de estoque | Rota `GET /estoque/divergencias`; `scripts/conferir_banco.py` confirmou em 06/10/2026 que ela fica vazia | ✅ Resolvido |
-| 4 | Vendas, avaliações e arquivos no banco | Aplicar a migration `03aeb347f6cf` (`alembic upgrade head`): cria a função dos prazos, o agendamento no pg_cron e os buckets do Storage. Depois, rodar `scripts/conferir_banco.py` | ⚠️ Código pronto — falta aplicar |
-| 5 | Ativação da conta do caixa | Definir `URL_ATIVACAO` (página do frontend) no Render, incluí-la em Redirect URLs do Supabase Auth e deixar a validade do link em 24h (Email OTP Expiration = 86400) | ⚠️ Configurar no painel |
-| 6 | Variáveis do Render | `SUPABASE_SERVICE_ROLE_KEY` e `SUPABASE_PUBLISHABLE_KEY` no Render: sem elas, cadastro, login por CPF, Gestão, contas do caixa e arquivos não funcionam em produção | ⚠️ Conferir o Render |
+| 4 | Vendas, avaliações e arquivos no banco | Migration `03aeb347f6cf` aplicada (função dos prazos, pg_cron e buckets) e `scripts/conferir_banco.py` rodado | ✅ Resolvido |
+| 5 | Variáveis do Render | `SUPABASE_SERVICE_ROLE_KEY` e `SUPABASE_PUBLISHABLE_KEY` configuradas; o login por CPF em produção responde como esperado | ✅ Resolvido |
+| 6 | CPF na nota no banco | Aplicar a migration `bc431a82c8bf` (`alembic upgrade head`): cria a coluna `pedido.cpf_nota`. Sem ela, as rotas de pedidos, vendas, avaliações e o cadastro pelo site falham em produção | ⚠️ Código pronto — falta aplicar antes do merge |
