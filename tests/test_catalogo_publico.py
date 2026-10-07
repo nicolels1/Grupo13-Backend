@@ -162,7 +162,7 @@ def test_rota_repassa_tamanho_disponivel_e_ordem(client, banco):
 
     assert resposta.status_code == 200
     assert resposta.json()["items"][0]["variantes"][0]["disponivel"] is True
-    assert banco.filtros["tamanho"] == "M"
+    assert banco.filtros["tamanhos"] == ["M"]
     assert banco.filtros["disponivel"] is True
     assert banco.filtros["ordem"] == "menor_preco"
 
@@ -216,7 +216,7 @@ def sql(consulta):
 def test_lista_de_produtos_monta_com_filtros_e_cada_ordem(ordem):
     db = SessaoQueGuarda()
 
-    catalogo_repository.listar_produtos(db, 12, 0, tamanho="M", disponivel=True, ordem=ordem)
+    catalogo_repository.listar_produtos(db, 12, 0, tamanhos=["M"], disponivel=True, ordem=ordem)
 
     contagem, pagina = (sql(c) for c in db.consultas)
     assert "estoque.canal" in contagem and "variante.tamanho" in contagem
@@ -278,3 +278,29 @@ def test_tamanhos_a_venda_so_contam_o_que_esta_ativo():
     texto = sql(db.consultas[0])
     assert texto.startswith("SELECT DISTINCT variante.tamanho")
     assert "variante.ativo" in texto and "produto.ativo" in texto and "categoria_produto.ativo" in texto
+
+
+# ---------- vários tamanhos no filtro ----------
+
+def test_rota_aceita_varios_tamanhos(client, banco):
+    resposta = client().get("/produtos", params=[("tamanho", "P"), ("tamanho", "M")])
+
+    assert resposta.status_code == 200
+    assert banco.filtros["tamanhos"] == ["P", "M"]
+
+
+def test_sem_tamanho_nao_filtra(client, banco):
+    client().get("/produtos")
+
+    assert banco.filtros["tamanhos"] is None
+
+
+def test_varios_tamanhos_viram_um_in_na_consulta():
+    db = SessaoQueGuarda()
+
+    catalogo_repository.listar_produtos(db, 12, 0, tamanhos=["P", "M"], disponivel=True)
+
+    contagem = db.consultas[0].compile(dialect=postgresql.dialect())
+    texto = str(contagem)
+    assert "variante.tamanho IN (__[POSTCOMPILE_tamanho_1])" in texto
+    assert contagem.params["tamanho_1"] == ["P", "M"]

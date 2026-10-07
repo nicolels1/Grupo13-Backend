@@ -62,9 +62,12 @@ def listar_produtos(
     id_categoria: int | None = None,
     ativo: bool | None = Query(default=None, description="Só para quem gerencia o catálogo"),
     busca: str | None = Query(default=None, max_length=100, description="Parte do nome do produto"),
-    tamanho: str | None = Query(default=None, max_length=20, description="Só produtos com esse tamanho à venda"),
+    tamanho: list[str] | None = Query(
+        default=None, max_length=20,
+        description="Só produtos com algum desses tamanhos à venda; repita para vários (?tamanho=P&tamanho=M)",
+    ),
     disponivel: bool | None = Query(
-        default=None, description="true: só produtos com peça para vender online (no tamanho, se informado)"
+        default=None, description="true: só produtos com peça para vender online (nos tamanhos, se informados)"
     ),
     ordem: OrdemProdutos = Query(
         default="nome", description="nome, novidades, menor_preco ou maior_preco (pela variante mais barata)"
@@ -76,7 +79,7 @@ def listar_produtos(
 ):
     return catalogo.listar_produtos(
         db, limit, offset, publico=catalogo.visao_publica(db, usuario),
-        id_categoria=id_categoria, ativo=ativo, busca=busca, tamanho=tamanho, disponivel=disponivel, ordem=ordem,
+        id_categoria=id_categoria, ativo=ativo, busca=busca, tamanhos=tamanho, disponivel=disponivel, ordem=ordem,
     )
 
 
