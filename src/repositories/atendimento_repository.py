@@ -130,3 +130,13 @@ def consulta_historico(id_chamado: int) -> Select:
 
 def listar_historico(db: Session, id_chamado: int) -> list:
     return list(db.execute(consulta_historico(id_chamado)).mappings().all())
+
+
+# contas internas ativas, por nome: o use case filtra quem atende chamados (repassar)
+def contas_internas_ativas(db: Session) -> list[Usuario]:
+    consulta = (
+        select(Usuario)
+        .where(Usuario.tipo_conta == "interna", Usuario.status_conta == "ativa")
+        .order_by(Usuario.nome)
+    )
+    return list(db.scalars(consulta).all())

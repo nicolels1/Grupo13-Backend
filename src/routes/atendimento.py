@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 from src.database.session import get_db
 from src.entities.atendimento import (
     Categoria, ChamadoAlterar, ChamadoConcluir, ChamadoCriar, ChamadoSaida, HistoricoSaida,
-    DevolucaoCriar, EstornoPedido, MensagemClienteCriar, MensagemEquipeCriar, MensagemSaida, Prioridade, Status,
+    DevolucaoCriar, EstornoPedido, MensagemClienteCriar, MensagemEquipeCriar, MensagemSaida, PessoaDaEquipe,
+    Prioridade, Status,
     TrocaCriar,
 )
 from src.entities.arquivos import AnexoLink
@@ -130,6 +131,16 @@ def fila(
         db, usuario, **paginacao, meus=meus, status=status_chamado, sem_responsavel=sem_responsavel,
         com_mensagem_nova=com_mensagem_nova, categoria=categoria, prioridade=prioridade, id_unidade=id_unidade,
     )
+
+
+@router.get(
+    "/atendimento/equipe",
+    response_model=Lista[PessoaDaEquipe],
+    responses={401: ERROS_LEITURA[401], 403: ERROS_LEITURA[403]},
+    description="Contas ativas que atendem chamados, por nome: para quem dá para repassar um chamado.",
+)
+def equipe(_: Usuario = Depends(ATENDER), db: Session = Depends(get_db)):
+    return {"items": atendimento.equipe(db)}
 
 
 @router.get("/atendimento/chamados/{id_chamado}", response_model=ChamadoSaida, responses=ERROS_LEITURA)

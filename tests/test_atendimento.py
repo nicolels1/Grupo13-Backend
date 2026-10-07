@@ -365,3 +365,31 @@ def test_motivo_de_conclusao_fora_da_lista_responde_422(api, banco):
     )
 
     assert resposta.status_code == 422
+
+
+def pessoa(id_usuario, nome, id_unidade=None):
+    return SimpleNamespace(id_usuario=id_usuario, nome=nome, id_unidade=id_unidade, tipo_conta="interna",
+                           status_conta="ativa")
+
+
+def test_equipe_traz_so_quem_atende_chamados(banco, monkeypatch):
+    sem_permissao = pessoa(uuid.UUID("77777777-7777-7777-7777-777777777777"), "Bruno")
+    colega = pessoa(ID_COLEGA, "Juliana", id_unidade=20)
+    monkeypatch.setattr(atendimento_repository, "contas_internas_ativas", lambda db: [sem_permissao, colega])
+
+    assert atendimento.equipe(SessaoFalsa()) == [colega]
+
+
+def test_equipe_pela_api(api, banco, monkeypatch):
+    monkeypatch.setattr(atendimento_repository, "contas_internas_ativas", lambda db: [pessoa(ID_COLEGA, "Juliana", 20)])
+
+    resposta = api(SessaoFalsa(), usuario=funcionario()).get("/atendimento/equipe")
+
+    assert resposta.status_code == 200
+    assert resposta.json() == {"items": [{"id_usuario": str(ID_COLEGA), "nome": "Juliana", "id_unidade": 20}]}
+
+
+def test_equipe_exige_atender_chamado(api, banco):
+    resposta = api(SessaoFalsa(), usuario=funcionario(), permitido=False).get("/atendimento/equipe")
+
+    assert resposta.status_code == 403
