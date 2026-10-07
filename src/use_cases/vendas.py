@@ -39,12 +39,13 @@ def registrar_venda_fisica(db: Session, vendedor: Usuario, dados: dict) -> dict:
     if unidade.tipo != "loja":
         raise RegraDeNegocio("O CD não faz venda física")
 
-    id_cliente = None
-    if dados.get("cpf_cliente"):
-        cliente = usuario_repository.buscar_cliente_por_cpf(db, dados["cpf_cliente"])
-        if cliente is None:
-            raise RecursoNaoEncontrado("Nenhum cliente com esse CPF: cadastre o cliente antes da venda")
-        id_cliente = cliente.id_usuario
+    # o caixa não cria conta (ADR 0014): CPF com conta liga o pedido a ela; sem conta, o CPF fica
+    # guardado e o pedido passa para a conta quando ela for criada pelo site
+    id_cliente, cpf_nota = None, dados.get("cpf_nota")
+    if cpf_nota:
+        cliente = usuario_repository.buscar_cliente_por_cpf(db, cpf_nota)
+        if cliente is not None:
+            id_cliente = cliente.id_usuario
 
     resumo = itens_a_venda(db, dados["itens"])
     total = sum((i["subtotal"] for i in resumo), Decimal("0.00"))
@@ -60,8 +61,8 @@ def registrar_venda_fisica(db: Session, vendedor: Usuario, dados: dict) -> dict:
     momento = agora()
     pedido = Pedido(
         codigo_venda=novo_codigo_venda(), id_cliente=id_cliente, id_unidade=unidade.id_unidade,
-        id_registrado_por=vendedor.id_usuario, canal="loja_fisica", status="entregue", valor_frete=Decimal("0.00"),
-        valor_total=total, pago_em=momento, entregue_em=momento,
+        id_registrado_por=vendedor.id_usuario, cpf_nota=cpf_nota, canal="loja_fisica", status="entregue",
+        valor_frete=Decimal("0.00"), valor_total=total, pago_em=momento, entregue_em=momento,
     )
     db.add(pedido)
     db.flush()
