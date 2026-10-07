@@ -1,5 +1,6 @@
-# Confere no banco de verdade as garantias do usuário restrito da API e do saldo do estoque
-# (ADR 0005; pendências 1 a 3 do case). Tudo roda numa transação desfeita no final: nada fica gravado.
+# Confere no banco de verdade as garantias do usuário restrito da API, do saldo do estoque e do
+# cancelamento automático da reserva vencida (ADRs 0002 e 0005). Tudo roda numa transação desfeita
+# no final: nada fica gravado.
 # Uso, na raiz do repositório com o venv ativo e a DATABASE_URL do usuário restrito no .env:
 #   python -m scripts.conferir_banco
 import secrets
@@ -124,12 +125,49 @@ def conferir(db: Session) -> Conferencia:
                  {"u": vazia})
     deve_recusar(c, db, "a API não lê o auth.users direto", "SELECT count(*) FROM auth.users")
 
+    deve_recusar(c, db, "pedido não é apagado", "DELETE FROM pedido WHERE id_unidade = :u", local)
+
     # 5. o que a API precisa conseguir
     login = tentar(db, "SELECT login_por_email(:email)", {"email": f"ninguem-{sufixo}@casalorenzi.example"})
     c.registrar("a API consulta login pela função do banco", login is None, str(login))
+    conferir_reserva_vencida(c, db, local, sufixo)
     divergencias = estoque_repository.listar_divergencias(db)
     c.registrar("depois do teste, o saldo continua batendo", not divergencias, f"{len(divergencias)} divergente(s)")
     return c
+
+
+# migration 03aeb347f6cf: a função que o pg_cron roda a cada minuto cancela o pedido com a reserva
+# vencida e devolve as peças ao disponível (ADR 0002)
+def conferir_reserva_vencida(c: Conferencia, db: Session, local: dict, sufixo: str) -> None:
+    id_cliente = db.scalar(text("SELECT id_usuario FROM usuario WHERE tipo_conta = 'cliente' LIMIT 1"))
+    if id_cliente is None:
+        c.registrar("reserva vencida é cancelada pela função do pg_cron", False, "nenhum cliente no banco para o teste")
+        return
+    db.execute(text("""
+        INSERT INTO movimentacao_estoque (id_variante, id_unidade, canal, tipo, quantidade)
+        VALUES (:v, :u, 'online', 'recebimento', 3)
+    """), local)
+    db.execute(text(
+        "UPDATE estoque SET quantidade_reservada = 2 WHERE id_variante = :v AND id_unidade = :u AND canal = 'online'"
+    ), local)
+    id_pedido = db.scalar(text("""
+        INSERT INTO pedido (codigo_venda, id_cliente, id_unidade, canal, modalidade, status, valor_total,
+                            reserva_expira_em)
+        VALUES (:codigo, :cliente, :u, 'online', 'retirada', 'aguardando_pagamento', 20, now() - interval '1 minute')
+        RETURNING id_pedido
+    """), {**local, "codigo": f"CF{sufixo}".upper(), "cliente": id_cliente})
+    db.execute(text("INSERT INTO item_pedido (id_pedido, id_variante, quantidade, preco_unitario) "
+                    "VALUES (:p, :v, 2, 10)"), {**local, "p": id_pedido})
+
+    erro = tentar_e_manter(db, "SELECT cancela_vencidos()", {})
+    status, motivo = db.execute(text("SELECT status, motivo_cancelamento FROM pedido WHERE id_pedido = :p"),
+                                {"p": id_pedido}).one()
+    reservada = db.scalar(text(
+        "SELECT quantidade_reservada FROM estoque WHERE id_variante = :v AND id_unidade = :u AND canal = 'online'"
+    ), local)
+    c.registrar("reserva vencida é cancelada pela função do pg_cron",
+                erro is None and (status, motivo, reservada) == ("cancelado", "reserva_vencida", 0),
+                str(erro) if erro else f"pedido {status}/{motivo}, reservado {reservada}")
 
 
 # executa dentro de um savepoint e mantém o resultado (desfeito junto com a transação no final)
