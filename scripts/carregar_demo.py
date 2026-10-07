@@ -67,13 +67,15 @@ MODELOS = {
     "Funcionário": [
         "movimentar_estoque", "definir_estoque_minimo", "solicitar_transferencia", "enviar_transferencia",
         "receber_transferencia", "registrar_venda_fisica", "preparar_entregar_pedido",
-        "cancelar_pedido_equipe", "corrigir_cadastro_cliente", "atender_chamado",
+        "cancelar_pedido_equipe", "corrigir_cadastro_cliente", "atender_chamado", "registrar_troca_devolucao",
     ],
     "Estoquista": [
         "movimentar_estoque", "definir_estoque_minimo", "solicitar_transferencia", "enviar_transferencia",
         "receber_transferencia",
     ],
     "Atendente": ["atender_chamado", "moderar_avaliacoes"],
+    # balcão da loja: caixa, troca e devolução e a fila do online; a conta fica numa loja
+    "Vendedor": ["registrar_venda_fisica", "registrar_troca_devolucao", "preparar_entregar_pedido"],
 }
 
 # e-mails terminados em .example, domínio reservado para exemplos: nunca chegam a uma pessoa real.
@@ -89,6 +91,8 @@ CONTAS_INTERNAS = [
          unidade="Loja Paulista"),
     dict(nome="Rafael Souza", email=EMAIL_ESTOQUISTA, modelo="Estoquista", unidade="CD Guarulhos"),
     dict(nome="Juliana Alves", email=f"juliana.alves@{DOMINIO_CORPORATIVO}", modelo="Atendente", unidade=None),
+    dict(nome="Bruno Ribeiro", email=f"bruno.ribeiro@{DOMINIO_CORPORATIVO}", modelo="Vendedor",
+         unidade="Loja Pinheiros"),
 ]
 
 
@@ -228,14 +232,17 @@ def carregar_base(db: Session) -> dict:
             db.add(HistoricoPreco(id_variante=variante.id_variante, preco_novo=dados["preco"]))
             criados["variantes"] += 1
 
+    # modelo novo nasce com as permissões da lista; modelo que já existe ganha as que faltam
+    # (ex.: registrar_troca_devolucao, que chegou depois), sem perder nenhuma
     for nome, codigos in MODELOS.items():
         modelo, novo = _buscar_ou_criar(db, ModeloAcesso, {"nome": nome})
-        if novo:
-            ids = db.scalars(select(Permissao.id_permissao).where(Permissao.codigo.in_(codigos))).all()
-            if len(ids) != len(codigos):
-                raise RuntimeError(f"Permissões do modelo {nome} não existem: rode as migrations")
-            db.add_all(ModeloPermissao(id_modelo=modelo.id_modelo, id_permissao=i) for i in ids)
-            criados["modelos"] += 1
+        ids = db.scalars(select(Permissao.id_permissao).where(Permissao.codigo.in_(codigos))).all()
+        if len(ids) != len(codigos):
+            raise RuntimeError(f"Permissões do modelo {nome} não existem: rode as migrations")
+        ja_tem = set(db.scalars(
+            select(ModeloPermissao.id_permissao).where(ModeloPermissao.id_modelo == modelo.id_modelo)))
+        db.add_all(ModeloPermissao(id_modelo=modelo.id_modelo, id_permissao=i) for i in ids if i not in ja_tem)
+        criados["modelos"] += novo
 
     db.commit()
     return criados
