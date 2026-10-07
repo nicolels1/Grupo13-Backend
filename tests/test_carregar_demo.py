@@ -155,3 +155,16 @@ def test_vendas_da_demo_so_carregam_uma_vez():
             return 1
 
     assert demo.carregar_vendas(SessaoComPedido()) == {}
+
+
+def test_cpf_na_nota_e_valido_e_nao_e_de_cliente_da_demo():
+    assert cpf_valido(demo.CPF_NA_NOTA)
+    assert demo.CPF_NA_NOTA not in {c["cpf"] for c in demo.CLIENTES}
+
+
+def test_venda_com_cpf_na_nota_so_carrega_uma_vez():
+    class SessaoComPedido:
+        def scalar(self, consulta):
+            return 1
+
+    assert demo.carregar_venda_com_cpf_na_nota(SessaoComPedido()) is None
