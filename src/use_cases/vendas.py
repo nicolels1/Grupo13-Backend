@@ -9,7 +9,7 @@ from src.repositories import estoque_repository, unidade_repository, usuario_rep
 from src.repositories import pedido_repository as repo
 from src.use_cases import pagamentos
 from src.use_cases.erros import RecursoNaoEncontrado, RegraDeNegocio
-from src.use_cases.estoque import conferir_disponivel
+from src.use_cases.estoque import conferir_disponivel, interpretar_momento
 from src.use_cases.pedidos import (
     agora, buscar, cancelar_aguardando, detalhar, devolver_ao_estoque, itens_a_venda, marcar_cancelado,
     novo_codigo_venda, pagina, quantidades,
@@ -21,8 +21,14 @@ def _exigir(pedido: Pedido, status: tuple[str, ...], acao: str) -> None:
         raise RegraDeNegocio(f"Não dá para {acao} um pedido {pedido.status.replace('_', ' ')}")
 
 
-# filtros da Visão Geral: pedidos pagos para preparar e retiradas prontas há mais de N dias
-def listar(db: Session, limit: int, offset: int, pronto_ha_mais_de_dias: int | None = None, **filtros) -> dict:
+# filtros da Visão Geral (pedidos pagos para preparar, retiradas prontas há mais de N dias) e do Caixa
+# (vendas de hoje): data sem hora vale o dia inteiro, no horário de Brasília
+def listar(db: Session, limit: int, offset: int, pronto_ha_mais_de_dias: int | None = None,
+           de: str | None = None, ate: str | None = None, **filtros) -> dict:
+    if de:
+        filtros["criado_desde"] = interpretar_momento(de, fim_do_dia=False)
+    if ate:
+        filtros["criado_ate"] = interpretar_momento(ate)
     if pronto_ha_mais_de_dias is not None:
         filtros["pronto_antes_de"] = agora() - timedelta(days=pronto_ha_mais_de_dias)
     return pagina(db, limit, offset, **filtros)

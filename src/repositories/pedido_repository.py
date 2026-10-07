@@ -56,6 +56,7 @@ def disponivel_online(db: Session, ids_variante: list[int]) -> list:
 def consulta_pedidos(
     id_cliente=None, status=None, canal=None, modalidade=None, id_unidade=None, codigo_venda=None,
     pronto_antes_de: datetime | None = None, cpf: str | None = None, entregue_desde: datetime | None = None,
+    criado_desde: datetime | None = None, criado_ate: datetime | None = None,
 ):
     consulta = (
         select(Pedido, Usuario.nome.label("cliente"), Unidade.nome.label("unidade"))
@@ -75,6 +76,10 @@ def consulta_pedidos(
     # CPF da conta ou CPF na nota (balcão de troca e devolução)
     if cpf is not None:
         filtros.append(or_(Pedido.cpf_nota == cpf, Usuario.cpf == cpf))
+    if criado_desde is not None:
+        filtros.append(Pedido.criado_em >= criado_desde)
+    if criado_ate is not None:
+        filtros.append(Pedido.criado_em <= criado_ate)
     if entregue_desde is not None:
         filtros.append(Pedido.entregue_em >= entregue_desde)
     if pronto_antes_de is not None:
