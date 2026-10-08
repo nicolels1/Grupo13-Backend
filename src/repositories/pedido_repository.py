@@ -104,7 +104,7 @@ def itens_dos_pedidos(db: Session, ids_pedido: list[int]) -> dict[int, list]:
         consulta = (
             select(
                 ItemPedido.id_item, ItemPedido.id_pedido, ItemPedido.id_variante, Variante.sku,
-                Produto.nome.label("produto"), Variante.cor, Variante.tamanho, ItemPedido.quantidade,
+                Variante.id_produto, Produto.nome.label("produto"), Variante.cor, Variante.tamanho, ItemPedido.quantidade,
                 ItemPedido.preco_unitario, Avaliacao.id_avaliacao,
             )
             .join(Variante, Variante.id_variante == ItemPedido.id_variante)

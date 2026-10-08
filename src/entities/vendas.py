@@ -104,6 +104,7 @@ class ItemPedidoSaida(BaseModel):
     quantidade: int
     preco_unitario: Valor
     id_avaliacao: int | None = Field(description="Avaliação já feita para este item, se houver")
+    foto_url: str | None = Field(description="Primeira foto da cor comprada; vazio quando o produto não tem foto")
 
 
 class PagamentoSaida(BaseModel):

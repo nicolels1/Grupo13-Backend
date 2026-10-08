@@ -8,9 +8,10 @@ from sqlalchemy.orm import Session
 
 from src.models.contas import Usuario
 from src.models.vendas import EnderecoEntrega, ItemPedido, Pagamento, Pedido
-from src.repositories import estoque_repository, unidade_repository
+from src.repositories import catalogo_repository, estoque_repository, unidade_repository
 from src.repositories import pedido_repository as repo
 from src.use_cases import enderecos, pagamentos
+from src.use_cases.catalogo import foto_principal
 from src.use_cases.erros import Conflito, RecursoNaoEncontrado, RegraDeNegocio
 from src.use_cases.estoque import conferir_disponivel
 
@@ -44,11 +45,16 @@ def montar(db: Session, linhas: list) -> list[dict]:
     itens = repo.itens_dos_pedidos(db, ids)
     lancamentos = repo.pagamentos_dos_pedidos(db, ids)
     enderecos_entrega = repo.enderecos_dos_pedidos(db, ids)
+    # cada peça leva a foto da cor comprada, como nas mais vendidas do resumo
+    imagens = catalogo_repository.imagens_dos_produtos(
+        db, list({item["id_produto"] for lista in itens.values() for item in lista}))
     resultado = []
     for pedido, cliente, unidade in linhas:
         dados = {coluna.key: getattr(pedido, coluna.key) for coluna in Pedido.__table__.columns}
         dados.update(
-            cliente=cliente, unidade=unidade, itens=itens[pedido.id_pedido],
+            cliente=cliente, unidade=unidade,
+            itens=[{**item, "foto_url": foto_principal(imagens[item["id_produto"]], item["cor"])}
+                   for item in itens[pedido.id_pedido]],
             pagamentos=lancamentos[pedido.id_pedido], endereco_entrega=enderecos_entrega.get(pedido.id_pedido),
             valor_pago=pagamentos.valor_pago(lancamentos[pedido.id_pedido]),
             valor_itens=pedido.valor_total - pedido.valor_frete,
