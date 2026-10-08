@@ -45,7 +45,7 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 - **Duas camadas de proteção:**
   - **Triggers no banco** (já implementados): recusam editar movimentações, históricos e o saldo do estoque direto, e garantem as regras do Admin (inclusive Gestão só no Admin), do CD, do estorno e do item do chamado. Valem para qualquer caminho, inclusive o painel do Supabase (ADRs 0009 e 0010).
   - **Usuário de banco restrito para o FastAPI** (`api_casalorenzi`, migration `56799f788354`): não pode apagar dados, exceto endereços salvos do cliente e as duas tabelas de ligação da Gestão (`modelo_permissao` e `usuario_permissao_excecao`: tirar uma permissão de um modelo ou remover uma exceção apaga a linha que liga um ao outro). Também não edita movimentações, histórico de chamados e histórico de preço, não altera o saldo do estoque direto e só lê a lista de permissões. Uma regra de RLS em cada tabela libera só ele. Ele não lê o `auth.users`: duas funções do banco respondem só o que a Gestão precisa (se um e-mail já tem login e se o login foi confirmado). As migrations continuam com o usuário completo. O trigger que atualiza o saldo roda como `SECURITY DEFINER`.
-- **Situação em 06/10/2026:** os triggers do saldo e da Gestão, o `SECURITY DEFINER` e o usuário restrito estão aplicados no banco, e a API local já conecta como `api_casalorenzi`. O script `scripts/conferir_banco.py` confere, no banco de verdade, que as garantias valem (todas passaram em 06/10/2026). A migration `03aeb347f6cf` (prazos e Storage) está aplicada; a `bc431a82c8bf` (CPF na nota) também; falta a `221981ca8429` (troca e devolução no balcão, ver seção 10).
+- **Situação em 08/10/2026:** os triggers do saldo e da Gestão, o `SECURITY DEFINER` e o usuário restrito estão aplicados no banco, e a API local já conecta como `api_casalorenzi`. O script `scripts/conferir_banco.py` confere, no banco de verdade, que as garantias valem (todas passaram em 08/10/2026). O banco está na última migration (`e7a1c4f20b31`), com prazos e Storage, CPF na nota, troca e devolução no balcão, busca sem acento e foto da categoria.
 - **Prazos automáticos:** a função `cancela_vencidos()` do banco cancela reservas vencidas (15 min) e retiradas vencidas (7 dias), e o pg_cron do Supabase a roda a cada minuto, mesmo com a API dormindo (ADR 0012).
 - A chave de serviço do Supabase fica só no backend.
 - FastAPI conecta pelo pooler; migrations do Alembic usam conexão direta.
@@ -182,6 +182,7 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 - Produto tem variantes de cor e tamanho, únicas por produto. Peça sem cor ou tamanho usa "Única" e "U".
 - O preço fica na variante e não varia por loja. Toda definição de preço, inclusive a da criação, vai para o histórico de preço.
 - A foto pertence ao produto, com cor opcional (sem cor, vale para todas) e ordem. O banco guarda o caminho do arquivo no Storage, não a URL.
+- A categoria pode ter uma foto, usada no carrossel de categorias da página inicial. Ela fica na mesma área pública das fotos de produto.
 
 ### Unidades e estoque
 
@@ -301,7 +302,7 @@ Campos com `?` aceitam vazio. A chave primária vem primeiro. No banco, nomes fi
 
 | Tabela | Campos | Liga com |
 | --- | --- | --- |
-| CATEGORIA_PRODUTO | id_categoria, nome (único), ativo | PRODUTO (1:N) |
+| CATEGORIA_PRODUTO | id_categoria, nome (único), ativo, caminho_imagem? | PRODUTO (1:N) |
 | PRODUTO | id_produto, id_categoria, nome, descricao_tecnica, descricao_cliente, ativo | VARIANTE, IMAGEM_PRODUTO (1:N) |
 | VARIANTE | id_variante, id_produto, sku (único), cor, tamanho, preco, ativo — única por produto + cor + tamanho | ESTOQUE, ITEM_PEDIDO, ITEM_TRANSFERENCIA, HISTORICO_PRECO (1:N) |
 | IMAGEM_PRODUTO | id_imagem, id_produto, cor?, caminho_arquivo, ordem | PRODUTO |
@@ -456,10 +457,10 @@ Cada uma precisa estar resolvida antes da banca (08/10/2026).
 
 | # | Pendência | O que falta | Situação |
 | --- | --- | --- | --- |
-| 1 | Usuário de banco restrito para o FastAPI | Migration `56799f788354` aplicada e senha definida; a API local já conecta com ele. Conferir se a `DATABASE_URL` do Render também usa `api_casalorenzi` | ⚠️ Conferir o Render |
+| 1 | Usuário de banco restrito para o FastAPI | Migration `56799f788354` aplicada e senha definida; a API local e a do Render conectam como `api_casalorenzi` (conferido em 08/10/2026) | ✅ Resolvido |
 | 2 | Trigger do saldo compatível com o usuário restrito | `scripts/conferir_banco.py` confirmou em 06/10/2026 que a movimentação atualiza o saldo e que o saldo não muda direto | ✅ Resolvido |
 | 3 | Conferência de divergência de estoque | Rota `GET /estoque/divergencias`; `scripts/conferir_banco.py` confirmou em 06/10/2026 que ela fica vazia | ✅ Resolvido |
 | 4 | Vendas, avaliações e arquivos no banco | Migration `03aeb347f6cf` aplicada (função dos prazos, pg_cron e buckets) e `scripts/conferir_banco.py` rodado | ✅ Resolvido |
 | 5 | Variáveis do Render | `SUPABASE_SERVICE_ROLE_KEY` e `SUPABASE_PUBLISHABLE_KEY` configuradas; o login por CPF em produção responde como esperado | ✅ Resolvido |
 | 6 | CPF na nota no banco | Migration `bc431a82c8bf` aplicada: coluna `pedido.cpf_nota` | ✅ Resolvido |
-| 7 | Troca e devolução no balcão no banco | Aplicar a migration `221981ca8429` (`alembic upgrade head`): permissão nova, origem do estorno e as regras novas de troca e devolução, e a função do pg_cron atualizada. Depois, rodar `scripts/conferir_banco.py` e `scripts/carregar_demo.py` (modelo Vendedor e conta do Bruno) | ⚠️ Código pronto — falta aplicar antes do merge |
+| 7 | Troca e devolução no balcão no banco | Migration `221981ca8429` aplicada (o banco está na última versão, `e7a1c4f20b31`), com a permissão de troca e devolução, e a demo carregada com o modelo Vendedor e a conta do Bruno; `scripts/conferir_banco.py` passou em 08/10/2026 | ✅ Resolvido |
