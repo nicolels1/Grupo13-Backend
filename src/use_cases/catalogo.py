@@ -281,6 +281,17 @@ def alterar_imagem(db: Session, id_imagem: int, campos: dict) -> dict:
     return montar_imagem(imagem)
 
 
+# apaga a linha e depois o arquivo (se o Storage falhar, sobra só um arquivo solto, que fica no log)
+def remover_imagem(db: Session, storage, id_imagem: int) -> None:
+    imagem = repo.buscar_imagem(db, id_imagem)
+    if imagem is None:
+        raise RecursoNaoEncontrado("Foto não encontrada")
+    caminho = imagem.caminho_arquivo
+    db.delete(imagem)
+    db.commit()
+    arquivos.apagar(storage, FOTO_PRODUTO, caminho)
+
+
 def _conferir_variantes_novas(db: Session, id_produto: int | None, variantes: list[dict]) -> None:
     skus = [v["sku"] for v in variantes]
     combinacoes = [(v["cor"].lower(), v["tamanho"].lower()) for v in variantes]

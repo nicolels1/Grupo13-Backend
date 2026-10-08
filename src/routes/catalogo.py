@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
@@ -245,3 +245,17 @@ def alterar_imagem(
     usuario: Usuario = Depends(exige_permissao("gerenciar_catalogo")),
 ):
     return catalogo.alterar_imagem(db, id_imagem, campos_alterados(dados, nullaveis=("cor",)))
+
+
+@router.delete(
+    "/imagens/{id_imagem}", status_code=status.HTTP_204_NO_CONTENT, responses=ERROS_FOTO,
+    description="Apaga a foto do produto e o arquivo no Storage. As outras mantêm a ordem.",
+)
+def remover_imagem(
+    id_imagem: int,
+    db: Session = Depends(get_db),
+    storage: SupabaseStorage = Depends(get_storage),
+    usuario: Usuario = Depends(exige_permissao("gerenciar_catalogo")),
+):
+    catalogo.remover_imagem(db, storage, id_imagem)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

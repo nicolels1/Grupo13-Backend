@@ -122,3 +122,42 @@ def test_rota_de_envio_exige_permissao(api, banco):
         "/produtos/5/imagens", files={"arquivo": ("foto.png", PNG, "image/png")},
     )
     assert resposta.status_code == 403
+
+
+# ---------- apagar ----------
+
+def test_apagar_tira_a_linha_e_depois_o_arquivo(banco):
+    storage, db = StorageFalso(), SessaoFalsa()
+
+    catalogo.remover_imagem(db, storage, 9)
+
+    assert db.apagados == [banco] and db.commits == 1
+    assert storage.apagados == [("produtos", "produto-5/a.png")]
+
+
+def test_falha_no_banco_nao_apaga_o_arquivo(banco):
+    storage = StorageFalso()
+
+    with pytest.raises(RuntimeError):
+        catalogo.remover_imagem(SessaoFalsa(erro_commit=RuntimeError("banco")), storage, 9)
+
+    assert storage.apagados == []
+
+
+def test_apagar_foto_inexistente(banco):
+    with pytest.raises(RecursoNaoEncontrado):
+        catalogo.remover_imagem(SessaoFalsa(), StorageFalso(), 99)
+
+
+def test_rota_de_apagar(api, banco):
+    app.dependency_overrides[get_storage] = StorageFalso
+
+    resposta = api(SessaoFalsa(), usuario=funcionario()).delete("/imagens/9")
+
+    assert resposta.status_code == 204
+
+
+def test_rota_de_apagar_exige_permissao(api, banco):
+    app.dependency_overrides[get_storage] = StorageFalso
+    resposta = api(SessaoFalsa(), usuario=funcionario(), permitido=False).delete("/imagens/9")
+    assert resposta.status_code == 403

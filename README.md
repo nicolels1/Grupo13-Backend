@@ -209,7 +209,7 @@ A lista completa, com parâmetros e formatos, está em `/docs`. Resumo por área
 | PATCH | `/variantes/{id}` | `gerenciar_catalogo` | altera variante; mudar o preço grava o histórico |
 | GET | `/variantes/{id}/historico-preco` | `gerenciar_catalogo` | histórico de preço |
 | POST | `/produtos/{id}/imagens` | `gerenciar_catalogo` | envia foto (multipart; sem cor, vale para todas) |
-| PATCH | `/imagens/{id}` | `gerenciar_catalogo` | muda a cor ou a ordem da foto |
+| PATCH, DELETE | `/imagens/{id}` | `gerenciar_catalogo` | muda a cor ou a ordem da foto, ou apaga a foto (e o arquivo no Storage) |
 
 As fotos aparecem em `imagens` de cada produto, com a URL pública.
 
