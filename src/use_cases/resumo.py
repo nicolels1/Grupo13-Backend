@@ -6,11 +6,10 @@ from sqlalchemy.orm import Session
 from src.models.contas import Usuario
 from src.repositories import catalogo_repository, permissao_repository, unidade_repository
 from src.repositories import resumo_repository as repo
-from src.use_cases.arquivos import FOTO_PRODUTO
+from src.use_cases.catalogo import foto_principal
 from src.use_cases.erros import RecursoNaoEncontrado, SemPermissao
 from src.use_cases.estoque import BRASILIA
 from src.use_cases.permissoes import usuario_tem_permissao
-from src.utils.supabase_storage import url_publica
 
 CANAIS = ("online", "loja_fisica")
 VENDAS = ("registrar_venda_fisica", "preparar_entregar_pedido")
@@ -82,20 +81,13 @@ def _vendas_por_dia(db: Session, id_unidade: int | None, hoje: date) -> list[dic
     return resultado
 
 
-# foto principal: a primeira da cor da variante; senão, a primeira que vale para todas as cores
-def _foto(imagens: list, cor: str) -> str | None:
-    escolhida = next((i for i in imagens if i.cor and i.cor.lower() == cor.lower()), None)
-    escolhida = escolhida or next((i for i in imagens if i.cor is None), None)
-    return url_publica(FOTO_PRODUTO.bucket, escolhida.caminho_arquivo) if escolhida else None
-
-
 def _mais_vendidas(db: Session, id_unidade: int | None, hoje: date) -> list[dict]:
     linhas = repo.mais_vendidas(db, inicio_dos_ultimos(DIAS_DA_SEMANA, hoje), id_unidade, MAIS_VENDIDAS)
     saldos = repo.saldos_das_variantes(db, [l["id_variante"] for l in linhas], id_unidade)
     imagens = catalogo_repository.imagens_dos_produtos(db, list({l["id_produto"] for l in linhas}))
     return [{
         "id_variante": l["id_variante"], "produto": l["produto"], "cor": l["cor"], "tamanho": l["tamanho"],
-        "sku": l["sku"], "foto_url": _foto(imagens[l["id_produto"]], l["cor"]),
+        "sku": l["sku"], "foto_url": foto_principal(imagens[l["id_produto"]], l["cor"]),
         "quantidade_vendida": int(l["quantidade_vendida"]), "saldo_atual": saldos.get(l["id_variante"], 0),
     } for l in linhas]
 
