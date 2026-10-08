@@ -248,6 +248,22 @@ def test_cliente_nao_cancela_depois_de_pago(banco):
         pedidos.cancelar_pelo_cliente(SessaoVendas(banco), cliente(), pedido.id_pedido)
 
 
+def test_peca_do_pedido_leva_a_foto_da_cor_comprada(banco):
+    from src.models.catalogo import ImagemProduto
+    banco.imagens[1] = [ImagemProduto(id_produto=1, cor="Verde", caminho_arquivo="produto-1/verde.png", ordem=1),
+                        ImagemProduto(id_produto=1, cor="Azul", caminho_arquivo="produto-1/azul.png", ordem=2)]
+    pedido = pedido_pago(banco)
+
+    item = pedidos.detalhar(SessaoVendas(banco), pedido.id_pedido)["itens"][0]
+
+    assert item["foto_url"].endswith("produto-1/azul.png")
+
+
+def test_peca_sem_foto(banco):
+    pedido = pedido_pago(banco)
+    assert pedidos.detalhar(SessaoVendas(banco), pedido.id_pedido)["itens"][0]["foto_url"] is None
+
+
 def test_reivindicar_compra_da_loja(banco):
     from src.models.vendas import Pedido
     banco.pedidos[90] = Pedido(id_pedido=90, codigo_venda="CLABCD2345", id_cliente=None, id_unidade=LOJA_SP,

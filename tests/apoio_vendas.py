@@ -8,7 +8,7 @@ import pytest
 from src.models.catalogo import Produto, Variante
 from src.models.vendas import EnderecoCliente, EnderecoEntrega, ItemPedido, Pagamento, Pedido
 from src.repositories import endereco_repository, estoque_repository, unidade_repository, usuario_repository
-from src.repositories import pedido_repository
+from src.repositories import catalogo_repository, pedido_repository
 from tests.apoio import SessaoComTrigger, funcionario
 
 ID_CLIENTE = uuid.UUID("44444444-4444-4444-4444-444444444444")
@@ -24,6 +24,16 @@ def cliente(id_usuario=ID_CLIENTE):
 def _unidade(id_unidade, nome, tipo, despacha, cidade, uf, ativo=True):
     return SimpleNamespace(id_unidade=id_unidade, nome=nome, tipo=tipo, despacha_online=despacha, cidade=cidade,
                            uf=uf, ativo=ativo)
+
+
+# a linha que o repositório devolve para cada peça do pedido: o item com os dados da variante
+def _linha_do_item(item, estado):
+    variante, produto = estado.variantes[item.id_variante]
+    return {
+        "id_item": item.id_item, "id_pedido": item.id_pedido, "id_variante": item.id_variante, "sku": variante.sku,
+        "id_produto": variante.id_produto, "produto": produto.nome, "cor": variante.cor, "tamanho": variante.tamanho,
+        "quantidade": item.quantidade, "preco_unitario": item.preco_unitario, "id_avaliacao": None,
+    }
 
 
 class SessaoVendas(SessaoComTrigger):
@@ -79,6 +89,7 @@ def banco(monkeypatch):
         enderecos={7: EnderecoCliente(id_endereco=7, id_cliente=ID_CLIENTE, rua="Rua A", numero="1", complemento=None,
                                       bairro="Centro", cidade="Sao Paulo", uf="SP", cep="01000000")},
         clientes_por_cpf={},
+        imagens={},
         ids=itertools.count(1),
     )
 
@@ -108,7 +119,9 @@ def banco(monkeypatch):
     m(r, "pedido_com_nomes", pedido_com_nomes)
     m(r, "listar_pedidos", lambda db, limit, offset, **f: (
         [pedido_com_nomes(db, i) for i in estado.pedidos], len(estado.pedidos)))
-    m(r, "itens_dos_pedidos", lambda db, ids: {i: [x for x in estado.itens if x.id_pedido == i] for i in ids})
+    m(r, "itens_dos_pedidos", lambda db, ids: {
+        i: [_linha_do_item(x, estado) for x in estado.itens if x.id_pedido == i] for i in ids})
+    m(catalogo_repository, "imagens_dos_produtos", lambda db, ids: {i: estado.imagens.get(i, []) for i in ids})
     m(r, "pagamentos_dos_pedidos", lambda db, ids: {
         i: [p for p in estado.pagamentos if p.id_pedido == i] for i in ids})
     m(r, "enderecos_dos_pedidos", lambda db, ids: {i: estado.enderecos_entrega[i] for i in ids

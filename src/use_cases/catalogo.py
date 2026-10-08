@@ -120,6 +120,13 @@ def visao_publica(db: Session, usuario) -> bool:
     return usuario is None or not usuario_tem_permissao(db, usuario, "gerenciar_catalogo")
 
 
+# foto principal de uma peça: a primeira da cor dela; senão, a primeira que vale para todas as cores
+def foto_principal(imagens: list[ImagemProduto], cor: str) -> str | None:
+    escolhida = next((i for i in imagens if i.cor and i.cor.lower() == cor.lower()), None)
+    escolhida = escolhida or next((i for i in imagens if i.cor is None), None)
+    return url_publica(FOTO_PRODUTO.bucket, escolhida.caminho_arquivo) if escolhida else None
+
+
 def montar_imagem(imagem: ImagemProduto) -> dict:
     return {
         "id_imagem": imagem.id_imagem, "id_produto": imagem.id_produto, "cor": imagem.cor, "ordem": imagem.ordem,
