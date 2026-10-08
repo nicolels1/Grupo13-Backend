@@ -47,6 +47,48 @@ def alterar_categoria(db: Session, id_categoria: int, campos: dict) -> Categoria
     return categoria
 
 
+# ---------- foto da categoria (carrossel da página inicial) ----------
+
+# a saída da categoria leva a URL pública da foto; o banco guarda só o caminho no Storage
+def montar_categoria(categoria: CategoriaProduto) -> dict:
+    return {
+        "id_categoria": categoria.id_categoria, "nome": categoria.nome, "ativo": categoria.ativo,
+        "imagem_url": url_publica(FOTO_PRODUTO.bucket, categoria.caminho_imagem) if categoria.caminho_imagem else None,
+    }
+
+
+# uma foto por categoria, no bucket público das fotos de produto (pasta categorias/). Enviar de novo
+# troca a foto: a antiga sai do Storage depois que o banco já aponta para a nova
+def trocar_imagem_categoria(db: Session, storage, id_categoria: int, arquivo) -> CategoriaProduto:
+    categoria = _categoria_ou_404(db, id_categoria)
+    antiga = categoria.caminho_imagem
+    caminho = arquivos.enviar(storage, FOTO_PRODUTO, f"categorias/categoria-{id_categoria}", arquivo)
+    categoria.caminho_imagem = caminho
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        arquivos.desfazer_envio(storage, FOTO_PRODUTO, caminho)
+        raise
+    if antiga:
+        arquivos.apagar(storage, FOTO_PRODUTO, antiga)
+    db.refresh(categoria)
+    return categoria
+
+
+# sem foto, a categoria volta ao bloco de cor no carrossel
+def remover_imagem_categoria(db: Session, storage, id_categoria: int) -> CategoriaProduto:
+    categoria = _categoria_ou_404(db, id_categoria)
+    antiga = categoria.caminho_imagem
+    if antiga is None:
+        return categoria
+    categoria.caminho_imagem = None
+    db.commit()
+    arquivos.apagar(storage, FOTO_PRODUTO, antiga)
+    db.refresh(categoria)
+    return categoria
+
+
 # ---------- produto e variante ----------
 
 def _produto_ou_404(db: Session, id_produto: int) -> Produto:

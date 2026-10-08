@@ -199,8 +199,9 @@ A lista completa, com parâmetros e formatos, está em `/docs`. Resumo por área
 
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
-| GET | `/categorias` | público | categorias |
+| GET | `/categorias` | público | categorias, com `imagem_url` (foto do carrossel da página inicial; vazio sem foto) |
 | POST, PATCH | `/categorias`, `/categorias/{id}` | `gerenciar_catalogo` | cria e altera categoria |
+| POST, DELETE | `/categorias/{id}/imagem` | `gerenciar_catalogo` | envia ou troca a foto da categoria (multipart: JPG, PNG ou WEBP de até 5 MB, no bucket `produtos`, pasta `categorias/`) ou tira a foto |
 | GET | `/produtos/tamanhos` | público | tamanhos à venda na vitrine, na ordem da grade (filtra por `id_categoria` e `busca`) |
 | GET | `/produtos`, `/produtos/{id}` | público | vitrine: sem login, só produtos e variantes ativos; quem gerencia o catálogo vê tudo. Cada variante diz se tem peça para vender online (`disponivel`, sem a quantidade). A lista filtra por `tamanho` (repetível: `?tamanho=P&tamanho=M`) e `disponivel` e ordena por `relevancia` (padrão com busca), `nome`, `novidades`, `menor_preco` ou `maior_preco`. A `busca` ignora acentos e procura no nome, categoria, cores e descrição, pelo começo das palavras e por semelhança (erros de digitação, camisa e camiseta); sem resultado, a vitrine traz peças parecidas ou as novidades e avisa em `busca_alternativa` |
 | POST, PATCH | `/produtos`, `/produtos/{id}` | `gerenciar_catalogo` | cria e altera produto |

@@ -30,6 +30,7 @@ class CategoriaSaida(BaseModel):
     id_categoria: int
     nome: str
     ativo: bool
+    imagem_url: str | None = Field(default=None, description="Foto do carrossel da página inicial; vazio sem foto")
 
 
 # ---------- produto e variante ----------
