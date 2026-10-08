@@ -40,6 +40,9 @@ Código único que identifica uma variante.
 **Foto do produto**:
 Imagem de um produto, opcionalmente de uma cor específica, exibida numa ordem definida.
 
+**Foto da categoria**:
+Imagem opcional de uma categoria, mostrada no carrossel de categorias da página inicial da loja.
+
 **Histórico de preço**:
 Registro de todos os preços que uma variante teve, desde a criação; nunca editado.
 
