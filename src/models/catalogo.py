@@ -14,6 +14,8 @@ class CategoriaProduto(Base):
     id_categoria: Mapped[int] = mapped_column(primary_key=True)
     nome: Mapped[str] = mapped_column(String(100), unique=True)
     ativo: Mapped[bool] = mapped_column(default=True, server_default=text("true"))
+    # foto do carrossel da página inicial (opcional): caminho no Storage, não URL
+    caminho_imagem: Mapped[str | None] = mapped_column(String(500))
 
 
 class Produto(Base):

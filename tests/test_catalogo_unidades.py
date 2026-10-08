@@ -131,7 +131,7 @@ def test_listar_categorias_e_publico(api, banco):
     resposta = api(SessaoFalsa()).get("/categorias")
 
     assert resposta.status_code == 200
-    assert resposta.json() == {"items": [{"id_categoria": 1, "nome": "Camisas", "ativo": True}]}
+    assert resposta.json() == {"items": [{"id_categoria": 1, "nome": "Camisas", "ativo": True, "imagem_url": None}]}
 
 
 def test_criar_categoria_sem_login_retorna_401(api, banco):
@@ -164,7 +164,7 @@ def test_patch_com_nome_nulo_nao_apaga_o_nome(api, banco):
 
     resposta = api(SessaoFalsa(), usuario=funcionario()).patch("/categorias/1", json={"nome": None, "ativo": False})
 
-    assert resposta.json() == {"id_categoria": 1, "nome": "Camisas", "ativo": False}
+    assert resposta.json() == {"id_categoria": 1, "nome": "Camisas", "ativo": False, "imagem_url": None}
 
 
 def test_criar_unidade_e_listar(api, banco):

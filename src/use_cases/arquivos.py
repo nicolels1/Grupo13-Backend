@@ -69,6 +69,14 @@ def desfazer_envio(storage, regra: Regra, caminho: str) -> None:
         logger.error("arquivo %s/%s ficou sem registro no banco e não pôde ser apagado", regra.bucket, caminho)
 
 
+# arquivo substituído ou tirado: o registro já não aponta para ele; se o Storage falhar, só fica sobrando
+def apagar(storage, regra: Regra, caminho: str) -> None:
+    try:
+        storage.apagar(regra.bucket, caminho)
+    except ErroSupabase:
+        logger.error("arquivo %s/%s não é mais usado e não pôde ser apagado", regra.bucket, caminho)
+
+
 def url_temporaria(storage, regra: Regra, caminho: str) -> str | None:
     try:
         return storage.url_temporaria(regra.bucket, caminho)

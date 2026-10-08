@@ -23,7 +23,7 @@ ERROS_CATEGORIA = {404: {"description": "Categoria não encontrada"}, 409: {"des
 # público: a vitrine do cliente também lista as categorias
 @router.get("/categorias", response_model=Lista[CategoriaSaida])
 def listar_categorias(ativo: bool | None = None, db: Session = Depends(get_db)):
-    return {"items": catalogo_repository.listar_categorias(db, ativo)}
+    return {"items": [catalogo.montar_categoria(c) for c in catalogo_repository.listar_categorias(db, ativo)]}
 
 
 @router.post(
@@ -34,7 +34,7 @@ def criar_categoria(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(exige_permissao("gerenciar_catalogo")),
 ):
-    return catalogo.criar_categoria(db, dados.nome)
+    return catalogo.montar_categoria(catalogo.criar_categoria(db, dados.nome))
 
 
 @router.patch("/categorias/{id_categoria}", response_model=CategoriaSaida, responses=ERROS_CATEGORIA)
@@ -44,8 +44,47 @@ def alterar_categoria(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(exige_permissao("gerenciar_catalogo")),
 ):
-    return catalogo.alterar_categoria(db, id_categoria, campos_alterados(dados))
+    return catalogo.montar_categoria(catalogo.alterar_categoria(db, id_categoria, campos_alterados(dados)))
 
+
+
+ERROS_FOTO_CATEGORIA = {
+    404: {"description": "Categoria não encontrada"},
+    422: {"description": "Arquivo não aceito"},
+    503: {"description": "Storage indisponível"},
+}
+
+
+@router.post(
+    "/categorias/{id_categoria}/imagem",
+    response_model=CategoriaSaida,
+    responses=ERROS_FOTO_CATEGORIA,
+    description="Foto do carrossel da página inicial (JPG, PNG ou WEBP de até 5 MB), como multipart/form-data. "
+                "Enviar de novo troca a foto.",
+)
+def trocar_imagem_categoria(
+    id_categoria: int,
+    arquivo: UploadFile = File(),
+    db: Session = Depends(get_db),
+    storage: SupabaseStorage = Depends(get_storage),
+    usuario: Usuario = Depends(exige_permissao("gerenciar_catalogo")),
+):
+    return catalogo.montar_categoria(catalogo.trocar_imagem_categoria(db, storage, id_categoria, ler_upload(arquivo)))
+
+
+@router.delete(
+    "/categorias/{id_categoria}/imagem",
+    response_model=CategoriaSaida,
+    responses={404: ERROS_FOTO_CATEGORIA[404], 503: ERROS_FOTO_CATEGORIA[503]},
+    description="Tira a foto: a categoria volta ao bloco de cor no carrossel.",
+)
+def remover_imagem_categoria(
+    id_categoria: int,
+    db: Session = Depends(get_db),
+    storage: SupabaseStorage = Depends(get_storage),
+    usuario: Usuario = Depends(exige_permissao("gerenciar_catalogo")),
+):
+    return catalogo.montar_categoria(catalogo.remover_imagem_categoria(db, storage, id_categoria))
 
 # ---------- produto e variante ----------
 
