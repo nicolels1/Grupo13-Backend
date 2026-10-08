@@ -221,7 +221,7 @@ As fotos aparecem em `imagens` de cada produto, com a URL pública.
 | GET, POST | `/enderecos` | cliente | endereços salvos |
 | PATCH, DELETE | `/enderecos/{id}` | cliente | altera ou apaga (o pedido guarda a própria cópia) |
 | POST | `/pedidos` | cliente | checkout: escolhe a unidade, reserva as peças por 15 minutos e cria o pedido aguardando pagamento |
-| GET | `/pedidos`, `/pedidos/{id}` | cliente | meus pedidos, com itens, pagamentos e endereço de entrega |
+| GET | `/pedidos`, `/pedidos/{id}` | cliente | meus pedidos, com itens (cada um com a foto da cor comprada em `foto_url`), pagamentos e endereço de entrega |
 | POST | `/pedidos/{id}/pagamentos` | cliente | cria a cobrança do valor que falta (Pix, crédito ou débito) no gateway simulado |
 | POST | `/pagamentos/{id}/simular` | cliente | gateway simulado: `{"aprovado": true}` paga o pedido e baixa o estoque (ADR 0011) |
 | POST | `/pedidos/{id}/cancelar` | cliente | cancela antes do pagamento e libera a reserva |
