@@ -21,6 +21,7 @@ class SessaoFalsa:
     def __init__(self, erro_commit=None, primeiro_id=1):
         self.erro_commit = erro_commit
         self.adicionados = []
+        self.apagados = []
         self.commits = 0
         self.rollbacks = 0
         self._ids = itertools.count(primeiro_id)
@@ -30,6 +31,9 @@ class SessaoFalsa:
 
     def add_all(self, objetos):
         self.adicionados.extend(objetos)
+
+    def delete(self, objeto):
+        self.apagados.append(objeto)
 
     def flush(self):
         for objeto in self.adicionados:
