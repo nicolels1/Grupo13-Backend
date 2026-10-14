@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
+from src.dependencies.permissoes import get_usuario_ativo
 from src.entities.resumo import Resumo
-from src.middlewares.permissoes import get_usuario_ativo
 from src.models.contas import Usuario
 from src.use_cases import resumo
 

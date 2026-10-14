@@ -4,11 +4,12 @@ from datetime import datetime, timezone
 import pytest
 
 from src.app import app
+from src.dependencies.supabase import get_storage
 from src.models.atendimento import Chamado, Mensagem
 from src.repositories import atendimento_repository
 from src.use_cases import atendimento
 from src.use_cases.erros import RecursoNaoEncontrado, RegraDeNegocio
-from src.utils.upload import Arquivo, get_storage
+from src.utils.upload import Arquivo
 from tests.apoio import PDF, PNG, SessaoFalsa, StorageFalso, api, funcionario  # noqa: F401
 
 ID_CLIENTE = uuid.UUID("44444444-4444-4444-4444-444444444444")

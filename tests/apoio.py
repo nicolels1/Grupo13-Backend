@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from src.app import app
 from src.database.session import get_db
-from src.middlewares.permissoes import get_usuario_ativo
+from src.dependencies.permissoes import get_usuario_ativo
 from src.models.estoque import MovimentacaoEstoque
 from src.repositories import permissao_repository
 

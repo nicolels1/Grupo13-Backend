@@ -9,7 +9,7 @@ from sqlalchemy.dialects import postgresql
 
 from src.app import app
 from src.database.session import get_db
-from src.middlewares.permissoes import get_usuario_ativo
+from src.dependencies.permissoes import get_usuario_ativo
 from src.repositories import estoque_repository, permissao_repository
 from src.use_cases import estoque
 from src.use_cases.erros import RecursoNaoEncontrado, RegraDeNegocio

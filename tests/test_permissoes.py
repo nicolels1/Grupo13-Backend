@@ -6,8 +6,8 @@ from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
 from src.database.session import get_db
-from src.middlewares import permissoes
-from src.middlewares.auth import get_current_user
+from src.dependencies import permissoes
+from src.dependencies.auth import get_current_user
 from src.use_cases.permissoes import tem_permissao
 
 USER_ID = uuid.UUID("11111111-1111-1111-1111-111111111111")

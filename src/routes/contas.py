@@ -2,22 +2,14 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
+from src.dependencies.permissoes import get_usuario_ativo
+from src.dependencies.supabase import get_supabase_admin, get_supabase_login
 from src.entities.contas import CadastroCliente, CadastroSaida, LoginCpf, Perfil, Sessao
-from src.middlewares.permissoes import get_usuario_ativo
 from src.models.contas import Usuario
 from src.use_cases import contas
 from src.utils.supabase_admin import SupabaseAdmin, SupabaseLogin
 
 router = APIRouter(tags=["contas"])
-
-
-# clientes do Supabase como dependências, para os testes trocarem por versões falsas
-def get_supabase_admin() -> SupabaseAdmin:
-    return SupabaseAdmin()
-
-
-def get_supabase_login() -> SupabaseLogin:
-    return SupabaseLogin()
 
 
 @router.post(

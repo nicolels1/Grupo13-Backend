@@ -6,9 +6,9 @@ from fastapi.testclient import TestClient
 
 from src.app import app
 from src.database.session import get_db
-from src.middlewares.permissoes import get_usuario_ativo
+from src.dependencies.permissoes import get_usuario_ativo
+from src.dependencies.supabase import get_supabase_admin, get_supabase_login
 from src.repositories import pedido_repository, permissao_repository, usuario_repository
-from src.routes.contas import get_supabase_admin, get_supabase_login
 from src.use_cases import contas
 from src.use_cases.erros import (
     Conflito, MuitasTentativas, NaoAutenticado, RegraDeNegocio, SemPermissao, ServicoIndisponivel,

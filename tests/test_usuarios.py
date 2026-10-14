@@ -5,9 +5,9 @@ import pytest
 from sqlalchemy.dialects import postgresql
 
 from src.app import app
+from src.dependencies.supabase import get_supabase_admin
 from src.models.contas import Usuario, UsuarioPermissaoExcecao
 from src.repositories import permissao_repository, unidade_repository, usuario_repository
-from src.routes.contas import get_supabase_admin
 from src.use_cases import usuarios
 from src.use_cases.erros import Conflito, RecursoNaoEncontrado, RegraDeNegocio, ServicoIndisponivel
 from src.utils.supabase_admin import ErroSupabase

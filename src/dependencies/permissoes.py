@@ -5,7 +5,7 @@ from fastapi import Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
-from src.middlewares.auth import get_current_user
+from src.dependencies.auth import get_current_user
 from src.models.contas import Usuario
 from src.repositories import permissao_repository as repo
 from src.use_cases.permissoes import usuario_tem_permissao

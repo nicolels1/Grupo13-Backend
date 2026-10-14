@@ -2,11 +2,11 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
+from src.dependencies.permissoes import exige_permissao
 from src.entities.atendimento import DevolucaoCriar, TrocaCriar
 from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Lista, Pagina
 from src.entities.estoque import Canal, EstoqueItem
 from src.entities.vendas import PedidoSaida
-from src.middlewares.permissoes import exige_permissao
 from src.models.contas import Usuario
 from src.use_cases import devolucoes, estoque
 

@@ -2,16 +2,17 @@ from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
+from src.dependencies.permissoes import exige_cliente, exige_permissao, get_usuario_opcional
+from src.dependencies.supabase import get_storage
 from src.entities.avaliacoes import (
     AnaliseDenuncia, AvaliacaoAlterar, AvaliacaoCriar, AvaliacaoSaida, AvaliacoesDoProduto, DenunciaCriar,
     DenunciaSaida, Ocultacao, StatusAvaliacao, StatusDenuncia,
 )
 from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Pagina, campos_alterados
-from src.middlewares.permissoes import exige_cliente, exige_permissao, get_usuario_opcional
 from src.models.contas import Usuario
 from src.use_cases import avaliacoes
 from src.utils.supabase_storage import SupabaseStorage
-from src.utils.upload import get_storage, ler_upload
+from src.utils.upload import ler_upload
 
 router = APIRouter(tags=["avaliações"])
 

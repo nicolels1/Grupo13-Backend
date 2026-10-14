@@ -7,7 +7,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
-from src.middlewares import auth
+from src.dependencies import auth
 
 USER_ID = "11111111-1111-1111-1111-111111111111"
 
