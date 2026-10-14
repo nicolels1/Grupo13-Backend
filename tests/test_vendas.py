@@ -245,6 +245,38 @@ def test_corrigir_com_supabase_fora_do_ar(contas):
         clientes.corrigir(SessaoFalsa(), auth, ID_CLIENTE, {"email": "certo@x.com"})
 
 
+class SessaoQueReleNoRollback(SessaoFalsa):
+    """Commit recusado; no rollback, o cliente volta aos valores do banco, como no SQLAlchemy de verdade."""
+
+    def __init__(self, usuario):
+        super().__init__(erro_commit=RuntimeError("banco recusou"))
+        self.usuario, self.email_no_banco = usuario, usuario.email
+
+    def rollback(self):
+        super().rollback()
+        self.usuario.email = self.email_no_banco
+
+
+def test_corrigir_email_desfaz_no_auth_se_o_banco_recusar(contas):
+    usuario = conta(contas, ID_CLIENTE, CPF, email="errado@x.com")
+    auth = AuthFalso()
+
+    with pytest.raises(RuntimeError, match="banco recusou"):
+        clientes.corrigir(SessaoQueReleNoRollback(usuario), auth, ID_CLIENTE, {"email": "certo@x.com"})
+
+    assert auth.chamadas == [("alterar_email", ID_CLIENTE, "certo@x.com"), ("alterar_email", ID_CLIENTE, "errado@x.com")]
+
+
+def test_corrigir_so_cpf_nao_mexe_no_auth_se_o_banco_recusar(contas):
+    usuario = conta(contas, ID_CLIENTE, CPF)
+    auth = AuthFalso()
+
+    with pytest.raises(RuntimeError, match="banco recusou"):
+        clientes.corrigir(SessaoQueReleNoRollback(usuario), auth, ID_CLIENTE, {"cpf": CPF_CERTO})
+
+    assert auth.chamadas == []
+
+
 def test_busca_por_cpf_invalido(contas):
     with pytest.raises(RegraDeNegocio, match="CPF inválido"):
         clientes.buscar_por_cpf(SessaoFalsa(), "111")

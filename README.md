@@ -130,6 +130,14 @@ O backend usa duas conexões com o PostgreSQL do Supabase:
 
 O histórico de estoque é calculado somando as movimentações até a data pedida, sem snapshot (ADR 0006). A rota `GET /estoque/divergencias` lista as linhas em que o saldo não bate com as movimentações e deve vir sempre vazia.
 
+**Transações.** Cada requisição usa uma sessão (`get_db`), e a transação começa na primeira consulta. As regras para quem escreve um use case:
+
+- **O use case faz o `commit`**, uma vez por requisição; rotas e repositórios nunca fazem. Função auxiliar que faz commit só é chamada como último passo (`return _auxiliar(...)`). Se der erro antes do commit, nada fica gravado: o fechamento da sessão desfaz tudo.
+- **Linha travada (`travar=True`) fica travada até o commit.** Por isso, nada de upload ou chamada ao Supabase com trava aberta: confira, encerre a transação e confira de novo depois da chamada (exemplo: `adicionar_foto` em `use_cases/avaliacoes.py`).
+- **Chamada externa que pode falhar precisa de plano para a falha**, porque o banco não desfaz o que já foi feito no Supabase:
+  - o que é criado fora antes da gravação (login no Auth, arquivo no Storage) é desfeito se a gravação falhar (`apagar_login`, `arquivos.desfazer_envio`);
+  - o que muda algo fora depois da gravação (bloquear login, apagar arquivo antigo) vem depois do commit; se falhar, o banco volta ao valor anterior (`usuarios.alterar`) ou o problema fica registrado no log.
+
 O modelo de dados completo (27 tabelas e valores aceitos) está na seção 7 do [case](docs/case/Casa_Lorenzi_Case_Completo.md). Comandos do Alembic, passo a passo para mudar o banco e as regras das migrations estão no [ALEMBIC_GUIDE.md](ALEMBIC_GUIDE.md).
 
 ## Como rodar localmente
@@ -429,7 +437,7 @@ A API é publicada no Render a cada merge na `main`.
 ## Como contribuir
 
 1. Atualize a `main` (`git pull`) e crie uma branch com nome curto em kebab-case, sem prefixo (ex.: `adiciona-avaliacoes`).
-2. Siga as camadas: rota em `routes/`, regra em `use_cases/`, acesso ao banco só em `repositories/`.
+2. Siga as camadas: rota em `routes/`, regra em `use_cases/`, acesso ao banco só em `repositories/`. O `commit` fica no use case (veja **Transações** em [Banco de dados](#banco-de-dados)).
 3. Mudou o banco? Crie a migration conforme o [ALEMBIC_GUIDE.md](ALEMBIC_GUIDE.md) e commite junto com o código.
 4. Escreva os testes e rode `pytest` antes de commitar.
 5. Commits no padrão Conventional Commits, no imperativo e curtos (`feat: adiciona rota de avaliações`, `fix: ...`, `docs: ...`, `test: ...`).
