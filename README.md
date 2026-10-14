@@ -67,8 +67,8 @@ src/
 ├── use_cases/      # regras de negócio
 ├── routes/         # rotas FastAPI, uma por área
 ├── middlewares/    # auth.py (token), permissoes.py (conta ativa e permissões), cors.py, erros.py, requisicao.py
-├── utils/          # cpf.py, supabase_admin.py (Auth), supabase_storage.py (Storage) e upload.py
-└── alembic/        # env.py e versions/ (migrations)
+└── utils/          # cpf.py, supabase_admin.py (Auth), supabase_storage.py (Storage) e upload.py
+migrations/         # Alembic: env.py e versions/ (fora do src/: roda na máquina de quem desenvolve, não na API)
 scripts/            # criar_admin, carregar_demo e conferir_banco
 tests/              # testes do pytest
 docs/               # case, ADRs
