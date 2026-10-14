@@ -1,16 +1,16 @@
 # Guia do Alembic
 
-O Alembic versiona as mudanças no schema do banco. Cada migration é um arquivo em `src/alembic/versions/` que descreve uma alteração (criar tabela, adicionar coluna...) e é aplicada na mesma ordem em qualquer ambiente. Nenhuma tabela deve ser criada ou alterada à mão no painel do Supabase.
+O Alembic versiona as mudanças no schema do banco. Cada migration é um arquivo em `migrations/versions/` que descreve uma alteração (criar tabela, adicionar coluna...) e é aplicada na mesma ordem em qualquer ambiente. Nenhuma tabela deve ser criada ou alterada à mão no painel do Supabase.
 
 ## Como está configurado
 
 | Peça | Arquivo | Função |
 |---|---|---|
 | Conexão | `.env` → `DATABASE_URL_DIRECT` | o Alembic usa a conexão direta do Supabase (a API usa o pooler, em `DATABASE_URL`) |
-| Ponto de entrada | `alembic.ini` | aponta para `src/alembic/`; não guarda URL nem senha |
-| Configuração | `src/alembic/env.py` | lê a URL do `.env`, compara o banco com os models e aplica as regras abaixo |
+| Ponto de entrada | `alembic.ini` | aponta para `migrations/`; não guarda URL nem senha |
+| Configuração | `migrations/env.py` | lê a URL do `.env`, compara o banco com os models e aplica as regras abaixo |
 | Models | `src/models/` | classes que herdam de `Base` (`src/database/base.py`) |
-| Migrations | `src/alembic/versions/` | os arquivos gerados, commitados junto com o código |
+| Migrations | `migrations/versions/` | os arquivos gerados, commitados junto com o código |
 
 Regras que o `env.py` aplica sozinho:
 
@@ -37,7 +37,7 @@ alembic heads                                     # mostra as "cabeças" (deve h
 2. Crie ou altere o model em `src/models/`.
 3. Se for um arquivo novo, importe-o em `src/models/__init__.py`. Sem isso, o Alembic não enxerga o model.
 4. Gere a migration: `alembic revision --autogenerate -m "descricao curta"`.
-5. **Leia o arquivo gerado** em `src/alembic/versions/` antes de aplicar. O autogenerate não detecta tudo: renomeações viram "apaga e cria", e `CHECK` e valores padrão às vezes precisam ser escritos à mão. Triggers, funções, views, GRANTs e policies nunca aparecem (veja "O que o `--autogenerate` não gera").
+5. **Leia o arquivo gerado** em `migrations/versions/` antes de aplicar. O autogenerate não detecta tudo: renomeações viram "apaga e cria", e `CHECK` e valores padrão às vezes precisam ser escritos à mão. Triggers, funções, views, GRANTs e policies nunca aparecem (veja "O que o `--autogenerate` não gera").
 6. Aplique: `alembic upgrade head`.
 7. Commite a migration **no mesmo commit/PR** do código que depende dela.
 
