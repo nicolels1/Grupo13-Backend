@@ -2,12 +2,12 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
+from src.dependencies.permissoes import exige_cliente
 from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Pagina
 from src.entities.vendas import (
     Carrinho, Checkout, CobrancaCriar, PedidoSaida, Reivindicacao, RespostaGateway, ResumoCarrinho,
     StatusPedido,
 )
-from src.middlewares.permissoes import exige_cliente
 from src.models.contas import Usuario
 from src.use_cases import pedidos
 

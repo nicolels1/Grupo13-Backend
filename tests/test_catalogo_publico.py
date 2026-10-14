@@ -9,7 +9,7 @@ from sqlalchemy.dialects import postgresql
 
 from src.app import app
 from src.database.session import get_db
-from src.middlewares.permissoes import get_usuario_opcional
+from src.dependencies.permissoes import get_usuario_opcional
 from src.models.catalogo import CategoriaProduto, Produto, Variante
 from src.repositories import catalogo_repository
 from src.use_cases import catalogo

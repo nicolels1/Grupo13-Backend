@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
+from src.dependencies.permissoes import exige_cliente, exige_permissao
+from src.dependencies.supabase import get_storage
 from src.entities.atendimento import (
     Categoria, ChamadoAlterar, ChamadoConcluir, ChamadoCriar, ChamadoSaida, HistoricoSaida,
     DevolucaoCriar, EstornoPedido, MensagemClienteCriar, MensagemEquipeCriar, MensagemSaida, PessoaDaEquipe,
@@ -10,12 +12,11 @@ from src.entities.atendimento import (
 )
 from src.entities.arquivos import AnexoLink
 from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Lista, Pagina, campos_alterados
-from src.middlewares.permissoes import exige_cliente, exige_permissao
 from src.models.contas import Usuario
 from src.entities.vendas import PedidoSaida
 from src.use_cases import atendimento, devolucoes
 from src.utils.supabase_storage import SupabaseStorage
-from src.utils.upload import get_storage, ler_upload
+from src.utils.upload import ler_upload
 
 router = APIRouter(tags=["atendimento"])
 

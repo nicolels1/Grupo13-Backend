@@ -6,12 +6,13 @@ import pytest
 from sqlalchemy.dialects import postgresql
 
 from src.app import app
+from src.dependencies.supabase import get_storage
 from src.models.avaliacoes import Avaliacao, DenunciaAvaliacao, FotoAvaliacao, VotoUtil
 from src.models.vendas import ItemPedido, Pedido
 from src.repositories import avaliacao_repository
 from src.use_cases import avaliacoes
 from src.use_cases.erros import Conflito, RecursoNaoEncontrado, RegraDeNegocio
-from src.utils.upload import Arquivo, get_storage
+from src.utils.upload import Arquivo
 from tests.apoio import PNG, SessaoFalsa, StorageFalso, api, funcionario  # noqa: F401
 from tests.apoio_vendas import ID_CLIENTE, ID_OUTRO, cliente
 

@@ -2,18 +2,19 @@ from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile,
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
+from src.dependencies.permissoes import exige_permissao, get_usuario_opcional
+from src.dependencies.supabase import get_storage
 from src.entities.catalogo import (
     CategoriaAlterar, CategoriaCriar, CategoriaSaida, HistoricoPrecoSaida, ImagemAlterar, ImagemSaida,
     OrdemProdutos, PaginaProdutos, ProdutoAlterar, ProdutoCriar, ProdutoSaida, VarianteAlterar, VarianteCriar,
     VarianteSaida,
 )
 from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Lista, campos_alterados
-from src.middlewares.permissoes import exige_permissao, get_usuario_opcional
 from src.models.contas import Usuario
 from src.repositories import catalogo_repository
 from src.use_cases import catalogo
 from src.utils.supabase_storage import SupabaseStorage
-from src.utils.upload import get_storage, ler_upload
+from src.utils.upload import ler_upload
 
 router = APIRouter(tags=["catalogo"])
 

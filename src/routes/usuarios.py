@@ -4,13 +4,13 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
+from src.dependencies.permissoes import exige_permissao
+from src.dependencies.supabase import get_supabase_admin
 from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Pagina, campos_alterados
 from src.entities.usuarios import (
     ContaInternaCriar, ExcecaoDefinir, StatusConta, TipoConta, UsuarioAlterar, UsuarioDetalhe, UsuarioItem,
 )
-from src.middlewares.permissoes import exige_permissao
 from src.models.contas import Usuario
-from src.routes.contas import get_supabase_admin
 from src.use_cases import usuarios
 from src.utils.supabase_admin import SupabaseAdmin
 

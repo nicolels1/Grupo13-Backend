@@ -1,12 +1,13 @@
 import pytest
 
 from src.app import app
+from src.dependencies.supabase import get_storage
 from src.models.catalogo import CategoriaProduto
 from src.repositories import catalogo_repository
 from src.use_cases import catalogo
 from src.use_cases.erros import RecursoNaoEncontrado, RegraDeNegocio, ServicoIndisponivel
 from src.utils.supabase_admin import ErroSupabase
-from src.utils.upload import Arquivo, get_storage
+from src.utils.upload import Arquivo
 from tests.apoio import PDF, PNG, SessaoFalsa, StorageFalso, api, funcionario  # noqa: F401 (api é fixture)
 
 URL_PUBLICA = "https://teste.supabase.co/storage/v1/object/public/produtos/"

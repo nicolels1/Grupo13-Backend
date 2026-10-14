@@ -2,12 +2,12 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
+from src.dependencies.permissoes import exige_permissao
 from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Lista, Pagina
 from src.entities.estoque import (
     Canal, Divergencia, EmTransitoItem, EstoqueHistoricoItem, EstoqueItem, Evolucao, Granularidade, MovimentacaoItem,
     MovimentacaoSaida, NovaMovimentacao, NovaRealocacao, NovoMinimo,
 )
-from src.middlewares.permissoes import exige_permissao
 from src.models.contas import Usuario
 from src.use_cases import estoque
 

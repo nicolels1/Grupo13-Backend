@@ -2,12 +2,13 @@ from decimal import Decimal
 
 import pytest
 
+from src.dependencies.supabase import get_storage
 from src.models.catalogo import ImagemProduto, Produto, Variante
 from src.repositories import catalogo_repository
 from src.use_cases import arquivos, catalogo
 from src.use_cases.erros import RecursoNaoEncontrado, RegraDeNegocio, ServicoIndisponivel
 from src.utils.supabase_admin import ErroSupabase
-from src.utils.upload import Arquivo, get_storage
+from src.utils.upload import Arquivo
 from src.app import app
 from tests.apoio import PDF, PNG, SessaoFalsa, StorageFalso, api, funcionario  # noqa: F401
 

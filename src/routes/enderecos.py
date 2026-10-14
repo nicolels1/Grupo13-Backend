@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
+from src.dependencies.permissoes import exige_cliente
 from src.entities.comum import Lista, campos_alterados
 from src.entities.enderecos import EnderecoAlterar, EnderecoCriar, EnderecoSaida
-from src.middlewares.permissoes import exige_cliente
 from src.models.contas import Usuario
 from src.use_cases import enderecos
 

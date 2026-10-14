@@ -4,11 +4,11 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
+from src.dependencies.permissoes import exige_permissao
 from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Pagina
 from src.entities.transferencias import (
     TransferenciaCancelar, TransferenciaCriar, TransferenciaEnviar, TransferenciaReceber, TransferenciaSaida,
 )
-from src.middlewares.permissoes import exige_permissao
 from src.models.contas import Usuario
 from src.use_cases import transferencias
 

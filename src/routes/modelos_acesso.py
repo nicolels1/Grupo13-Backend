@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
+from src.dependencies.permissoes import exige_permissao
 from src.entities.comum import Lista, campos_alterados
 from src.entities.modelos_acesso import ModeloAlterar, ModeloCriar, ModeloPermissoes, ModeloSaida, PermissaoSaida
-from src.middlewares.permissoes import exige_permissao
 from src.models.contas import Usuario
 from src.use_cases import modelos_acesso
 
