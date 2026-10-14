@@ -52,7 +52,8 @@ def corrigir(db: Session, auth, id_usuario: uuid.UUID, campos: dict) -> dict:
         if dono is not None:
             return _juntar_na_conta_certa(db, auth, cliente, dono)
 
-    if email and email != cliente.email:
+    email_antigo = cliente.email
+    if email and email != email_antigo:
         if usuario_repository.email_em_uso(db, email) or usuario_repository.buscar_login(db, email):
             raise Conflito("E-mail já cadastrado")
         try:
@@ -65,7 +66,19 @@ def corrigir(db: Session, auth, id_usuario: uuid.UUID, campos: dict) -> dict:
     if cpf and cpf != cliente.cpf:
         cliente.cpf = cpf
         ligadas = pedido_repository.ligar_pedidos_pelo_cpf(db, cpf, cliente.id_usuario)
-    db.commit()
+    # decidido antes do commit: depois do rollback, o SQLAlchemy relê o cliente com o e-mail antigo
+    email_mudou_no_auth = cliente.email != email_antigo
+    try:
+        db.commit()
+    except Exception:
+        # o e-mail já mudou no Auth: volta ao antigo, para login e USUARIO não ficarem diferentes
+        db.rollback()
+        if email_mudou_no_auth:
+            try:
+                auth.alterar_email(id_usuario, email_antigo)
+            except ErroSupabase:
+                logger.error("e-mail de %s mudou no Auth, mas não no banco, e não pôde ser revertido", id_usuario)
+        raise
     return _resposta(cliente, ligadas)
 
 
