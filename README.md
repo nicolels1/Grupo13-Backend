@@ -66,7 +66,9 @@ src/
 ├── repositories/   # única camada que consulta e grava no banco
 ├── use_cases/      # regras de negócio
 ├── routes/         # rotas FastAPI, uma por área
-├── middlewares/    # auth.py (token), permissoes.py (conta ativa e permissões), cors.py, erros.py, requisicao.py
+├── dependencies/   # usadas rota a rota com Depends: auth.py (token), permissoes.py (conta ativa e permissões)
+│                   # e supabase.py (clientes do Auth e do Storage, trocados por falsos nos testes)
+├── middlewares/    # valem para toda requisição: cors.py, requisicao.py (id e erro 500) e erros.py (erros → 4xx)
 └── utils/          # cpf.py, supabase_admin.py (Auth), supabase_storage.py (Storage) e upload.py
 migrations/         # Alembic: env.py e versions/ (fora do src/: roda na máquina de quem desenvolve, não na API)
 scripts/            # criar_admin, carregar_demo e conferir_banco
@@ -77,7 +79,7 @@ docs/               # case, ADRs
 Caminho de uma requisição:
 
 ```
-rota (routes/) → token (middlewares/auth.py) → conta ativa e permissão (middlewares/permissoes.py)
+rota (routes/) → token (dependencies/auth.py) → conta ativa e permissão (dependencies/permissoes.py)
    → regra de negócio (use_cases/) → banco (repositories/ → models/ → PostgreSQL)
 ```
 
@@ -92,10 +94,10 @@ rota (routes/) → token (middlewares/auth.py) → conta ativa e permissão (mid
 - O Admin tem todas as permissões. As permissões da Gestão (`gerenciar_contas`, `gerenciar_modelos_acesso`, `gerenciar_unidades`) são só dele, garantido por trigger (ADRs 0009 e 0010).
 - São 16 códigos de permissão; a lista e a tabela por modelo estão na seção 6 do [case](docs/case/Casa_Lorenzi_Case_Completo.md).
 
-Dependências prontas para proteger uma rota (`src/middlewares/permissoes.py`):
+Dependências prontas para proteger uma rota (`src/dependencies/permissoes.py`):
 
 ```python
-from src.middlewares.permissoes import exige_permissao, exige_cliente, get_usuario_ativo
+from src.dependencies.permissoes import exige_permissao, exige_cliente, get_usuario_ativo
 
 usuario: Usuario = Depends(exige_permissao("movimentar_estoque"))  # conta interna com a permissão
 cliente: Usuario = Depends(exige_cliente)                          # conta de cliente ativa
