@@ -122,16 +122,27 @@ def alterar(db: Session, storage, cliente: Usuario, id_avaliacao: int, campos: d
 
 
 # até 5 fotos, nos 7 dias de edição; vão para a área privada do Storage
-def adicionar_foto(db: Session, storage, cliente: Usuario, id_avaliacao: int, arquivo) -> dict:
+# trava a avaliação, confere autor e prazo e devolve a primeira posição livre para a foto
+def _ordem_livre(db: Session, cliente: Usuario, id_avaliacao: int) -> int:
     _minha_para_editar(db, cliente, id_avaliacao)
     usadas = {f.ordem for f in repo.fotos_das_avaliacoes(db, [id_avaliacao])[id_avaliacao]}
     livres = [ordem for ordem in range(1, MAXIMO_DE_FOTOS + 1) if ordem not in usadas]
     if not livres:
         raise RegraDeNegocio("A avaliação já tem 5 fotos")
+    return livres[0]
+
+
+# a avaliação não fica travada durante o upload: confere antes (para não enviar arquivo que seria
+# recusado), solta a trava, envia e confere de novo com a trava, porque outra foto pode ter entrado
+# ou o prazo pode ter vencido nesse meio-tempo. Se a gravação falhar, o arquivo sai do Storage
+def adicionar_foto(db: Session, storage, cliente: Usuario, id_avaliacao: int, arquivo) -> dict:
+    _ordem_livre(db, cliente, id_avaliacao)
+    db.commit()  # nada foi alterado: só encerra a transação e solta a trava
 
     caminho = arquivos.enviar(storage, FOTO_AVALIACAO, f"avaliacao-{id_avaliacao}", arquivo)
     try:
-        db.add(FotoAvaliacao(id_avaliacao=id_avaliacao, caminho_arquivo=caminho, ordem=livres[0]))
+        ordem = _ordem_livre(db, cliente, id_avaliacao)
+        db.add(FotoAvaliacao(id_avaliacao=id_avaliacao, caminho_arquivo=caminho, ordem=ordem))
         db.commit()
     except Exception:
         db.rollback()

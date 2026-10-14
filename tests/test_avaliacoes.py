@@ -148,6 +148,53 @@ def test_ate_5_fotos_na_area_privada(banco):
         avaliacoes.adicionar_foto(SessaoAvaliacoes(banco), storage, cliente(), id_avaliacao, foto())
 
 
+class StorageQueObserva(StorageFalso):
+    """Roda uma ação no meio do upload, como outra requisição chegando ao mesmo tempo."""
+
+    def __init__(self, durante_o_envio):
+        super().__init__()
+        self.durante_o_envio = durante_o_envio
+
+    def enviar(self, bucket, caminho, conteudo, tipo):
+        self.durante_o_envio()
+        super().enviar(bucket, caminho, conteudo, tipo)
+
+
+def test_upload_da_foto_acontece_com_a_trava_solta(banco):
+    id_avaliacao = avaliar(banco)["id_avaliacao"]
+    sessao = SessaoAvaliacoes(banco)
+    commits_no_envio = []
+    storage = StorageQueObserva(lambda: commits_no_envio.append(sessao.commits))
+
+    avaliacoes.adicionar_foto(sessao, storage, cliente(), id_avaliacao, foto())
+
+    # a transação da conferência (com a trava) terminou antes do upload; depois veio a da gravação
+    assert commits_no_envio == [1] and sessao.commits == 2
+
+
+def test_foto_que_entra_durante_o_upload_ocupa_a_ultima_vaga(banco):
+    id_avaliacao = avaliar(banco)["id_avaliacao"]
+    for _ in range(4):
+        avaliacoes.adicionar_foto(SessaoAvaliacoes(banco), StorageFalso(), cliente(), id_avaliacao, foto())
+    outra = lambda: banco.fotos.append(FotoAvaliacao(id_avaliacao=id_avaliacao, caminho_arquivo="x.png", ordem=5))
+    storage = StorageQueObserva(outra)
+
+    with pytest.raises(RegraDeNegocio, match="5 fotos"):
+        avaliacoes.adicionar_foto(SessaoAvaliacoes(banco), storage, cliente(), id_avaliacao, foto())
+    assert storage.apagados == list(storage.enviados)
+
+
+def test_falha_ao_gravar_a_foto_apaga_o_arquivo(banco):
+    id_avaliacao = avaliar(banco)["id_avaliacao"]
+    sessao = SessaoAvaliacoes(banco)
+    # o banco passa a recusar depois que o arquivo já está subindo
+    storage = StorageQueObserva(lambda: setattr(sessao, "erro_commit", RuntimeError("x")))
+
+    with pytest.raises(RuntimeError):
+        avaliacoes.adicionar_foto(sessao, storage, cliente(), id_avaliacao, foto())
+    assert len(storage.enviados) == 1 and storage.apagados == list(storage.enviados)
+
+
 # ---------- votos e denúncias ----------
 
 def test_voto_util_uma_vez_e_nao_na_propria(banco):
