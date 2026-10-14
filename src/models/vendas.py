@@ -74,6 +74,10 @@ class Pedido(Base):
         CheckConstraint("cpf_nota ~ '^[0-9]{11}$'", name="cpf_nota_so_digitos"),
         # busca dos pedidos ainda sem conta no cadastro pelo site
         Index("ix_pedido_cpf_nota_sem_cliente", "cpf_nota", postgresql_where=text("id_cliente IS NULL")),
+        # "meus pedidos" (filtra pelo cliente e ordena pelo mais recente) e troca de conta na correção do CPF
+        Index("ix_pedido_id_cliente_criado_em", "id_cliente", "criado_em"),
+        # listas da equipe (vendas, caixa do dia) ordenadas pelo mais recente
+        Index("ix_pedido_criado_em", "criado_em"),
     )
 
 
@@ -89,6 +93,8 @@ class ItemPedido(Base):
     __table_args__ = (
         CheckConstraint("quantidade > 0", name="quantidade_positiva"),
         CheckConstraint("preco_unitario >= 0", name="preco_nao_negativo"),
+        # itens de cada pedido em toda lista e detalhe de pedido (e no cancelamento pelo pg_cron)
+        Index("ix_item_pedido_id_pedido", "id_pedido"),
     )
 
 
@@ -139,6 +145,8 @@ class Pagamento(Base):
             "origem IS DISTINCT FROM 'atendimento' OR id_chamado IS NOT NULL",
             name="estorno_atendimento_exige_chamado",
         ),
+        # pagamentos e estornos de cada pedido em toda lista e detalhe de pedido
+        Index("ix_pagamento_id_pedido", "id_pedido"),
     )
 
 

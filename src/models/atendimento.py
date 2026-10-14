@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, Text, Uuid, func, text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, Text, Uuid, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database.base import Base
@@ -53,6 +53,8 @@ class Chamado(Base):
         CheckConstraint(
             "(status = 'concluido') = (motivo_encerramento IS NOT NULL)", name="concluido_exige_motivo"
         ),
+        # "meus chamados" do cliente
+        Index("ix_chamado_id_cliente", "id_cliente"),
     )
 
 
@@ -72,6 +74,8 @@ class Mensagem(Base):
 
     __table_args__ = (
         CheckConstraint("conteudo IS NOT NULL OR anexo_caminho IS NOT NULL", name="texto_ou_anexo"),
+        # conversa do chamado, mensagens não lidas e marcar como lidas
+        Index("ix_mensagem_id_chamado", "id_chamado"),
     )
 
 
@@ -86,3 +90,6 @@ class HistoricoChamado(Base):
     valor_anterior: Mapped[str | None] = mapped_column(String(255))
     valor_novo: Mapped[str] = mapped_column(String(255))
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    # histórico de um chamado
+    __table_args__ = (Index("ix_historico_chamado_id_chamado", "id_chamado"),)

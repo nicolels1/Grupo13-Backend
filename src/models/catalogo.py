@@ -2,7 +2,9 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Numeric, String, Text, UniqueConstraint, Uuid, func, text
+from sqlalchemy import (
+    CheckConstraint, DateTime, ForeignKey, Index, Numeric, String, Text, UniqueConstraint, Uuid, func, text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database.base import Base
@@ -29,6 +31,9 @@ class Produto(Base):
     descricao_tecnica: Mapped[str] = mapped_column(Text)
     descricao_cliente: Mapped[str] = mapped_column(Text)
     ativo: Mapped[bool] = mapped_column(default=True, server_default=text("true"))
+
+    # filtro por categoria na vitrine
+    __table_args__ = (Index("ix_produto_id_categoria", "id_categoria"),)
 
 
 class Variante(Base):
@@ -57,7 +62,11 @@ class ImagemProduto(Base):
     caminho_arquivo: Mapped[str] = mapped_column(String(500))  # caminho no Storage, não URL
     ordem: Mapped[int] = mapped_column()
 
-    __table_args__ = (CheckConstraint("ordem >= 1", name="ordem_positiva"),)
+    __table_args__ = (
+        CheckConstraint("ordem >= 1", name="ordem_positiva"),
+        # fotos dos produtos em toda página da vitrine e na foto do item do pedido
+        Index("ix_imagem_produto_id_produto", "id_produto"),
+    )
 
 
 # nunca editado nem apagado (trigger na migration)
