@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, Text, Uuid, func, text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, Text, Uuid, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database.base import Base
@@ -127,6 +127,8 @@ class ItemTransferencia(Base):
             "quantidade_recebida IS NULL OR quantidade_recebida <= quantidade_enviada",
             name="recebida_ate_enviada",
         ),
+        # itens de cada transferência na lista e no detalhe
+        Index("ix_item_transferencia_id_transferencia", "id_transferencia"),
     )
 
 
@@ -175,4 +177,10 @@ class MovimentacaoEstoque(Base):
             "OR (id_pedido IS NOT NULL AND (id_chamado IS NOT NULL OR id_usuario IS NOT NULL))",
             name="troca_devolucao_com_pedido",
         ),
+        # histórico e gráfico de evolução de uma peça (com ou sem unidade) num período (ADR 0006)
+        Index("ix_movimentacao_estoque_variante_unidade_criado_em", "id_variante", "id_unidade", "criado_em"),
+        # lista de movimentações (mais recentes primeiro) e filtros por data
+        Index("ix_movimentacao_estoque_criado_em", "criado_em"),
+        # trocas e devoluções já feitas num pedido
+        Index("ix_movimentacao_estoque_id_pedido", "id_pedido"),
     )
