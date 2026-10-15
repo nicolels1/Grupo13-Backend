@@ -1,10 +1,35 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
 
 from src.entities.comum import sem_espacos
 
+# códigos que as migrações cadastram na tabela permissao (seção 6 do case). Nas respostas, o OpenAPI
+# publica a lista e o frontend recebe os códigos já tipados. Permissão nova entra na migração e aqui;
+# o teste test_codigos_de_permissao confere que as duas listas são iguais.
+# As entradas continuam texto: código desconhecido recebe a mensagem da regra de negócio, não um 422
+CodigoPermissao = Literal[
+    "gerenciar_contas",
+    "gerenciar_modelos_acesso",
+    "gerenciar_catalogo",
+    "gerenciar_unidades",
+    "movimentar_estoque",
+    "definir_estoque_minimo",
+    "solicitar_transferencia",
+    "enviar_transferencia",
+    "receber_transferencia",
+    "registrar_venda_fisica",
+    "registrar_troca_devolucao",
+    "preparar_entregar_pedido",
+    "cancelar_pedido_equipe",
+    "corrigir_cadastro_cliente",
+    "atender_chamado",
+    "moderar_avaliacoes",
+]
+
 
 class PermissaoSaida(BaseModel):
-    codigo: str
+    codigo: CodigoPermissao
     descricao: str
     so_admin: bool
 
@@ -35,4 +60,4 @@ class ModeloSaida(BaseModel):
     ativo: bool
     pessoas: int
     # o Admin tem todas as permissões, inclusive as futuras
-    permissoes: list[str]
+    permissoes: list[CodigoPermissao]
