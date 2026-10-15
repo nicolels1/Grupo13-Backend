@@ -62,7 +62,7 @@ src/
 ├── config/         # settings.py (variáveis do .env) e logs.py (logs com id da requisição)
 ├── database/       # base.py (Base dos models) e session.py (engine, sessão e get_db)
 ├── entities/       # schemas Pydantic de entrada e saída de cada área
-├── models/         # tabelas SQLAlchemy (27 tabelas do modelo de dados)
+├── models/         # tabelas SQLAlchemy (28 tabelas: as 27 do modelo de dados e os destaques do carrossel)
 ├── repositories/   # única camada que consulta e grava no banco
 ├── use_cases/      # regras de negócio
 ├── routes/         # rotas FastAPI, uma por área
@@ -119,7 +119,7 @@ O backend usa duas conexões com o PostgreSQL do Supabase:
 
 **Duas camadas de proteção**, que valem para qualquer caminho, inclusive o painel do Supabase:
 
-- **Usuário restrito da API** (`api_casalorenzi`, migration `56799f788354`): não apaga dados (exceto endereços salvos do cliente e as ligações da Gestão), não edita movimentações nem históricos, não altera o saldo do estoque direto e não lê o `auth.users`. Todas as tabelas têm RLS ligado, com uma regra que libera só ele.
+- **Usuário restrito da API** (`api_casalorenzi`, migration `56799f788354`): não apaga dados (exceto endereços salvos do cliente, as ligações da Gestão, fotos de produto e slides do carrossel), não edita movimentações nem históricos, não altera o saldo do estoque direto e não lê o `auth.users`. Todas as tabelas têm RLS ligado, com uma regra que libera só ele.
 - **Triggers e restrições:** o saldo de `estoque` é atualizado pelo banco a cada movimentação e nunca fica negativo (ADR 0005); movimentações e históricos não são editados; as regras do Admin, do CD, do estorno e do item do chamado são garantidas no banco. Toda troca e devolução tem o pedido e o chamado ou a pessoa da equipe, e todo estorno tem origem (`cancelamento`, `atendimento` ou `balcao`, ADR 0015).
 
 **Busca da vitrine** (migration `5809c1f5a848`): liga as extensões `unaccent` e `pg_trgm` (esquema `extensions`) e cria `texto_de_busca()` (sem acento e minúsculo) e `semelhanca_de_palavra()` (semelhança entre palavras inteiras), funções do dono liberadas só para o usuário da API, como `login_por_email`.
@@ -138,7 +138,7 @@ O histórico de estoque é calculado somando as movimentações até a data pedi
   - o que é criado fora antes da gravação (login no Auth, arquivo no Storage) é desfeito se a gravação falhar (`apagar_login`, `arquivos.desfazer_envio`);
   - o que muda algo fora depois da gravação (bloquear login, apagar arquivo antigo) vem depois do commit; se falhar, o banco volta ao valor anterior (`usuarios.alterar`) ou o problema fica registrado no log.
 
-O modelo de dados completo (27 tabelas e valores aceitos) está na seção 7 do [case](docs/case/Casa_Lorenzi_Case_Completo.md). Comandos do Alembic, passo a passo para mudar o banco e as regras das migrations estão no [ALEMBIC_GUIDE.md](ALEMBIC_GUIDE.md).
+O modelo de dados completo (27 tabelas e valores aceitos) está na seção 7 do [case](docs/case/Casa_Lorenzi_Case_Completo.md). Depois dele entrou a tabela `destaque` (slides do carrossel do topo da página inicial, migration `91a5ddfd1a16`), para a equipe trocar o carrossel pelo interno em vez de pelo código. Comandos do Alembic, passo a passo para mudar o banco e as regras das migrations estão no [ALEMBIC_GUIDE.md](ALEMBIC_GUIDE.md).
 
 ## Como rodar localmente
 
@@ -212,6 +212,9 @@ A lista completa, com parâmetros e formatos, está em `/docs`. Resumo por área
 | GET | `/categorias` | público | categorias, com `imagem_url` (foto do carrossel da página inicial; vazio sem foto) |
 | POST, PATCH | `/categorias`, `/categorias/{id}` | `gerenciar_catalogo` | cria e altera categoria |
 | POST, DELETE | `/categorias/{id}/imagem` | `gerenciar_catalogo` | envia ou troca a foto da categoria (multipart: JPG, PNG ou WEBP de até 5 MB, no bucket `produtos`, pasta `categorias/`) ou tira a foto |
+| GET | `/destaques` | público | slides do carrossel do topo da página inicial, na ordem: a loja vê os ativos; quem gerencia o catálogo vê também os desativados |
+| POST, PATCH, DELETE | `/destaques`, `/destaques/{id}` | `gerenciar_catalogo` | cria, altera (texto, botão, link, ordem, ativo) e apaga slide. O link só aceita página da loja (começa com `/`) |
+| POST | `/destaques/{id}/imagem` | `gerenciar_catalogo` | envia ou troca a foto do slide (multipart: JPG, PNG ou WEBP de até 5 MB, no bucket `produtos`, pasta `destaques/`) |
 | GET | `/produtos/tamanhos` | público | tamanhos à venda na vitrine, na ordem da grade (filtra por `id_categoria` e `busca`) |
 | GET | `/produtos`, `/produtos/{id}` | público | vitrine: sem login, só produtos e variantes ativos; quem gerencia o catálogo vê tudo. Cada variante diz se tem peça para vender online (`disponivel`, sem a quantidade). A lista filtra por `tamanho` (repetível: `?tamanho=P&tamanho=M`) e `disponivel` e ordena por `relevancia` (padrão com busca), `nome`, `novidades`, `menor_preco` ou `maior_preco`. A `busca` ignora acentos e procura no nome, categoria, cores e descrição, pelo começo das palavras e por semelhança (erros de digitação, camisa e camiseta); sem resultado, a vitrine traz peças parecidas ou as novidades e avisa em `busca_alternativa` |
 | POST, PATCH | `/produtos`, `/produtos/{id}` | `gerenciar_catalogo` | cria e altera produto |
@@ -413,7 +416,7 @@ A API é publicada no Render a cada merge na `main`.
 
 - contas: cadastro de cliente (com as compras da loja ligadas pelo CPF na nota), login por e-mail (Supabase) ou CPF, perfil com permissões efetivas, correção de e-mail e CPF;
 - gestão: contas internas, modelos de acesso, exceções de permissão e unidades;
-- catálogo: categorias, produtos, variantes, fotos e histórico de preço, com vitrine pública;
+- catálogo: categorias, produtos, variantes, fotos e histórico de preço, com vitrine pública, e os slides do carrossel da página inicial;
 - estoque: saldo por unidade e canal, movimentações, realocação, estoque mínimo, histórico em qualquer data, peças em trânsito, gráfico de evolução e conferência de divergências;
 - transferências com as etapas solicitada → enviada → recebida e cancelamento;
 - vendas: carrinho com frete, checkout com reserva de 15 minutos, pagamento por gateway simulado, venda física com CPF na nota opcional, preparo, envio, retirada, entrega, cancelamento com estorno, reivindicação de compra e endereços salvos;
@@ -421,7 +424,7 @@ A API é publicada no Render a cada merge na `main`.
 - balcão: troca e devolução na loja sem chamado, para pedidos com ou sem conta, busca do pedido por código, número ou CPF e consulta de peça só de leitura;
 - avaliações: nota, texto e fotos, edição por 7 dias, voto útil, denúncia e moderação;
 - Visão Geral: resumo com vendas por dia, mais vendidas, chamados, números da rede e linha por unidade, conforme as permissões da conta;
-- banco com 27 tabelas, triggers, RLS, usuário restrito e prazos automáticos pelo pg_cron; testes automatizados com CI.
+- banco com 28 tabelas, triggers, RLS, usuário restrito e prazos automáticos pelo pg_cron; testes automatizados com CI.
 
 **Fora do escopo desta entrega:** gateway de pagamento real (ADR 0011) e as evoluções da seção 9 do [case](docs/case/Casa_Lorenzi_Case_Completo.md).
 
