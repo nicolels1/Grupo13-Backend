@@ -8,6 +8,8 @@ from src.config.settings import SUPABASE_URL
 logger = logging.getLogger(__name__)
 
 JWKS_URL = f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json"
+# quem emite os tokens: o Auth deste projeto do Supabase
+EMISSOR = f"{SUPABASE_URL}/auth/v1"
 
 # Busca e guarda em cache a chave pública do Supabase
 jwks_client = PyJWKClient(JWKS_URL)
@@ -24,6 +26,9 @@ def get_current_user(authorization: str = Header(None)):
             signing_key.key,
             algorithms=["ES256"],
             audience="authenticated",
+            issuer=EMISSOR,
+            # sem o id do usuário (sub) o token não serve: recusa com 401 em vez de quebrar depois
+            options={"require": ["exp", "iss", "sub"]},
         )
     except jwt.PyJWKClientConnectionError:
         # não conseguiu buscar a chave pública no Supabase: o problema é do servidor, não do token

@@ -16,10 +16,11 @@ CHAVE_PRIVADA = ec.generate_private_key(ec.SECP256R1())
 OUTRA_CHAVE_PRIVADA = ec.generate_private_key(ec.SECP256R1())
 
 
+# campo com valor None fica fora do token (ex.: sub=None gera um token sem sub)
 def gerar_token(chave=CHAVE_PRIVADA, **campos):
-    payload = {"sub": USER_ID, "aud": "authenticated", "exp": int(time.time()) + 300}
+    payload = {"sub": USER_ID, "aud": "authenticated", "iss": auth.EMISSOR, "exp": int(time.time()) + 300}
     payload.update(campos)
-    return jwt.encode(payload, chave, algorithm="ES256")
+    return jwt.encode({k: v for k, v in payload.items() if v is not None}, chave, algorithm="ES256")
 
 
 @pytest.fixture
@@ -70,6 +71,10 @@ def test_token_valido_retorna_id_do_usuario(client):
         pytest.param("nao-e-um-jwt", id="malformado"),
         pytest.param(gerar_token(exp=int(time.time()) - 60), id="expirado"),
         pytest.param(gerar_token(aud="outro"), id="audience-errada"),
+        pytest.param(gerar_token(iss="https://outro.supabase.co/auth/v1"), id="emissor-errado"),
+        pytest.param(gerar_token(iss=None), id="sem-emissor"),
+        pytest.param(gerar_token(sub=None), id="sem-sub"),
+        pytest.param(gerar_token(exp=None), id="sem-validade"),
         pytest.param(gerar_token(chave=OUTRA_CHAVE_PRIVADA), id="assinatura-de-outra-chave"),
     ],
 )
