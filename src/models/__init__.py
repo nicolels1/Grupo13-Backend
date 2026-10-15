@@ -9,6 +9,7 @@ from src.models.contas import (  # noqa: F401
 )
 from src.models.catalogo import (  # noqa: F401
     CategoriaProduto,
+    Destaque,
     HistoricoPreco,
     ImagemProduto,
     Produto,

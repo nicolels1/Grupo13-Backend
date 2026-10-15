@@ -20,6 +20,27 @@ class CategoriaProduto(Base):
     caminho_imagem: Mapped[str | None] = mapped_column(String(500))
 
 
+# slide do carrossel do topo da página inicial: conteúdo da loja que quem gerencia o catálogo troca
+# pelo interno, sem mexer no código. Sem foto, o slide aparece num bloco de cor
+class Destaque(Base):
+    __tablename__ = "destaque"
+
+    id_destaque: Mapped[int] = mapped_column(primary_key=True)
+    titulo: Mapped[str] = mapped_column(String(80))
+    texto: Mapped[str] = mapped_column(String(200))
+    rotulo_botao: Mapped[str] = mapped_column(String(40))
+    # só endereço da própria loja (começa com /): o botão não leva o cliente para fora do site
+    link: Mapped[str] = mapped_column(String(300))
+    caminho_imagem: Mapped[str | None] = mapped_column(String(500))
+    ordem: Mapped[int] = mapped_column()
+    ativo: Mapped[bool] = mapped_column(default=True, server_default=text("true"))
+
+    __table_args__ = (
+        CheckConstraint("link LIKE '/%' AND link NOT LIKE '//%'", name="link_interno"),
+        CheckConstraint("ordem >= 1", name="ordem_positiva"),
+    )
+
+
 class Produto(Base):
     __tablename__ = "produto"
 
