@@ -5,7 +5,7 @@ from src.middlewares.cors import configurar_cors
 from src.middlewares.erros import configurar_erros
 from src.middlewares.requisicao import configurar_requisicao
 from src.routes import (
-    atendimento, avaliacoes, balcao, catalogo, contas, enderecos, estoque, health, modelos_acesso, pedidos,
+    atendimento, avaliacoes, balcao, catalogo, contas, destaques, enderecos, estoque, health, modelos_acesso, pedidos,
     resumo, transferencias, unidades, usuarios, vendas,
 )
 
@@ -21,6 +21,7 @@ app.include_router(health.router)
 app.include_router(contas.router)
 app.include_router(estoque.router)
 app.include_router(catalogo.router)
+app.include_router(destaques.router)
 app.include_router(unidades.router)
 app.include_router(transferencias.router)
 app.include_router(modelos_acesso.router)
