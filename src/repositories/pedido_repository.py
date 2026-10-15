@@ -18,8 +18,11 @@ def buscar_pedido(db: Session, id_pedido: int, travar: bool = False) -> Pedido |
     return db.scalar(consulta.execution_options(populate_existing=True))
 
 
-def pedido_por_codigo(db: Session, codigo_venda: str) -> Pedido | None:
-    return db.scalar(select(Pedido).where(func.upper(Pedido.codigo_venda) == codigo_venda.upper()))
+def pedido_por_codigo(db: Session, codigo_venda: str, travar: bool = False) -> Pedido | None:
+    consulta = select(Pedido).where(func.upper(Pedido.codigo_venda) == codigo_venda.upper())
+    if travar:
+        consulta = consulta.with_for_update()
+    return db.scalar(consulta.execution_options(populate_existing=True))
 
 
 def buscar_pagamento(db: Session, id_pagamento: int, travar: bool = False) -> Pagamento | None:

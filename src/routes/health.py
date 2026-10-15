@@ -8,7 +8,7 @@ from src.database.session import get_db
 router = APIRouter(tags=["health"])
 
 
-# usada pelo serviço externo que mantém o Render e o banco acordados
+# confere se a API está no ar e consegue falar com o banco
 @router.get("/health")
 def health(db: Session = Depends(get_db)):
     try:
