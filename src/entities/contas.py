@@ -2,6 +2,7 @@ import uuid
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from src.entities.modelos_acesso import CodigoPermissao
 from src.utils.cpf import cpf_valido, normalizar_cpf
 
 PADRAO_EMAIL = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
@@ -78,7 +79,7 @@ class ModeloAcessoSaida(BaseModel):
 class Perfil(UsuarioSaida):
     id_unidade: int | None
     modelo_acesso: ModeloAcessoSaida | None
-    permissoes: list[str]
+    permissoes: list[CodigoPermissao]
 
 
 # sessão do Supabase devolvida no login por CPF; o frontend a entrega ao

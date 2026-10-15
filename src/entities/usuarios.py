@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from src.entities.comum import sem_espacos
 from src.entities.contas import PADRAO_EMAIL, ModeloAcessoSaida
+from src.entities.modelos_acesso import CodigoPermissao
 
 TipoConta = Literal["interna", "cliente"]
 StatusConta = Literal["pendente_ativacao", "ativa", "inativa"]
@@ -66,7 +67,7 @@ class UsuarioItem(BaseModel):
 
 
 class ExcecaoSaida(BaseModel):
-    codigo: str
+    codigo: CodigoPermissao
     efeito: Efeito
 
 
@@ -79,5 +80,5 @@ class UsuarioDetalhe(BaseModel):
     id_unidade: int | None
     modelo_acesso: ModeloAcessoSaida | None
     excecoes: list[ExcecaoSaida]
-    permissoes: list[str] = Field(description="Permissões efetivas: modelo + acrescentadas - retiradas")
+    permissoes: list[CodigoPermissao] = Field(description="Permissões efetivas: modelo + acrescentadas - retiradas")
     convite_pendente: bool = Field(description="O login ainda não foi confirmado (convite não aceito)")
