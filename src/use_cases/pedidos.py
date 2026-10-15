@@ -337,9 +337,10 @@ def cancelar_pelo_cliente(db: Session, cliente: Usuario, id_pedido: int) -> dict
     return detalhar(db, id_pedido)
 
 
-# compra feita na loja sem CPF: o cliente liga à própria conta pelo código do comprovante, uma única vez
+# compra feita na loja sem CPF: o cliente liga à própria conta pelo código do comprovante, uma única vez;
+# a trava faz o segundo pedido com o mesmo código esperar e já encontrar a compra ligada
 def reivindicar(db: Session, cliente: Usuario, codigo_venda: str) -> dict:
-    pedido = repo.pedido_por_codigo(db, codigo_venda)
+    pedido = repo.pedido_por_codigo(db, codigo_venda, travar=True)
     if pedido is None or pedido.canal != "loja_fisica":
         raise RecursoNaoEncontrado("Nenhuma compra na loja com esse código")
     if pedido.id_cliente is not None:

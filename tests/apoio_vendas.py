@@ -112,7 +112,7 @@ def banco(monkeypatch):
     m(r, "variantes_com_produto", lambda db, ids: {i: estado.variantes[i] for i in ids if i in estado.variantes})
     m(r, "disponivel_online", disponivel_online)
     m(r, "buscar_pedido", lambda db, i, travar=False: estado.pedidos.get(i))
-    m(r, "pedido_por_codigo", lambda db, c: next(
+    m(r, "pedido_por_codigo", lambda db, c, travar=False: next(
         (p for p in estado.pedidos.values() if p.codigo_venda.upper() == c.upper()), None))
     m(r, "buscar_pagamento", lambda db, i, travar=False: next(
         (p for p in estado.pagamentos if p.id_pagamento == i), None))

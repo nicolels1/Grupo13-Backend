@@ -281,6 +281,36 @@ def test_reivindicar_codigo_inexistente(banco):
         pedidos.reivindicar(SessaoVendas(banco), cliente(), "CLNADA")
 
 
+# dois clientes com o mesmo código ao mesmo tempo: a trava faz o segundo esperar e ver a compra já ligada
+def test_reivindicar_trava_o_pedido(banco, monkeypatch):
+    from src.repositories import pedido_repository
+    chamadas = []
+    monkeypatch.setattr(pedido_repository, "pedido_por_codigo",
+                        lambda db, c, travar=False: chamadas.append(travar))
+
+    with pytest.raises(RecursoNaoEncontrado):
+        pedidos.reivindicar(SessaoVendas(banco), cliente(), "CLABCD2345")
+
+    assert chamadas == [True]
+
+
+@pytest.mark.parametrize("travar", [True, False])
+def test_pedido_por_codigo_so_trava_quando_pedido(travar):
+    from sqlalchemy.dialects import postgresql
+    from src.repositories import pedido_repository
+
+    class SessaoQueGuarda:
+        consulta = None
+
+        def scalar(self, consulta):
+            self.consulta = consulta
+
+    db = SessaoQueGuarda()
+    pedido_repository.pedido_por_codigo(db, "CLABCD2345", travar=travar)
+
+    assert ("FOR UPDATE" in str(db.consulta.compile(dialect=postgresql.dialect()))) is travar
+
+
 # ---------- rotas ----------
 
 def test_carrinho_e_publico(api, banco):
