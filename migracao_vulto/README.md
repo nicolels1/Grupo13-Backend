@@ -15,14 +15,22 @@ Cada etapa lê a pasta da anterior e regrava a sua do zero; regra nova entra no 
 
 ## Como rodar
 
-Na raiz do repositório, com o venv ativo:
+Os dados da Vulto não ficam neste repositório (têm CPF, e-mail e telefone de clientes). Clone o [vulto-legado-back](https://github.com/nadertaha06/vulto-legado-back) ao lado deste repositório e aponte para a pasta `data/` dele no `.env`:
+
+```
+VULTO_DATA_DIR=../vulto-backend/data
+```
+
+Depois, na raiz do repositório, com o venv ativo:
 
 ```bash
 pip install -r migracao_vulto/requirements.txt
-python -m migracao_vulto.padronizar --origem ../vulto-backend/data --destino staging_vulto
+python -m migracao_vulto.padronizar --destino staging_vulto
 ```
 
-`staging_vulto/` tem CPF, e-mail e telefone de clientes: está no `.gitignore` e não deve ser compartilhada.
+Sem `VULTO_DATA_DIR`, informe a pasta no comando: `--origem ../vulto-backend/data`.
+
+`staging_vulto/` e `tratado_vulto/` têm CPF, e-mail e telefone de clientes: estão no `.gitignore` e não devem ser compartilhadas.
 
 ## Arquivos
 

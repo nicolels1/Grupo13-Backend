@@ -24,3 +24,6 @@ CORS_ORIGINS = [
 ]
 # Opcional: expressão regular para liberar vários endereços, como os previews da Vercel
 CORS_ORIGIN_REGEX = os.getenv("CORS_ORIGIN_REGEX") or None
+
+# Pasta data/ do vulto-legado-back, lida pela migração da Vulto (migracao_vulto/); a API não usa
+VULTO_DATA_DIR = os.getenv("VULTO_DATA_DIR") or None

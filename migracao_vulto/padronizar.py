@@ -6,9 +6,9 @@
 # Não altera os arquivos da Vulto (o SQLite é aberto só para leitura) nem grava no banco da Lorenzi:
 # escreve um CSV por tabela/aba em --destino, mais pendencias.csv com cada valor que não deu para
 # padronizar (fonte, linha, coluna, valor original e motivo).
-# Uso, na raiz do repositório com o venv ativo:
+# Uso, na raiz do repositório com o venv ativo (a origem vem de VULTO_DATA_DIR no .env ou de --origem):
 #   pip install -r migracao_vulto/requirements.txt
-#   python -m migracao_vulto.padronizar --origem ../vulto-backend/data --destino staging_vulto
+#   python -m migracao_vulto.padronizar --destino staging_vulto
 # O destino tem CPF, e-mail e telefone de clientes: fica fora do git (.gitignore) e não deve ser compartilhado.
 import argparse
 import sqlite3
@@ -19,6 +19,7 @@ from openpyxl import load_workbook
 
 from migracao_vulto import normalizadores as n
 from migracao_vulto.normalizadores import ValorInvalido
+from src.config.settings import VULTO_DATA_DIR
 
 ARQUIVO_BANCO = "vulto.db"
 ARQUIVO_CLIENTES = "clientes_fidelidade_FINAL_v3 (1).xlsx"
@@ -383,9 +384,12 @@ def padronizar_atendimento(origem: Path, destino: Path, pend: Pendencias):
 
 def main():
     parser = argparse.ArgumentParser(description="Padroniza os dados da Vulto (só as regras automáticas).")
-    parser.add_argument("--origem", type=Path, required=True, help="pasta data/ do vulto-legado-back")
+    parser.add_argument("--origem", type=Path, default=VULTO_DATA_DIR,
+                        help="pasta data/ do vulto-legado-back (padrão: VULTO_DATA_DIR do .env)")
     parser.add_argument("--destino", type=Path, default=Path("staging_vulto"), help="pasta dos CSVs padronizados")
     args = parser.parse_args()
+    if args.origem is None:
+        parser.error("informe --origem ou defina VULTO_DATA_DIR no .env")
     args.destino.mkdir(parents=True, exist_ok=True)
 
     # cada fonte é independente: se uma falhar, as outras já gravadas continuam valendo
