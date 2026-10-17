@@ -4,3 +4,7 @@ __pycache__/
 venv/
 .venv/
 .pytest_cache/
+
+# CSVs da migração da Vulto (têm CPF, e-mail e telefone de clientes)
+staging_vulto/
+tratado_vulto/

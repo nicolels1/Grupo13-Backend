@@ -1,0 +1,3 @@
+# Só para a padronização dos dados da Vulto; a API não precisa disso (fica fora do requirements.txt da raiz)
+pandas==2.3.3
+openpyxl==3.1.5

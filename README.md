@@ -15,6 +15,7 @@ API da plataforma de estoque, vendas, catálogo, atendimento e avaliações da C
 - [Banco de dados](#banco-de-dados)
 - [Como rodar localmente](#como-rodar-localmente)
 - [Scripts](#scripts)
+- [Migração da Vulto](#migração-da-vulto)
 - [Rotas](#rotas)
 - [Convenções da API](#convenções-da-api)
 - [Testes](#testes)
@@ -72,6 +73,7 @@ src/
 └── utils/          # cpf.py, supabase_admin.py (Auth), supabase_storage.py (Storage) e upload.py
 migrations/         # Alembic: env.py e versions/ (fora do src/: roda na máquina de quem desenvolve, não na API)
 scripts/            # criar_admin, carregar_demo e conferir_banco
+migracao_vulto/     # migração dos dados da Vulto: scripts, notebooks e registro de decisões
 tests/              # testes do pytest
 docs/               # case, ADRs
 ```
@@ -178,6 +180,7 @@ Com o servidor rodando: http://127.0.0.1:8000/docs (Swagger) e http://127.0.0.1:
 | `CORS_ORIGINS` | não | frontends liberados, separados por vírgula e sem `/` no final. Vazio: só `http://localhost:5173` |
 | `CORS_ORIGIN_REGEX` | não | expressão regular para liberar vários endereços, como os previews da Vercel |
 | `DEMO_SENHA` | não | senha das contas criadas por `carregar_demo`; sem ela, o script pede na hora |
+| `VULTO_DATA_DIR` | não | pasta `data/` do vulto-legado-back, lida pela [migração da Vulto](#migração-da-vulto); sem ela, o script pede `--origem` |
 
 Nas URLs do banco, codifique caracteres especiais da senha (`@` vira `%40`). O `.env.example` mostra o formato completo. O `.env` está no `.gitignore` e nunca deve ser commitado; peça os valores a quem mantém o projeto Supabase.
 
@@ -190,6 +193,10 @@ Rodam na raiz do repositório, com o venv ativo e o `.env` preenchido:
 | `python -m scripts.criar_admin` | cria a primeira conta Admin (login no Supabase Auth + linha em `usuario`). Pede nome, e-mail e senha |
 | `python -m scripts.carregar_demo` | carrega o cenário de demonstração: unidades, catálogo, modelos de acesso, contas internas e de cliente, 30 dias de movimentações de estoque e pedidos em cada etapa (venda na loja com e sem CPF, entrega paga para preparar, retirada pronta, pedido entregue com avaliação, voto útil e denúncia pendente, e uma venda com CPF na nota de alguém sem conta). Também cria o modelo Vendedor, com uma conta na Loja Pinheiros, e completa as permissões dos modelos que já existiam. Imprime os códigos de venda e esse CPF. Pode rodar de novo sem duplicar nada |
 | `python -m scripts.conferir_banco` | confere no banco de verdade as garantias do usuário restrito, do RLS, do saldo do estoque, da troca e devolução sempre ligadas ao pedido e do cancelamento da reserva vencida. Roda numa transação desfeita no final: nada fica gravado |
+
+## Migração da Vulto
+
+A pasta [`migracao_vulto/`](migracao_vulto/) leva os dados da Vulto (banco SQLite e planilhas do vulto-legado-back) para o banco da Casa Lorenzi, em etapas: padronização automática, tratamento com as decisões de negócio e carga. Os dados de origem não ficam neste repositório (têm dados pessoais de clientes): o caminho vem de `VULTO_DATA_DIR`. Como rodar, o que cada etapa faz e o que falta estão no [README da migração](migracao_vulto/README.md); as decisões tomadas sobre os dados, no [registro de decisões](migracao_vulto/registro_decisoes.md).
 
 ## Rotas
 
@@ -436,6 +443,7 @@ A API é publicada no Render a cada merge na `main`.
 | [CONTEXT.md](CONTEXT.md) | glossário dos termos do domínio |
 | [docs/adr/](docs/adr/) | decisões de arquitetura difíceis de reverter (ADRs 0001 a 0015) |
 | [ALEMBIC_GUIDE.md](ALEMBIC_GUIDE.md) | como criar e aplicar migrations |
+| [migracao_vulto/registro_decisoes.md](migracao_vulto/registro_decisoes.md) | problemas encontrados nos dados da Vulto, decisões tomadas e impacto nos números |
 
 ## Como contribuir
 
