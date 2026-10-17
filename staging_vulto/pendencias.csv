@@ -1,0 +1,1539 @@
+fonte,linha,coluna,valor,motivo
+vulto.db,vendas#222,cliente_ref,90927-9251,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#223,cliente_ref,94523-3887,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#282,cliente_ref,355.300.400-02,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#507,cliente_ref,862.725.070-95,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#654,cliente_ref,881.852.987-78,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#716,cliente_ref,97675-7658,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#839,cliente_ref,99919-1229,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#944,cliente_ref,91290-2369,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#1176,cliente_ref,93967-8944,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#1329,cliente_ref,779.268.565-84,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#1372,cliente_ref,569.149.043-33,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#1513,cliente_ref,98248-6462,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#1529,cliente_ref,93630-9706,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#1778,cliente_ref,93326-7104,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#1811,cliente_ref,99820-3527,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#1893,cliente_ref,826 532 154 04,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#2086,cliente_ref,90429-6274,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#2092,cliente_ref,859.151.363-60,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#2459,cliente_ref,97432-2173,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#2511,cliente_ref,92568-4846,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#2548,cliente_ref,95115-9016,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#2557,cliente_ref,234 162 657 00,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#2712,cliente_ref,90009-9317,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#2790,cliente_ref,930.728.285-76,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#2825,cliente_ref,062.605.864-29,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#2901,cliente_ref,98327-1614,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#3195,cliente_ref,99985-4997,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#3542,cliente_ref,96032-8141,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#3662,cliente_ref,91697-5143,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#3711,cliente_ref,98577-3025,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#3717,cliente_ref,92738-2782,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#3720,cliente_ref,131 009 988 34,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#3831,cliente_ref,94827-1041,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#3843,cliente_ref,269.280.326-72,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#4063,cliente_ref,93763-2646,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#4288,cliente_ref,594 581 867 03,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#4401,cliente_ref,887.703.394-64,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#4571,cliente_ref,477.066.637-37,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#4574,cliente_ref,859.858.863-30,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#5198,cliente_ref,93579-5613,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#5387,cliente_ref,027.253.224-68,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#5974,cliente_ref,91549-9838,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#6328,cliente_ref,90372-6664,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#6493,cliente_ref,99098-4002,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#6568,cliente_ref,154.053.266-06,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#6585,cliente_ref,99583-7713,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#6599,cliente_ref,96764-1740,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#6658,cliente_ref,93751-2852,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#6659,cliente_ref,646 455 144 07,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#6665,cliente_ref,772.866.036-01,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#6919,cliente_ref,90664-2721,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#6923,cliente_ref,99908-4438,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#7003,cliente_ref,96952-0795,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#7019,cliente_ref,97909-3109,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#7187,cliente_ref,474.815.551-35,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#7311,cliente_ref,567.416.776-90,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#7387,cliente_ref,92608-5724,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#7435,cliente_ref,91749-1147,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#7517,cliente_ref,92791-6694,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#7580,cliente_ref,95468-2246,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#7759,cliente_ref,99055-8099,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#7822,cliente_ref,90061-4041,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#7838,cliente_ref,91949-3960,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#7994,cliente_ref,96952-0795,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#8007,cliente_ref,887.840.263-22,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#8036,cliente_ref,113.485.166-67,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#8142,cliente_ref,96582-5245,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#8249,cliente_ref,95837-5854,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#8366,cliente_ref,90697-9398,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#8512,cliente_ref,99157-9180,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#8525,cliente_ref,489.728.261-59,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#8953,cliente_ref,99888-1017,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#9501,cliente_ref,99244-5651,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#9703,cliente_ref,94762-7364,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#9752,cliente_ref,93750-3739,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#9778,cliente_ref,98418-3629,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#9889,cliente_ref,859.858.869-60,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#9935,cliente_ref,97490-7507,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#10167,cliente_ref,92558-8463,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#10172,cliente_ref,94190-5385,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#10200,cliente_ref,93339-8875,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#10233,cliente_ref,619.721.482-14,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#10314,cliente_ref,91126-9780,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#10392,cliente_ref,95379-0593,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#10481,cliente_ref,98741-0686,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#10494,cliente_ref,98474-8329,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#10754,cliente_ref,336.073.657-45,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#10876,cliente_ref,97603-7271,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#10984,cliente_ref,687.404.696-52,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#11039,cliente_ref,303.475.661-93,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#11089,cliente_ref,336.300.750-38,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#11778,cliente_ref,050.018.208-47,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#11827,cliente_ref,279.704.641-61,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#11877,cliente_ref,97091-7692,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#11879,cliente_ref,93446-2486,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#12027,cliente_ref,99240-1331,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#12084,cliente_ref,99302-0419,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#12220,cliente_ref,380.346.685-02,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#12390,cliente_ref,90175-5748,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#12436,cliente_ref,98655-7204,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#12661,cliente_ref,94223-5091,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#12708,cliente_ref,96133-4946,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#12763,cliente_ref,428.425.533-79,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#13288,cliente_ref,99523-1094,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#13633,cliente_ref,95169-7031,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#13638,cliente_ref,99478-3236,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#13778,cliente_ref,484 282 509 10,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#13784,cliente_ref,94212-8039,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#13850,cliente_ref,98967-8696,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#13889,cliente_ref,678.965.438-53,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#14013,cliente_ref,806.042.472-53,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#14016,cliente_ref,93463-4325,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#14020,cliente_ref,93924-6805,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#14305,cliente_ref,336 158 212 14,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#14326,cliente_ref,90451-0281,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#14520,cliente_ref,90372-6664,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#14590,cliente_ref,95016-0585,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#14603,cliente_ref,98307-8451,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#14648,cliente_ref,99890-7556,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#14793,cliente_ref,738.407.311-32,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#14895,cliente_ref,97400-9414,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#15360,cliente_ref,91819-3547,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#15363,cliente_ref,90429-6274,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#15403,cliente_ref,150 984 648 03,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#15409,cliente_ref,306.531.812-37,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#15500,cliente_ref,93174-5260,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#15575,cliente_ref,90868-2114,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#15707,cliente_ref,898.933.281-35,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#15848,cliente_ref,98071-8104,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#16056,cliente_ref,92275-0813,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#16229,cliente_ref,91686-1886,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#16286,cliente_ref,91727-0814,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#16440,cliente_ref,95906-2371,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#16547,cliente_ref,91031-3261,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#16600,cliente_ref,95448-9178,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#16767,cliente_ref,843.312.877-16,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#16862,cliente_ref,96032-8141,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#17112,cliente_ref,415.595.199-49,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#17168,cliente_ref,98508-5385,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#17213,cliente_ref,677 300 113 37,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#17256,cliente_ref,788 997 185 81,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#17274,cliente_ref,58.535.939/0001-30,contato em formato desconhecido
+vulto.db,vendas#17366,cliente_ref,174.430.895-09,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#17660,cliente_ref,99667-6285,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#17666,cliente_ref,647.577.509-35,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#17877,cliente_ref,90683-6190,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#17898,cliente_ref,98452-7340,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#18044,cliente_ref,91527-3444,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#18201,cliente_ref,355.339.928-29,CPF inválido (tamanho ou dígito verificador)
+vulto.db,vendas#18405,cliente_ref,99066-6757,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#18520,cliente_ref,94743-0669,telefone sem DDD ou com dígitos a mais
+vulto.db,vendas#18551,cliente_ref,91496-7609,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#145,cliente_ref,90927-9251,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#324,cliente_ref,95831-9475,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#376,cliente_ref,95147-1127,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#447,cliente_ref,90674-2939,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#450,cliente_ref,95445-1752,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#494,cliente_ref,91415-0092,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#581,cliente_ref,95372-9822,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#615,cliente_ref,92492-4991,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#1057,cliente_ref,93751-7339,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#1091,cliente_ref,98636-9415,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#1179,cliente_ref,96627-1585,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#1582,cliente_ref,93722-1437,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#1738,cliente_ref,94762-7364,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#1804,cliente_ref,97900-1271,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#2048,cliente_ref,99985-4997,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#2175,cliente_ref,90099-5738,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#2359,cliente_ref,93514-2872,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#2370,cliente_ref,91527-3444,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#2917,cliente_ref,93174-5260,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#3013,cliente_ref,97849-6763,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#3170,cliente_ref,96620-3010,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#3537,cliente_ref,94743-0669,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#3636,cliente_ref,90372-6664,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#3799,cliente_ref,91303-4246,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#3873,cliente_ref,95115-9016,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#3922,cliente_ref,91712-9151,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#4100,cliente_ref,90372-6664,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#4245,cliente_ref,99098-4002,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#4315,cliente_ref,154.053.266-06,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#4330,cliente_ref,99583-7713,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#4342,cliente_ref,96764-1740,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#4397,cliente_ref,93751-2852,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#4398,cliente_ref,646 455 144 07,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#4402,cliente_ref,772.866.036-01,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#4621,cliente_ref,90664-2721,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#4624,cliente_ref,99908-4438,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#4695,cliente_ref,96952-0795,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#4711,cliente_ref,97909-3109,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#4854,cliente_ref,474.815.551-35,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#4961,cliente_ref,567.416.776-90,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#5030,cliente_ref,92608-5724,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#5075,cliente_ref,91749-1147,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#5145,cliente_ref,92791-6694,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#5202,cliente_ref,95468-2246,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#5359,cliente_ref,99055-8099,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#5412,cliente_ref,90061-4041,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#5426,cliente_ref,91949-3960,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#5569,cliente_ref,96952-0795,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#5582,cliente_ref,887.840.263-22,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#5608,cliente_ref,113.485.166-67,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#5702,cliente_ref,96582-5245,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#5800,cliente_ref,95837-5854,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#5901,cliente_ref,90697-9398,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#6031,cliente_ref,99157-9180,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#6041,cliente_ref,489.728.261-59,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#6424,cliente_ref,99888-1017,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#6909,cliente_ref,99244-5651,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#7085,cliente_ref,94762-7364,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#7086,cliente_ref,94762-7364,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#7128,cliente_ref,93750-3739,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#7153,cliente_ref,98418-3629,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#7248,cliente_ref,859.858.869-60,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#7287,cliente_ref,97490-7507,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#7491,cliente_ref,92558-8463,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#7496,cliente_ref,94190-5385,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#7518,cliente_ref,93339-8875,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#7546,cliente_ref,619.721.482-14,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#7612,cliente_ref,91126-9780,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#7683,cliente_ref,95379-0593,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#7767,cliente_ref,98741-0686,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#7779,cliente_ref,98474-8329,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#8007,cliente_ref,336.073.657-45,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#8122,cliente_ref,97603-7271,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#8216,cliente_ref,687.404.696-52,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#8262,cliente_ref,303.475.661-93,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#8309,cliente_ref,336.300.750-38,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#8921,cliente_ref,050.018.208-47,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#8965,cliente_ref,279.704.641-61,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#9007,cliente_ref,97091-7692,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#9009,cliente_ref,93446-2486,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#9138,cliente_ref,99240-1331,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#9185,cliente_ref,99302-0419,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#9308,cliente_ref,380.346.685-02,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#9457,cliente_ref,90175-5748,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#9498,cliente_ref,98655-7204,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#9708,cliente_ref,94223-5091,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#9749,cliente_ref,96133-4946,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#9809,cliente_ref,428.425.533-79,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#10265,cliente_ref,99523-1094,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#10565,cliente_ref,95169-7031,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#10571,cliente_ref,99478-3236,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#10693,cliente_ref,484 282 509 10,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#10698,cliente_ref,94212-8039,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#10754,cliente_ref,98967-8696,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#10787,cliente_ref,678.965.438-53,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#10893,cliente_ref,806.042.472-53,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#10896,cliente_ref,93463-4325,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#10900,cliente_ref,93924-6805,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#11140,cliente_ref,336 158 212 14,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#11161,cliente_ref,90451-0281,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#11334,cliente_ref,90372-6664,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#11396,cliente_ref,95016-0585,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#11405,cliente_ref,98307-8451,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#11440,cliente_ref,99890-7556,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#11572,cliente_ref,738.407.311-32,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#11665,cliente_ref,97400-9414,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#11803,cliente_ref,90739-8950,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#11890,cliente_ref,90451-0281,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#12073,cliente_ref,91819-3547,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#12075,cliente_ref,90429-6274,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#12112,cliente_ref,150 984 648 03,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#12117,cliente_ref,306.531.812-37,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#12199,cliente_ref,93174-5260,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#12260,cliente_ref,90868-2114,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#12380,cliente_ref,898.933.281-35,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#12510,cliente_ref,98071-8104,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#12698,cliente_ref,92275-0813,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#12854,cliente_ref,91686-1886,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#12904,cliente_ref,91727-0814,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#12954,cliente_ref,93524-8515,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#12972,cliente_ref,90458-9984,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#13038,cliente_ref,95906-2371,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#13134,cliente_ref,91031-3261,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#13181,cliente_ref,95448-9178,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#13326,cliente_ref,843.312.877-16,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#13414,cliente_ref,96032-8141,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#13416,cliente_ref,96032-8141,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#13630,cliente_ref,415.595.199-49,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#13679,cliente_ref,98508-5385,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#13720,cliente_ref,677 300 113 37,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#13762,cliente_ref,788 997 185 81,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#13777,cliente_ref,58.535.939/0001-30,contato em formato desconhecido
+vulto.db,compras#13856,cliente_ref,174.430.895-09,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#14125,cliente_ref,99667-6285,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#14130,cliente_ref,647.577.509-35,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#14305,cliente_ref,90683-6190,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#14323,cliente_ref,98452-7340,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#14451,cliente_ref,91527-3444,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#14590,cliente_ref,355.339.928-29,CPF inválido (tamanho ou dígito verificador)
+vulto.db,compras#14769,cliente_ref,99066-6757,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#14876,cliente_ref,94743-0669,telefone sem DDD ou com dígitos a mais
+vulto.db,compras#14907,cliente_ref,91496-7609,telefone sem DDD ou com dígitos a mais
+vulto.db,pontos_mov#54,cpf,11905579200,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#86,cpf,11920553804,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#92,cpf,31991980553,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#126,cpf,909279251,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#184,cpf,11961034105,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#275,cpf,958319475,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#318,cpf,951471127,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#379,cpf,906742939,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#382,cpf,954451752,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#422,cpf,914150092,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#481,cpf,41918297904,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#488,cpf,11945362801,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#489,cpf,953729822,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#495,cpf,41973160676,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#516,cpf,41973160676,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#517,cpf,924924991,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#520,cpf,11928690020,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#808,cpf,41982486462,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#889,cpf,937517339,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#924,cpf,986369415,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#982,cpf,31937221437,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#995,cpf,966271585,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#1334,cpf,937221437,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#1457,cpf,947627364,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#1509,cpf,979001271,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#1680,cpf,11910060057,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#1718,cpf,999854997,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#1778,cpf,11903726664,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#1825,cpf,900995738,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#1902,cpf,31960328141,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#1981,cpf,935142872,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#1993,cpf,915273444,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#2197,cpf,11969094158,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#2441,cpf,931745260,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#2534,cpf,978496763,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#2666,cpf,966203010,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#2980,cpf,947430669,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#3040,cpf,31928976385,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#3062,cpf,903726664,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#3114,cpf,31947576522,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#3146,cpf,00000000000,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#3148,cpf,00000000000,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#3202,cpf,913034246,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#3214,cpf,31931745260,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#3221,cpf,31998453257,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#3250,cpf,11915499838,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#3261,cpf,951159016,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#3303,cpf,917129151,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#3423,cpf,31945233887,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#3448,cpf,903726664,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#3552,cpf,11974631736,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#3556,cpf,990984002,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#3612,cpf,15405326606,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#3621,cpf,995837713,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#3634,cpf,967641740,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#3679,cpf,937512852,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#3681,cpf,77286603601,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#3849,cpf,906642721,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#3852,cpf,999084438,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#3905,cpf,969520795,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#3917,cpf,979093109,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#3937,cpf,11038399882,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#4033,cpf,47481555135,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#4100,cpf,11965117591,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#4120,cpf,56741677690,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#4176,cpf,926085724,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#4208,cpf,11951851350,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#4212,cpf,917491147,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#4248,cpf,57755080050,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#4261,cpf,11936645983,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#4263,cpf,927916694,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#4307,cpf,954682246,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#4325,cpf,41991579180,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#4439,cpf,990558099,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#4477,cpf,900614041,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#4489,cpf,919493960,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#4560,cpf,63730297508,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#4601,cpf,969520795,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#4612,cpf,88784026322,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#4634,cpf,11348516667,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#4701,cpf,965825245,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#4782,cpf,958375854,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#4865,cpf,50730382486,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#4870,cpf,906979398,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#4902,cpf,41931770281,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#4921,cpf,18494844180,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#4967,cpf,991579180,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#4973,cpf,48972826159,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#5159,cpf,78554612375,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#5272,cpf,998881017,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#5323,cpf,31966271585,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#5421,cpf,11905771111,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#5607,cpf,11935042685,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#5636,cpf,01322012555,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#5651,cpf,992445651,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#5797,cpf,947627364,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#5798,cpf,947627364,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#5830,cpf,937503739,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#5832,cpf,46950753764,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#5833,cpf,83099964092,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#5849,cpf,984183629,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#5861,cpf,11982626735,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#5911,cpf,27387102110,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#5920,cpf,85985886960,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#5952,cpf,974907507,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#5979,cpf,41958375854,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#6031,cpf,80011056300,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#6077,cpf,01418873847,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#6101,cpf,925588463,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#6106,cpf,941905385,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#6146,cpf,61972148214,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#6200,cpf,911269780,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#6201,cpf,11904510281,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#6241,cpf,41958375854,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#6261,cpf,953790593,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#6336,cpf,987410686,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#6347,cpf,984748329,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#6349,cpf,56242446390,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#6357,cpf,55897109758,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#6376,cpf,41958375854,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#6409,cpf,11950542678,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#6525,cpf,33607365745,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#6612,cpf,976037271,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#6688,cpf,68740469652,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#6729,cpf,30347566193,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#6764,cpf,33630075038,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#6934,cpf,41909419087,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#7143,cpf,11951939415,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#7258,cpf,05001820847,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#7291,cpf,27970464161,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#7325,cpf,970917692,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#7327,cpf,934462486,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#7423,cpf,31947576522,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#7429,cpf,992401331,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#7458,cpf,11988180691,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#7467,cpf,993020419,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#7545,cpf,11990372002,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#7564,cpf,38034668502,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#7685,cpf,901755748,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#7709,cpf,11972558662,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#7718,cpf,986557204,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#7853,cpf,31965626790,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#7894,cpf,942235091,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#7928,cpf,961334946,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#7975,cpf,42842553379,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#8000,cpf,41980713796,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#8033,cpf,41914810083,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#8111,cpf,31971232459,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#8207,cpf,95763905020,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#8258,cpf,31990912087,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#8327,cpf,11972414979,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#8354,cpf,995231094,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#8573,cpf,951697031,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#8577,cpf,994783236,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#8682,cpf,942128039,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#8727,cpf,989678696,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#8753,cpf,67896543853,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#8830,cpf,17790082990,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#8831,cpf,80604247253,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#8833,cpf,934634325,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#8837,cpf,939246805,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#8848,cpf,41909419087,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#8865,cpf,11949900050,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#8886,cpf,11953143091,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#8999,cpf,79931480052,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#9045,cpf,904510281,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#9114,cpf,61545222263,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#9126,cpf,41912572707,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#9142,cpf,11935042685,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#9175,cpf,903726664,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#9229,cpf,950160585,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#9236,cpf,983078451,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#9268,cpf,998907556,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#9277,cpf,41970470262,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#9380,cpf,73840731132,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#9449,cpf,974009414,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#9472,cpf,00000000000,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#9518,cpf,11945497422,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#9519,cpf,11945497422,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#9562,cpf,907398950,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#9566,cpf,00000000000,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#9569,cpf,00000000000,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#9630,cpf,904510281,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#9631,cpf,31972388083,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#9669,cpf,41922797542,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#9691,cpf,11960061892,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#9787,cpf,918193547,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#9789,cpf,904296274,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#9823,cpf,30653181237,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#9899,cpf,931745260,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#9920,cpf,11995202699,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#9945,cpf,908682114,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#10023,cpf,11969520795,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#10051,cpf,09159774003,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#10063,cpf,89893328135,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#10172,cpf,980718104,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#10208,cpf,11943911871,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#10295,cpf,20858563480,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#10305,cpf,41979001271,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#10323,cpf,922750813,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#10464,cpf,916861886,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#10505,cpf,917270814,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#10530,cpf,31932729616,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#10545,cpf,935248515,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#10553,cpf,904589984,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#10572,cpf,31979407327,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#10599,cpf,11990955171,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#10601,cpf,959062371,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#10615,cpf,26570249717,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#10671,cpf,910313261,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#10707,cpf,954489178,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#10777,cpf,11901760232,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#10827,cpf,84331287716,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#10907,cpf,84331287716,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#10908,cpf,960328141,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#10910,cpf,960328141,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#11042,cpf,41970470262,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#11069,cpf,95733513580,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#11070,cpf,41559519949,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#11089,cpf,70557042299,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#11108,cpf,985085385,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#11235,cpf,17443089509,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#11444,cpf,22341218747,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#11448,cpf,996676285,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#11452,cpf,64757750935,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#11549,cpf,41932238589,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#11552,cpf,41912572707,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#11593,cpf,906836190,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#11611,cpf,984527340,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#11619,cpf,31954071430,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#11642,cpf,41956653667,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#11726,cpf,915273444,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#11764,cpf,41921015649,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#11843,cpf,35533992829,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#11893,cpf,11953862569,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#11943,cpf,42701960830,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#11973,cpf,11984527340,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#11984,cpf,21938543010,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#11990,cpf,990666757,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#12069,cpf,947430669,CPF inválido (tamanho ou dígito verificador)
+vulto.db,pontos_mov#12093,cpf,914967609,CPF inválido (tamanho ou dígito verificador)
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!213,cpf,117.120.379-61,CPF inválido (tamanho ou dígito verificador)
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!431,cpf,267.390.314-89,CPF inválido (tamanho ou dígito verificador)
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!480,cpf,906.184.904-92,CPF inválido (tamanho ou dígito verificador)
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!660,cpf,092.742.848-49,CPF inválido (tamanho ou dígito verificador)
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!766,cpf,899.896.669-40,CPF inválido (tamanho ou dígito verificador)
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!854,cpf,245.593.821-06,CPF inválido (tamanho ou dígito verificador)
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!957,cpf,883.620.557-20,CPF inválido (tamanho ou dígito verificador)
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1011,cpf,521.388.328-51,CPF inválido (tamanho ou dígito verificador)
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1095,cpf,539.736.640-86,CPF inválido (tamanho ou dígito verificador)
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1136,cpf,476.728.859-26,CPF inválido (tamanho ou dígito verificador)
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1150,cpf,449.183.566-29,CPF inválido (tamanho ou dígito verificador)
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1246,cpf,197.606.348-98,CPF inválido (tamanho ou dígito verificador)
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1252,cpf,139.416.512-64,CPF inválido (tamanho ou dígito verificador)
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1282,cpf,843.000.790-40,CPF inválido (tamanho ou dígito verificador)
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1406,cpf,632.253.819-48,CPF inválido (tamanho ou dígito verificador)
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1454,cpf,084.077.822-55,CPF inválido (tamanho ou dígito verificador)
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1547,cpf,521.346.185-06,CPF inválido (tamanho ou dígito verificador)
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1582,cpf,372.355.387-41,CPF inválido (tamanho ou dígito verificador)
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1670,cpf,312.296.464-71,CPF inválido (tamanho ou dígito verificador)
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1814,cpf,295.196.450-18,CPF inválido (tamanho ou dígito verificador)
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1874,cpf,212.976.285-78,CPF inválido (tamanho ou dígito verificador)
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2121,cpf,117.302.949-04,CPF inválido (tamanho ou dígito verificador)
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2220,cpf,616.004.066-30,CPF inválido (tamanho ou dígito verificador)
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2221,cpf,403.966.309-42,CPF inválido (tamanho ou dígito verificador)
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2228,cpf,331.721.910-67,CPF inválido (tamanho ou dígito verificador)
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2285,cpf,750.516.410-07,CPF inválido (tamanho ou dígito verificador)
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2332,cpf,957.315.413-03,CPF inválido (tamanho ou dígito verificador)
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2367,cpf,579.347.479-07,CPF inválido (tamanho ou dígito verificador)
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!658,E-mail,nao tem,e-mail fora do formato
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!837,E-mail,nao tem,e-mail fora do formato
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1764,E-mail,nao tem,e-mail fora do formato
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!14,Tel,93869-5105,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!20,Tel,92459-5132,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!27,Tel,99964-8267,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!33,Tel,90927-9251,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!39,Tel,91258-7201,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!46,Tel,97842-2074,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!61,Tel,95162-0605,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!74,Tel,95185-1350,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!77,Tel,96113-6004,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!78,Tel,97406-1212,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!86,Tel,99039-6822,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!87,Tel,99700-3676,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!89,Tel,94128-1600,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!97,Tel,94758-9314,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!100,Tel,96836-9315,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!105,Tel,94893-7481,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!109,Tel,93285-6616,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!124,Tel,90523-6927,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!125,Tel,90290-9075,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!132,Tel,91341-2748,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!137,Tel,93801-3824,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!147,Tel,98585-3334,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!150,Tel,91589-5169,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!154,Tel,91817-6487,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!158,Tel,90898-5655,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!160,Tel,90953-4934,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!161,Tel,91777-2621,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!164,Tel,94623-2544,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!165,Tel,99143-8275,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!172,Tel,97057-1226,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!181,Tel,95468-1689,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!186,Tel,99975-5530,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!188,Tel,95871-0814,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!191,Tel,99736-7908,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!197,Tel,94233-7757,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!198,Tel,99593-3394,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!199,Tel,92746-5203,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!205,Tel,92061-4314,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!211,Tel,96730-6542,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!212,Tel,93625-8743,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!213,Tel,99932-5214,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!226,Tel,97805-0637,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!243,Tel,97365-6883,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!246,Tel,95120-1070,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!254,Tel,90822-9730,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!259,Tel,97617-3048,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!265,Tel,99654-1178,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!269,Tel,91194-6518,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!271,Tel,99743-7799,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!272,Tel,92825-5332,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!276,Tel,94371-6949,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!295,Tel,93346-3278,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!297,Tel,98094-2041,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!309,Tel,90557-5789,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!314,Tel,99507-8353,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!321,Tel,94346-1194,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!331,Tel,93339-8875,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!347,Tel,95628-9905,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!360,Tel,99407-9320,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!362,Tel,94108-6805,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!369,Tel,96285-8885,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!372,Tel,91815-1155,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!380,Tel,98898-0757,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!384,Tel,94945-7218,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!391,Tel,91080-3233,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!392,Tel,90483-8763,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!416,Tel,99865-4482,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!423,Tel,99454-2615,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!424,Tel,94684-1856,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!427,Tel,98389-7336,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!436,Tel,90948-1229,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!444,Tel,95120-5144,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!446,Tel,95668-4315,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!457,Tel,99264-7304,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!478,Tel,90964-9470,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!479,Tel,90518-0084,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!481,Tel,93446-2486,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!483,Tel,96116-0555,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!491,Tel,97609-1578,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!493,Tel,97206-3929,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!494,Tel,95121-7990,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!498,Tel,93639-6111,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!506,Tel,92173-0937,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!507,Tel,91530-2730,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!508,Tel,90284-0959,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!511,Tel,91156-0657,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!512,Tel,98251-0938,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!517,Tel,95016-0585,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!519,Tel,99654-1178,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!525,Tel,95383-0989,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!529,Tel,99845-3257,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!533,Tel,90981-1761,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!538,Tel,92283-2098,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!543,Tel,92484-7602,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!552,Tel,99042-8776,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!569,Tel,94003-0614,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!574,Tel,93272-3036,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!590,Tel,93122-5115,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!594,Tel,93841-0473,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!599,Tel,95522-0059,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!600,Tel,96532-6140,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!610,Tel,91589-0193,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!611,Tel,94251-4370,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!613,Tel,90941-8727,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!620,Tel,95618-6189,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!626,Tel,98980-3159,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!627,Tel,95644-8177,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!633,Tel,98320-1852,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!635,Tel,94582-5645,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!641,Tel,94726-9902,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!648,Tel,99160-9570,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!649,Tel,96065-9805,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!658,Tel,96738-6471,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!671,Tel,96734-0811,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!674,Tel,95244-3615,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!684,Tel,94673-6967,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!687,Tel,91740-1266,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!689,Tel,90118-2603,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!692,Tel,96267-4110,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!709,Tel,95772-3350,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!711,Tel,99597-7713,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!712,Tel,91664-9765,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!714,Tel,95115-9016,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!718,Tel,95812-1690,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!747,Tel,94344-9042,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!755,Tel,99708-4333,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!756,Tel,92752-5171,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!760,Tel,97803-7467,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!762,Tel,96951-7914,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!763,Tel,95926-9268,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!781,Tel,95720-3139,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!788,Tel,93057-1807,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!795,Tel,93119-9605,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!796,Tel,93180-0022,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!803,Tel,94674-2386,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!808,Tel,98007-6782,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!813,Tel,93240-5672,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!814,Tel,91737-5994,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!817,Tel,95578-9278,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!827,Tel,96595-9137,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!828,Tel,98750-0865,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!835,Tel,96658-3954,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!839,Tel,95492-8392,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!844,Tel,98524-0857,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!848,Tel,97376-0991,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!851,Tel,96764-1740,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!868,Tel,98254-2516,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!871,Tel,94159-0223,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!884,Tel,90449-4739,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!890,Tel,94316-8333,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!914,Tel,95494-4364,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!922,Tel,92400-0988,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!926,Tel,98999-8210,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!930,Tel,95789-9788,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!945,Tel,90295-4258,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!971,Tel,96695-4636,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!976,Tel,97641-1474,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!980,Tel,93722-1437,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!985,Tel,93519-8833,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!988,Tel,91362-4637,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1003,Tel,90186-5472,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1005,Tel,92738-2782,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1013,Tel,98092-1037,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1036,Tel,93372-5146,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1046,Tel,99190-5753,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1049,Tel,93732-6355,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1051,Tel,91049-7362,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1056,Tel,92501-9301,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1061,Tel,91403-2762,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1062,Tel,96892-7239,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1064,Tel,97003-4133,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1066,Tel,96185-7838,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1069,Tel,92056-8958,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1074,Tel,96533-1886,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1076,Tel,96765-0396,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1096,Tel,94122-3434,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1116,Tel,98024-1004,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1118,Tel,90214-8517,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1121,Tel,98580-8621,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1126,Tel,92662-4976,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1133,Tel,94986-5477,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1134,Tel,95627-6189,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1139,Tel,90730-6728,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1141,Tel,96284-8183,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1145,Tel,95661-8602,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1148,Tel,96437-0825,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1153,Tel,97596-6325,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1159,Tel,92260-1641,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1166,Tel,98726-9710,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1172,Tel,94545-3141,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1175,Tel,99610-9361,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1183,Tel,97496-9203,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1184,Tel,96178-6214,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1190,Tel,94913-9574,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1199,Tel,97952-6515,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1205,Tel,96752-9756,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1213,Tel,96374-9388,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1214,Tel,93209-3627,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1224,Tel,91377-7911,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1226,Tel,91813-1718,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1235,Tel,91548-3895,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1240,Tel,95302-9297,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1246,Tel,96143-8726,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1256,Tel,94391-1871,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1260,Tel,96807-8605,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1265,Tel,97075-2865,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1269,Tel,94465-8910,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1276,Tel,94724-8456,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1278,Tel,96783-6339,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1280,Tel,99044-5305,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1281,Tel,92130-9624,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1284,Tel,99449-3973,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1292,Tel,95278-3799,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1295,Tel,97566-5675,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1301,Tel,96269-6185,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1314,Tel,97280-6853,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1317,Tel,94505-5784,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1321,Tel,97787-1580,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1333,Tel,98629-3475,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1341,Tel,97316-0676,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1352,Tel,91152-2569,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1354,Tel,92161-0194,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1355,Tel,93869-9961,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1357,Tel,94003-2070,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1359,Tel,96288-8734,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1361,Tel,94684-3847,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1374,Tel,92402-7007,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1378,Tel,98864-5862,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1380,Tel,90146-1408,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1394,Tel,95118-8322,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1397,Tel,93462-4640,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1419,Tel,94146-0034,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1420,Tel,99150-8317,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1433,Tel,99473-9427,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1435,Tel,97092-2008,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1436,Tel,98290-3184,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1438,Tel,93344-1541,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1440,Tel,99334-6708,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1453,Tel,98274-8514,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1468,Tel,97455-3679,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1481,Tel,99469-2077,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1486,Tel,93581-6538,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1497,Tel,93888-7635,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1502,Tel,93614-2453,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1504,Tel,91699-8390,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1513,Tel,96056-3813,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1514,Tel,92070-1824,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1519,Tel,97695-2316,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1526,Tel,92874-5368,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1535,Tel,94873-2123,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1536,Tel,97956-2012,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1537,Tel,98964-1825,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1539,Tel,99005-5733,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1545,Tel,93691-2716,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1546,Tel,98770-1236,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1552,Tel,94827-1041,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1607,Tel,95612-9210,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1608,Tel,96133-9992,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1609,Tel,91698-0654,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1618,Tel,94554-3653,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1626,Tel,97777-0435,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1630,Tel,91107-4717,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1632,Tel,93397-1331,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1637,Tel,96881-0878,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1642,Tel,91455-9296,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1646,Tel,94549-7422,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1650,Tel,97330-3872,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1654,Tel,96515-7715,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1662,Tel,99264-2762,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1665,Tel,95604-5816,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1670,Tel,93968-6950,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1671,Tel,92288-6757,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1673,Tel,98042-0344,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1679,Tel,95928-2765,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1685,Tel,91666-4241,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1688,Tel,92131-4542,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1691,Tel,94548-1304,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1692,Tel,94085-9841,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1699,Tel,91864-2476,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1712,Tel,95573-8702,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1717,Tel,93023-5446,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1719,Tel,99667-6285,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1721,Tel,90061-4041,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1724,Tel,90751-5145,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1729,Tel,96627-1585,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1731,Tel,91890-3766,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1732,Tel,92686-4693,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1734,Tel,94465-8910,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1741,Tel,96557-6460,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1746,Tel,93365-3683,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1752,Tel,92785-9820,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1760,Tel,93628-1019,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1766,Tel,90526-1144,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1772,Tel,92451-7672,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1774,Tel,92892-5853,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1776,Tel,90975-9411,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1778,Tel,91749-1040,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1780,Tel,96480-8743,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1784,Tel,90807-4898,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1788,Tel,94992-5085,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1789,Tel,99881-4063,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1794,Tel,96375-6111,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1797,Tel,92352-4343,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1821,Tel,98452-7340,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1822,Tel,97648-5768,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1823,Tel,98061-1604,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1843,Tel,97644-2343,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1868,Tel,91490-7638,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1869,Tel,93875-9532,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1874,Tel,95722-2852,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1885,Tel,95051-6940,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1888,Tel,99366-0166,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1894,Tel,94885-4328,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1900,Tel,93873-8474,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1922,Tel,97500-3158,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1929,Tel,91917-0532,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1938,Tel,90863-9512,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1939,Tel,93329-8327,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1941,Tel,99560-9413,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1957,Tel,91101-6828,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1961,Tel,97921-5169,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1966,Tel,99273-0060,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1967,Tel,97812-4921,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1971,Tel,99410-3576,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1976,Tel,95987-4856,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1980,Tel,97023-4180,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1982,Tel,91080-8055,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1992,Tel,99066-6757,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1996,Tel,92932-1965,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2005,Tel,98422-9348,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2007,Tel,93437-8838,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2008,Tel,97060-9147,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2009,Tel,98936-4440,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2016,Tel,98899-3684,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2033,Tel,98771-2593,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2035,Tel,99916-0576,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2037,Tel,94958-9128,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2047,Tel,99995-9674,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2057,Tel,90874-1753,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2058,Tel,93881-8910,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2073,Tel,98405-9099,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2076,Tel,97107-3484,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2080,Tel,94964-9604,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2081,Tel,90789-1387,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2082,Tel,98031-5331,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2094,Tel,93003-0730,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2096,Tel,93212-5263,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2115,Tel,93321-0739,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2118,Tel,93259-6125,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2133,Tel,93243-4156,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2138,Tel,97372-0290,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2143,Tel,94034-1768,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2163,Tel,95227-8390,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2164,Tel,93493-7819,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2167,Tel,96343-8450,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2170,Tel,99517-5967,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2172,Tel,91005-1658,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2177,Tel,99288-7760,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2178,Tel,97758-7199,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2180,Tel,94638-6313,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2182,Tel,96267-9228,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2183,Tel,96990-2826,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2184,Tel,90606-6223,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2192,Tel,91678-5784,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2194,Tel,94555-6520,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2196,Tel,94989-3321,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2204,Tel,93198-9803,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2207,Tel,90700-6407,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2225,Tel,99260-9350,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2231,Tel,99835-4101,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2242,Tel,91530-5278,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2245,Tel,94150-2881,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2246,Tel,95996-2802,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2248,Tel,90839-9188,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2256,Tel,93614-0743,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2273,Tel,92289-9637,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2274,Tel,95197-2209,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2282,Tel,98627-2866,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2283,Tel,99975-9072,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2286,Tel,94751-2958,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2293,Tel,98642-8599,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2306,Tel,98204-9300,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2311,Tel,93540-9481,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2312,Tel,90087-0377,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2318,Tel,90674-2939,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2322,Tel,92072-4332,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2341,Tel,97328-5732,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2350,Tel,91971-5164,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2352,Tel,98783-4509,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2356,Tel,90332-1673,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2359,Tel,97571-8605,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2366,Tel,98868-7529,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2368,Tel,95065-3990,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2383,Tel,99807-9007,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2395,Tel,92753-2911,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2401,Tel,97246-9357,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2405,Tel,95095-6139,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2406,Tel,96732-2235,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2410,Tel,97172-2605,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2417,Tel,92177-3892,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2418,Tel,93941-4706,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2422,Tel,98424-8684,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2424,Tel,94402-5833,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2426,Tel,95562-3419,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2433,Tel,94403-5132,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2438,Tel,92047-2946,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2443,Tel,91388-2829,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2445,Tel,96952-0795,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2449,Tel,91481-0083,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2455,Tel,91467-4855,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2459,Tel,92021-6159,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2461,Tel,97918-0488,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2462,Tel,97276-9571,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2482,Tel,91763-1864,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2487,Tel,93995-7288,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2494,Tel,98249-5889,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2495,Tel,97074-9918,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2499,Tel,99044-4936,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2501,Tel,96102-0124,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2507,Tel,96919-7144,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2513,Tel,96456-9916,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2518,Tel,96790-0286,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2520,Tel,91709-8996,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2531,Tel,95575-6992,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2535,Tel,91407-8197,telefone sem DDD ou com dígitos a mais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!20,Data Cadastro,jun/21,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!24,Data Cadastro,jun/21,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!49,Data Cadastro,jul/21,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!52,Data Cadastro,jul/21,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!81,Data Cadastro,ago/21,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!86,Data Cadastro,ago/21,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!90,Data Cadastro,ago/21,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!104,Data Cadastro,ago/21,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!117,Data Cadastro,set/21,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!126,Data Cadastro,set/21,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!130,Data Cadastro,set/21,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!135,Data Cadastro,set/21,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!141,Data Cadastro,out/21,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!158,Data Cadastro,out/21,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!173,Data Cadastro,out/21,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!220,Data Cadastro,dez/21,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!226,Data Cadastro,dez/21,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!227,Data Cadastro,dez/21,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!236,Data Cadastro,dez/21,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!256,Data Cadastro,jan/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!264,Data Cadastro,jan/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!284,Data Cadastro,fev/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!295,Data Cadastro,fev/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!303,Data Cadastro,fev/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!305,Data Cadastro,fev/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!313,Data Cadastro,mar/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!319,Data Cadastro,mar/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!322,Data Cadastro,mar/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!326,Data Cadastro,mar/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!355,Data Cadastro,abr/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!371,Data Cadastro,abr/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!381,Data Cadastro,mai/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!410,Data Cadastro,ago/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!411,Data Cadastro,ago/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!413,Data Cadastro,ago/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!414,Data Cadastro,ago/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!429,Data Cadastro,mai/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!434,Data Cadastro,set/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!456,Data Cadastro,jul/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!487,Data Cadastro,jun/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!501,Data Cadastro,jun/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!528,Data Cadastro,set/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!552,Data Cadastro,out/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!562,Data Cadastro,out/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!565,Data Cadastro,out/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!581,Data Cadastro,out/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!597,Data Cadastro,nov/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!600,Data Cadastro,nov/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!617,Data Cadastro,nov/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!620,Data Cadastro,nov/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!631,Data Cadastro,nov/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!638,Data Cadastro,dez/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!642,Data Cadastro,dez/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!656,Data Cadastro,dez/22,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!672,Data Cadastro,jan/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!674,Data Cadastro,jan/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!688,Data Cadastro,jan/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!714,Data Cadastro,jan/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!733,Data Cadastro,fev/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!749,Data Cadastro,mar/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!750,Data Cadastro,mar/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!754,Data Cadastro,mar/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!771,Data Cadastro,mar/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!772,Data Cadastro,mar/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!775,Data Cadastro,mar/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!795,Data Cadastro,abr/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!796,Data Cadastro,abr/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!801,Data Cadastro,abr/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!803,Data Cadastro,abr/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!814,Data Cadastro,abr/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!815,Data Cadastro,abr/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!819,Data Cadastro,abr/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!861,Data Cadastro,jun/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!870,Data Cadastro,jun/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!880,Data Cadastro,jun/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!882,Data Cadastro,jun/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!897,Data Cadastro,jun/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!910,Data Cadastro,jul/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!965,Data Cadastro,ago/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!997,Data Cadastro,ago/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1004,Data Cadastro,set/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1024,Data Cadastro,set/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1025,Data Cadastro,set/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1030,Data Cadastro,out/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1031,Data Cadastro,out/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1035,Data Cadastro,out/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1049,Data Cadastro,out/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1083,Data Cadastro,nov/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1108,Data Cadastro,nov/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1114,Data Cadastro,dez/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1116,Data Cadastro,dez/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1117,Data Cadastro,dez/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1130,Data Cadastro,dez/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1132,Data Cadastro,dez/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1134,Data Cadastro,dez/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1135,Data Cadastro,dez/23,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1157,Data Cadastro,jan/24,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1168,Data Cadastro,fev/24,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1170,Data Cadastro,fev/24,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1202,Data Cadastro,mar/24,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1203,Data Cadastro,mar/24,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1206,Data Cadastro,mar/24,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1230,Data Cadastro,abr/24,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1272,Data Cadastro,mai/24,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1289,Data Cadastro,mai/24,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1294,Data Cadastro,jun/24,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1295,Data Cadastro,jun/24,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1348,Data Cadastro,jul/24,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1360,Data Cadastro,jul/24,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1374,Data Cadastro,ago/24,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1385,Data Cadastro,ago/24,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1411,Data Cadastro,set/24,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1432,Data Cadastro,out/24,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1434,Data Cadastro,out/24,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1436,Data Cadastro,out/24,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1446,Data Cadastro,out/24,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1466,Data Cadastro,out/24,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1474,Data Cadastro,out/24,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1481,Data Cadastro,nov/24,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1497,Data Cadastro,nov/24,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1498,Data Cadastro,nov/24,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1503,Data Cadastro,nov/24,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1510,Data Cadastro,nov/24,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1512,Data Cadastro,nov/24,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1520,Data Cadastro,nov/24,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1529,Data Cadastro,dez/24,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1557,Data Cadastro,jan/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1565,Data Cadastro,jan/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1568,Data Cadastro,jan/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1571,Data Cadastro,jan/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1594,Data Cadastro,jan/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1601,Data Cadastro,jan/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1619,Data Cadastro,fev/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1629,Data Cadastro,fev/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1631,Data Cadastro,fev/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1645,Data Cadastro,fev/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1650,Data Cadastro,mar/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1652,Data Cadastro,mar/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1713,Data Cadastro,abr/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1714,Data Cadastro,abr/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1736,Data Cadastro,abr/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1764,Data Cadastro,mai/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1776,Data Cadastro,mai/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1781,Data Cadastro,jun/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1802,Data Cadastro,jun/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1803,Data Cadastro,jun/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1807,Data Cadastro,jun/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1808,Data Cadastro,jun/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1814,Data Cadastro,jun/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1817,Data Cadastro,jun/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1831,Data Cadastro,jul/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1872,Data Cadastro,ago/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1878,Data Cadastro,ago/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1880,Data Cadastro,ago/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1893,Data Cadastro,ago/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1974,Data Cadastro,out/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1975,Data Cadastro,out/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1981,Data Cadastro,out/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!1991,Data Cadastro,out/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2001,Data Cadastro,out/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2006,Data Cadastro,out/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2008,Data Cadastro,out/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2040,Data Cadastro,nov/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2043,Data Cadastro,nov/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2066,Data Cadastro,dez/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2067,Data Cadastro,dez/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2087,Data Cadastro,dez/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2095,Data Cadastro,dez/25,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2125,Data Cadastro,jan/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2139,Data Cadastro,jan/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2146,Data Cadastro,fev/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2149,Data Cadastro,fev/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2166,Data Cadastro,fev/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2176,Data Cadastro,fev/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2184,Data Cadastro,mar/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2209,Data Cadastro,mar/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2239,Data Cadastro,abr/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2242,Data Cadastro,abr/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2245,Data Cadastro,abr/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2251,Data Cadastro,abr/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2254,Data Cadastro,abr/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2266,Data Cadastro,abr/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2311,Data Cadastro,mai/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2318,Data Cadastro,mai/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2334,Data Cadastro,jun/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2336,Data Cadastro,jun/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2343,Data Cadastro,jun/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2354,Data Cadastro,jun/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2373,Data Cadastro,jul/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2380,Data Cadastro,jul/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2397,Data Cadastro,jul/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2401,Data Cadastro,jul/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2421,Data Cadastro,ago/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2422,Data Cadastro,ago/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2423,Data Cadastro,ago/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2430,Data Cadastro,ago/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2432,Data Cadastro,ago/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2452,Data Cadastro,ago/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2455,Data Cadastro,ago/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2463,Data Cadastro,ago/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2469,Data Cadastro,ago/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2482,Data Cadastro,set/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2485,Data Cadastro,set/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2515,Data Cadastro,set/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2516,Data Cadastro,set/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Clientes!2527,Data Cadastro,set/26,data em formato desconhecido
+clientes_fidelidade_FINAL_v3 (1).xlsx,Resgates!108,pontos usados,1.200,quantidade com casas decimais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Resgates!165,pontos usados,1.500,quantidade com casas decimais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Resgates!206,pontos usados,1.200,quantidade com casas decimais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Resgates!331,pontos usados,1.500,quantidade com casas decimais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Resgates!368,pontos usados,1.500,quantidade com casas decimais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Resgates!408,pontos usados,1.400,quantidade com casas decimais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Resgates!488,pontos usados,1.500,quantidade com casas decimais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Resgates!558,pontos usados,1.500,quantidade com casas decimais
+clientes_fidelidade_FINAL_v3 (1).xlsx,Resgates!585,pontos usados,1.500,quantidade com casas decimais
+catalogo_vulto_2026_REVISADO_final.xlsx,Verão 26!275,preco,Preço (R$),valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,VERAO 25!68,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,VERAO 25!93,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,VERAO 25!110,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,VERAO 25!136,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,inverno25!8,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,inverno25!11,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,inverno25!41,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,inverno25!42,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,inverno25!48,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,inverno25!85,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,inverno25!100,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,inverno25!108,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,Verão 26!21,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,Verão 26!64,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,Verão 26!136,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,Verão 26!138,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,Verão 26!145,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,Verão 26!154,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,Verão 26!166,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,Verão 26!181,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,Verão 26!199,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,Verão 26!261,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,Verão 26!262,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,Verão 26!275,custo,Custo,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,Verão 26!316,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,Verão 26!320,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,Verão 26!323,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,Verão 26!332,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,Verão 26!334,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,Verão 26!350,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,Verão 26!352,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,Verão 26!356,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,Verão 26!373,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,Verão 26!389,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,Verão 26!446,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,Atemporais!132,custo,ver NF,valor não numérico
+catalogo_vulto_2026_REVISADO_final.xlsx,Verão 26!275,ean,EAN,EAN sem 13 dígitos
+contagem_inventario_set26.xlsx,batel!130,quantidade,2 (1 no estoque + 1 vitrine),quantidade não numérica
+contagem_inventario_set26.xlsx,batel!146,quantidade,4 (3 no estoque + 1 vitrine),quantidade não numérica
+contagem_inventario_set26.xlsx,batel!176,quantidade,5 (4 no estoque + 1 vitrine),quantidade não numérica
+contagem_inventario_set26.xlsx,batel!190,quantidade,3 (2 no estoque + 1 vitrine),quantidade não numérica
+contagem_inventario_set26.xlsx,batel!218,quantidade,2 (1 no estoque + 1 vitrine),quantidade não numérica
+contagem_inventario_set26.xlsx,batel!219,quantidade,3 (1 no estoque + 2 vitrine),quantidade não numérica
+contagem_inventario_set26.xlsx,batel!240,quantidade,2 (1 no estoque + 1 vitrine),quantidade não numérica
+contagem_inventario_set26.xlsx,batel!264,quantidade,4 (2 no estoque + 2 vitrine),quantidade não numérica
+contagem_inventario_set26.xlsx,batel!395,quantidade,2 (1 no estoque + 1 vitrine),quantidade não numérica
+contagem_inventario_set26.xlsx,batel!406,quantidade,4 (2 no estoque + 2 vitrine),quantidade não numérica
+contagem_inventario_set26.xlsx,batel!418,quantidade,3 (2 no estoque + 1 vitrine),quantidade não numérica
+contagem_inventario_set26.xlsx,batel!427,quantidade,2 (1 no estoque + 1 vitrine),quantidade não numérica
+contagem_inventario_set26.xlsx,batel!545,quantidade,4 (2 no estoque + 2 vitrine),quantidade não numérica
+contagem_inventario_set26.xlsx,batel!661,quantidade,2 (1 no estoque + 1 vitrine),quantidade não numérica
+contagem_inventario_set26.xlsx,batel!704,quantidade,3 (1 no estoque + 2 vitrine),quantidade não numérica
+contagem_inventario_set26.xlsx,batel!708,quantidade,2 (1 no estoque + 1 vitrine),quantidade não numérica
+atendimentos_export_whatsapp_insta.csv,csv!54,contato,93750-3739,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!57,contato,96172-0041,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!85,contato,93673-7090,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!101,contato,99673-0166,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!121,contato,91360-6356,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!144,contato,94610-8867,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!152,contato,91463-3550,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!181,contato,91303-4246,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!183,contato,97698-8305,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!194,contato,97724-1003,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!218,contato,94837-8795,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!221,contato,99955-5504,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!245,contato,99736-7908,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!279,contato,99211-8361,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!286,contato,97123-5269,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!294,contato,92743-2531,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!308,contato,92044-5303,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!310,contato,95448-9178,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!320,contato,93381-2384,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!330,contato,91258-7201,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!373,contato,99832-7651,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!387,contato,95649-3621,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!391,contato,91375-7963,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!402,contato,92194-3783,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!404,contato,98343-1615,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!428,contato,93059-1195,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!435,contato,90235-9457,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!445,contato,94447-7256,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!453,contato,90257-8997,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!457,contato,99975-9072,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!466,contato,91854-0830,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!470,contato,95398-4061,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!473,contato,93215-6868,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!491,contato,93750-3739,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!493,contato,93323-2418,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!519,contato,99039-6822,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!521,contato,90868-2114,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!539,contato,91165-9691,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!541,contato,98307-8451,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!544,contato,94909-0454,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!553,contato,94096-3660,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!554,contato,96058-4456,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!557,contato,97849-6763,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!569,contato,92950-0529,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!586,contato,95492-8392,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!619,contato,91683-4152,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!628,contato,99423-3354,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!638,contato,96186-6312,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!648,contato,91339-9372,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!649,contato,96335-5304,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!664,contato,94536-2801,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!666,contato,90451-0281,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!668,contato,92451-7672,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!672,contato,95972-2377,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!689,contato,90971-9303,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!707,contato,90855-0420,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!746,contato,95586-0296,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!748,contato,97118-7150,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!771,contato,93149-6606,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!774,contato,98645-9736,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!814,contato,90663-4557,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!823,contato,92814-7183,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!836,contato,98581-7355,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!851,contato,92895-3022,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!870,contato,91743-8627,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!881,contato,91962-1893,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!901,contato,94865-8592,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!908,contato,92897-6385,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!910,contato,90948-6514,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!913,contato,92020-3066,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!914,contato,91895-6868,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!919,contato,93628-1019,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!931,contato,93381-3838,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!958,contato,94563-9194,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!990,contato,98637-3523,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1002,contato,96152-7912,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1013,contato,97119-1296,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1026,contato,95786-3008,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1028,contato,90809-7758,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1035,contato,90099-5738,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1050,contato,98597-0114,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1082,contato,94362-6729,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1087,contato,95737-2394,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1110,contato,95073-4887,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1198,contato,95627-6189,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1205,contato,94545-3141,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1206,contato,92988-4212,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1220,contato,91357-1824,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1226,contato,91339-9372,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1234,contato,94242-2414,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1251,contato,99843-7853,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1262,contato,97091-7692,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1281,contato,94436-6273,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1283,contato,93149-6606,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1285,contato,90211-6119,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1304,contato,90907-0356,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1315,contato,97935-7831,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1349,contato,92101-5649,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1363,contato,91326-4384,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1375,contato,98007-6782,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1376,contato,96905-0062,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1379,contato,98854-3911,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1422,contato,98759-9352,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1449,contato,95632-4965,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1451,contato,94221-4586,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1454,contato,96142-6401,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1459,contato,96115-8726,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1486,contato,92143-0419,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1504,contato,99574-7963,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1517,contato,93628-1019,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1518,contato,90439-6327,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1523,contato,95837-5854,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1529,contato,96137-1013,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1546,contato,96574-3444,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1555,contato,90703-6452,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1557,contato,95452-6336,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1573,contato,94504-7394,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1590,contato,99495-0925,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1605,contato,92546-9374,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1624,contato,92730-7053,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1635,contato,94648-5673,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1640,contato,93243-4156,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1653,contato,95842-7767,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!1657,contato,93857-9135,telefone sem DDD ou com dígitos a mais
+atendimentos_export_whatsapp_insta.csv,csv!7,pedido,#1094,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!33,pedido,pedido 1146,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!41,pedido,pedido 1233,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!52,pedido,#1500,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!54,pedido,#1504,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!55,pedido,#6871,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!56,pedido,pedido 1928,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!58,pedido,#1487,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!65,pedido,#191101,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!77,pedido,#2160,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!100,pedido,#2057,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!102,pedido,pedido 2272,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!108,pedido,#7991,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!110,pedido,pedido 2075,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!118,pedido,pedido 1962,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!120,pedido,#2392,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!122,pedido,pedido 2567,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!125,pedido,#2399,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!126,pedido,pedido 2445,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!134,pedido,#2220,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!137,pedido,pedido 2788,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!144,pedido,#8452007,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!146,pedido,pedido 2571,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!159,pedido,pedido 2429,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!163,pedido,pedido 2743,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!166,pedido,pedido 2449,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!176,pedido,#2736,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!181,pedido,#3068,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!198,pedido,#2952,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!217,pedido,#2888,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!219,pedido,#3169,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!221,pedido,#3473,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!244,pedido,#4176,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!247,pedido,#3202,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!256,pedido,#2571,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!264,pedido,#4181,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!278,pedido,APP-4904,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!281,pedido,pedido 4444,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!303,pedido,#8564,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!317,pedido,pedido 3509,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!322,pedido,pedido 4571,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!324,pedido,#4639,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!333,pedido,APP-844201,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!356,pedido,#4305,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!365,pedido,APP-735201,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!384,pedido,pedido 5321,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!385,pedido,pedido 5338,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!420,pedido,pedido 5588,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!439,pedido,#5813,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!440,pedido,#5984,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!442,pedido,#5393,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!447,pedido,#5594,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!453,pedido,pedido 5888,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!467,pedido,pedido 5421,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!472,pedido,#6052,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!474,pedido,pedido 5792,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!481,pedido,#6031,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!493,pedido,pedido 5724,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!497,pedido,#6645,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!500,pedido,#6082,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!515,pedido,pedido 6653,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!526,pedido,APP-7216,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!527,pedido,#274301,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!541,pedido,#615301,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!542,pedido,pedido 6436,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!565,pedido,pedido 6958,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!595,pedido,APP-676301,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!606,pedido,pedido 7534,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!613,pedido,pedido 7683,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!621,pedido,pedido 7667,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!634,pedido,#7650,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!648,pedido,#3805007,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!665,pedido,#8591,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!675,pedido,pedido 8394,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!687,pedido,#8174,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!688,pedido,#8117,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!689,pedido,#4500,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!696,pedido,pedido 8413,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!705,pedido,#630101,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!711,pedido,pedido 8817,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!738,pedido,#9020,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!745,pedido,#8908,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!805,pedido,#9002,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!826,pedido,#9573,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!830,pedido,pedido 10391,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!859,pedido,#10628,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!860,pedido,#10120,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!865,pedido,#3556007,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!876,pedido,pedido 10059,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!877,pedido,pedido 10399,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!885,pedido,#11024,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!895,pedido,pedido 10517,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!918,pedido,#06701,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!931,pedido,pedido 8840,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!936,pedido,pedido 11244,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!951,pedido,#11848,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!958,pedido,APP-15411,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!964,pedido,#11353,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!971,pedido,APP-600601,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!974,pedido,pedido 3047,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!992,pedido,#11612,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!999,pedido,pedido 12066,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1000,pedido,#11831,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1028,pedido,#433601,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1046,pedido,pedido 12596,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1053,pedido,#12629,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1055,pedido,#12626,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1069,pedido,APP-435601,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1070,pedido,#12787,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1107,pedido,#13175,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1117,pedido,APP-255601,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1182,pedido,#13693,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1187,pedido,#009601,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1194,pedido,pedido 13560,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1201,pedido,pedido 14019,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1228,pedido,#13994,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1234,pedido,pedido 14147,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1246,pedido,#13728,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1259,pedido,APP-13831,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1265,pedido,pedido 14379,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1280,pedido,#13844,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1285,pedido,#14510,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1292,pedido,#432701,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1293,pedido,#107101,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1305,pedido,pedido 14924,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1307,pedido,pedido 15062,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1330,pedido,pedido 14594,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1333,pedido,#9099007,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1343,pedido,#9999007,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1374,pedido,#15500,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1379,pedido,#4040107,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1388,pedido,pedido 15349,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1402,pedido,#5471,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1412,pedido,#15571,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1417,pedido,pedido 15125,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1430,pedido,#15945,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1479,pedido,pedido 16276,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1483,pedido,pedido 16321,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1486,pedido,#16676,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1490,pedido,pedido 16690,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1499,pedido,pedido 16230,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1525,pedido,#7627,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1549,pedido,APP-356801,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1562,pedido,#17040,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1586,pedido,pedido 17436,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1605,pedido,pedido 17662,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1616,pedido,pedido 17961,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1625,pedido,#17598,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1630,pedido,#17493,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1633,pedido,pedido 18093,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1642,pedido,#17954,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1649,pedido,#11519,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1653,pedido,#17989,número de pedido em formato desconhecido
+atendimentos_export_whatsapp_insta.csv,csv!1654,pedido,#17828,número de pedido em formato desconhecido

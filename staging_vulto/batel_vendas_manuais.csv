@@ -1,0 +1,77 @@
+linha_origem,DATA,HORA,CLIENTE,CPF,PEÇAS,QTD,VALOR,PGTO,VENDEDORA,OBS
+MARÇO!4,2026-02-03 00:00:00,15:46,Igor,19128199960,moletom zíper college azul marinho M,1.0,269.90,pix,Gustavo,
+MARÇO!5,02/03/2026,20:50,Vinícius,37236658707,2x pochete nylon branco U + camisa linho leve lilás G,3.0,370.21,crédito,gustavo.batel,desconto gerente
+MARÇO!6,03/03,10:19,,,saia cargo plissada vinho P,1.0,209.90,crédito,Patrícia W.,
+MARÇO!7,03/03/2026,16:16,,,jaqueta couro eco clássica vinho M,1.0,529.90,credito 2x,patricia,
+MARÇO!8,04/03/2026,15:14,,,hoodie oversized bordado branco M + cropped amarração floral amarelo GG + regata retrô lilás M,3.0,509.70,credito 2x,gus,
+MARÇO!9,04/03/2026,16:36,Luana Batista,84426279011,camiseta raglan retrô vinho G,1.0,89.90,credito 2x,Gustavo,
+MARÇO!10,04/03,17:38,Melissa R,89115100251,calça alfaiataria sarja preto 40,1.0,189.90,crédito,Fernanda K.,cancelou
+MARÇO!11,05/03,13:15,Diego Santos,01394943679,bermuda sarja ampla vinho 36 + bermuda moletom ampla azul marinho 40 + vestido slip canelado marrom P,3.0,639.70,débito,Fer,lancei no vulto+
+MARÇO!12,2026-05-03 00:00:00,13:51,Caio,87643897158,saia midi evasê off white GG + minissaia utilitária cinza mescla M,2.0,309.80,credito 2x,Fer,lancei no vulto+
+MARÇO!13,2026-05-03 00:00:00,14:00,,,camisa cuban ampla bege G + calça cargo parachute marrom 38 + cinto básico off white U,3.0,629.70,crédito,Pati,
+MARÇO!14,2026-05-03 00:00:00,15:25,,,camisa jeans estonada jeans claro P + camisa cuban bolso marrom M,2.0,529.80,débito,patricia,
+MARÇO!15,2026-05-03 00:00:00,15:32,Priscila F,82435641958,saia midi fenda off white M + cropped canelado tricot vinho M,2.0,269.80,pix,gus,
+MARÇO!16,2026-05-03 00:00:00,16:42,Carolina Rodrigues,10812709004,2x top faixa tricot azul marinho M + vestido midi cetim cinza mescla P + camisa oxford listrada amarelo G,4.0,809.60,pix,Pati,
+MARÇO!17,2026-05-03 00:00:00,,,,bermuda moletom ampla azul marinho 44,1.0,189.90,débito,Patrícia W.,
+MARÇO!18,2026-05-03 00:00:00,20:36,Kamila,36514885519,calça jogger ripstop preto 40,1.0,359.90,credito 2x,Fer,
+MARÇO!19,2026-06-03 00:00:00,10:10,,,calça cargo parachute marrom 40,1.0,278.91,pix,fer.batel,desconto gerente
+MARÇO!20,2026-06-03 00:00:00,16:42,Lorenzo R,06790029524,top alcinha canelado preto G + hoodie oversized bordado branco P,2.0,449.80,débito,Fernanda K.,lancei no vulto+
+MARÇO!21,2026-06-03 00:00:00,18:07,,,moletom zíper college azul marinho G,1.0,242.91,débito,Pati,
+MARÇO!22,06/03/2026,19:39,Alice Fonseca,29043727334,moletom zíper college cinza mescla G + camiseta raglan retrô vinho G,2.0,359.80,credito 2x,Fer,
+MARÇO!23,2026-07-03 00:00:00,15:26,Alice Correia,48547908498,calça jogger ripstop preto 40,1.0,359.90,dinheiro,Fer,estornado na maquininha
+MARÇO!24,2026-07-03 00:00:00,16:03,Cecília,53487744805,2x saia cargo utilitária marrom M,2.0,459.80,débito,Pati,lancei no vulto+
+MARÇO!25,07/03/2026,18:11,Yasmin Teixeira,12875082604,moletom zíper college azul marinho GG,1.0,269.90,crédito,Gustavo,lancei no vulto+
+MARÇO!26,2026-07-03 00:00:00,19:39,Yasmin T,12875082604,2x short alfaiataria clássica jeans claro 38 + vestido midi cetim cinza mescla M,3.0,689.70,crédito,fer.batel,
+MARÇO!27,2026-08-03 00:00:00,14:07,Clara F,99442973215,vestido tubinho cetim azul marinho P + calça mom clara off white 38,2.0,499.80,dinheiro,Gustavo,
+MARÇO!28,2026-08-03 00:00:00,14:41,João Tavares,63298036684,calça alfaiataria parachute lilás 40,1.0,259.90,dinheiro,fer.batel,estornado na maquininha
+MARÇO!29,2026-08-03 00:00:00,18:10,,,2x calça jogger ripstop preto 42 + camisa xadrez leve bege M + calça jeans reta destroyed preto 40,4.0,1199.60,crédito,Fernanda K.,
+MARÇO!30,08/03/2026,19:23,,,suéter tricô fio leve verde oliva M,1.0,229.90,credito 2x,fer.batel,
+MARÇO!31,,,,,TOTAL SEMANA 1,,10397.83,,,
+MARÇO!32,2026-10-03 00:00:00,12:29,Henrique,,moletom canguru bordado off white G + moletom zíper bordado off white P,2.0,599.80,débito,Pati,
+MARÇO!33,2026-10-03 00:00:00,,Paulo Ramos Fonseca,92232503585,camiseta raglan retrô vinho GG,1.0,89.90,dinheiro,Gustavo,
+MARÇO!34,10/03/2026,13:15,Leonardo Moura,96420850703,camiseta oversized urbana bege G + camiseta estampada vintage amarelo G,2.0,239.80,dinheiro,patricia,
+MARÇO!35,10/03/2026,14:29,Daniela,58236301150,calça jogger ripstop preto 40,1.0,323.91,crédito,gus,desconto gerente
+MARÇO!36,2026-10-03 00:00:00,17:43,,,camisa xadrez bolso branco G,1.0,161.40,dinheiro,Fernanda K.,desconto gerente
+MARÇO!37,10/03,18:32,,,camisa oxford listrada amarelo P,1.0,246.90,débito,Pati,desconto gerente
+MARÇO!38,10/03/2026,20:17,Lívia,64175190317,corta-vento utilitária off white M + camiseta raglan skate cinza mescla M + vestido slip canelado marrom M,3.0,869.70,pix,Pati,
+MARÇO!39,2026-11-03 00:00:00,,Henrique,10271925302,overshirt ampla branco G + top alcinha floral bege P,2.0,389.80,pix,Gustavo,lancei no vulto+
+MARÇO!40,2026-12-03 00:00:00,11:33,Olívia R,13921765226,short jeans clássica jeans escuro 40,1.0,139.90,credito 2x,Fer,
+MARÇO!41,2026-12-03 00:00:00,13:16,Bernardo Lima,70937973777,camisa cuban bolso marrom M + vestido midi cetim marrom GG,2.0,529.80,débito,Gustavo,
+MARÇO!42,2026-12-03 00:00:00,15:38,Carolina Barros Machado,54325518614,2x camiseta boxy logo preto G,2.0,299.80,dinheiro,Gustavo,
+MARÇO!43,2026-12-03 00:00:00,16:31,,,pochete nylon branco U + camiseta estampada vintage amarelo P,2.0,199.80,dinheiro,Gustavo,
+MARÇO!44,12/03/2026,18:37,,,saia midi fenda branco M,1.0,139.90,dinheiro,gustavo.batel,
+MARÇO!45,2026-12-03 00:00:00,,Sofia Martins Campos,71038655587,calça jeans reta parachute preto 40 + overshirt praia verde oliva G,2.0,599.80,pix,gus,
+MARÇO!46,13/03,10:00,,,2x overshirt ampla branco G + calça mom clara off white 36,3.0,729.70,pix,Gustavo,
+MARÇO!47,13/03/2026,13:13,,,2x calça cargo sarja amarelo 38,2.0,519.80,crédito,gustavo.batel,
+MARÇO!48,13/03/2026,15:07,,,cinto básico off white U,1.0,139.90,débito,gustavo.batel,
+MARÇO!49,13/03,15:28,Bruno Cardoso Freitas,94875551371,cropped canelado basic off white M + 2x calça wide leg escura bege 42,3.0,619.70,credito 2x,patricia,
+MARÇO!50,14/03,,,,camiseta básica urbana amarelo M + moletom zíper college cinza mescla G + camisa cuban bolso marrom GG,3.0,649.70,credito 2x,Fernanda K.,
+MARÇO!51,14/03/2026,15:41,Fábio B,22025333463,saia cargo plissada vinho G + pochete nylon branco U + moletom zíper logo marrom P,3.0,669.70,credito 2x,Fernanda K.,
+MARÇO!52,14/03/2026,18:16,Renata Peixoto,74230037279,short alfaiataria barra desfiada branco 38 + cinto básico off white U,2.0,329.80,dinheiro,Patrícia W.,lancei no vulto+
+MARÇO!53,14/03/2026,18:37,Davi C,65510483580,2x cardigan chunky lilás P + suéter tricô fio leve verde oliva M,3.0,749.70,débito,Pati,lancei no vulto+
+MARÇO!54,15/03/2026,,Natália Vieira Rocha,15905326606,vestido chemise canelado off white G,1.0,296.91,credito 2x,fer.batel,
+MARÇO!55,15/03,18:27,,,hoodie oversized college cinza mescla M,1.0,219.90,credito 2x,Patrícia W.,
+MARÇO!56,,,,,TOTAL SEMANA 2,,9755.02,,,
+MARÇO!57,16/03,18:41,Daniela N,58236301150,meia cano alto (par) couro eco off white U,1.0,149.90,credito 2x,Gustavo,
+MARÇO!58,17/03,,,,moletom zíper college azul marinho M,1.0,269.90,débito,Pati,
+MARÇO!59,18/03/2026,18:23,Sofia Martins Campos,71038655587,cropped amarração floral amarelo G + camiseta oversized logo off white G,2.0,229.80,crédito,gustavo.batel,
+MARÇO!60,18/03/2026,,,,pochete nylon branco U + top alcinha canelado verde oliva M + calça cargo comfort branco 42 + meia cano alto (par) bordado verde oliva U,4.0,656.64,credito 2x,Fernanda K.,desconto gerente
+MARÇO!61,19/03/2026,15:47,Thaís,54938917009,2x bermuda moletom ampla azul marinho 38 + calça wide leg parachute lilás 38 + pochete nylon branco U,4.0,739.60,débito,fer.batel,lancei no vulto+
+MARÇO!62,20/03,13:36,Letícia,82566251550,cropped canelado canelado verde oliva M,1.0,89.90,dinheiro,Patrícia W.,lancei no vulto+
+MARÇO!63,20/03,,Paulo,92232503585,calça mom clara bege 36 + jaqueta puffer matelassê marrom P + saia midi evasê off white P,3.0,859.70,crédito,Gustavo,
+MARÇO!64,20/03/2026,18:01,Luan,36430480682,regata skate cinza mescla G,1.0,119.90,débito,Fernanda K.,lancei no vulto+
+MARÇO!65,20/03,18:06,Sabrina,12802844717,2x cinto nylon cinza mescla U,2.0,279.80,credito 2x,Pati,
+MARÇO!66,20/03/2026,18:26,Marcelo G,35808107237,short alfaiataria clássica jeans claro 42,1.0,219.90,débito,gus,
+MARÇO!67,20/03,19:19,,,cropped amarração canelado marrom M,1.0,89.90,dinheiro,Pati,
+MARÇO!68,20/03,19:20,,,camisa cuban bolso marrom GG + camisa cuban ampla bege M,2.0,459.80,credito 2x,fer.batel,
+MARÇO!69,21/03,10:01,Luan,36430480682,short alfaiataria barra desfiada branco 44,1.0,189.90,dinheiro,Patrícia W.,
+MARÇO!70,21/03,,Bianca C,81145131441,camisa cuban estonada azul marinho M,1.0,199.90,débito,gus,lancei no vulto+
+MARÇO!71,21/03/2026,10:41,Renata,,camiseta raglan retrô vinho GG + pochete nylon branco U,2.0,199.80,credito 2x,Fernanda K.,
+MARÇO!72,21/03,13:06,,,minissaia utilitária cinza mescla G + calça mom clara bege 44,2.0,389.80,pix,Gustavo,
+MARÇO!73,21/03/2026,13:23,Ícaro R,47706663736,moletom zíper college bege G,1.0,269.90,dinheiro,gustavo.batel,lancei no vulto+
+MARÇO!74,22/03/2026,12:22,Beatriz,07058850119,colete tricô fio leve verde oliva M,1.0,219.90,dinheiro,Gustavo,
+MARÇO!75,22/03/2026,13:21,,,calça mom clara bege 38 + moletom canguru bordado off white M,2.0,529.80,débito,Pati,
+MARÇO!76,22/03,16:14,,,2x vestido slip canelado marrom P,2.0,579.80,crédito,Gustavo,
+MARÇO!77,22/03,18:25,Cauã,22674731516,moletom zíper bordado off white M,1.0,319.90,pix,fer.batel,
+MARÇO!78,,,,,TOTAL SEMANA 3,,7063.44,,,
+MARÇO!80,,,,,TOTAL MARÇO,,27216.29,,,
