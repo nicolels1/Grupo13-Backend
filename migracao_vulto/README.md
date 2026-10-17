@@ -18,8 +18,8 @@ Cada etapa lê a pasta da anterior e regrava a sua do zero; regra nova entra no 
 Na raiz do repositório, com o venv ativo:
 
 ```bash
-pip install -r scripts/migracao_vulto/requirements.txt
-python -m scripts.migracao_vulto.padronizar --origem ../vulto-backend/data --destino staging_vulto
+pip install -r migracao_vulto/requirements.txt
+python -m migracao_vulto.padronizar --origem ../vulto-backend/data --destino staging_vulto
 ```
 
 `staging_vulto/` tem CPF, e-mail e telefone de clientes: está no `.gitignore` e não deve ser compartilhada.

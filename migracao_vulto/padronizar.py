@@ -7,8 +7,8 @@
 # escreve um CSV por tabela/aba em --destino, mais pendencias.csv com cada valor que não deu para
 # padronizar (fonte, linha, coluna, valor original e motivo).
 # Uso, na raiz do repositório com o venv ativo:
-#   pip install -r scripts/migracao_vulto/requirements.txt
-#   python -m scripts.migracao_vulto.padronizar --origem ../vulto-backend/data --destino staging_vulto
+#   pip install -r migracao_vulto/requirements.txt
+#   python -m migracao_vulto.padronizar --origem ../vulto-backend/data --destino staging_vulto
 # O destino tem CPF, e-mail e telefone de clientes: fica fora do git (.gitignore) e não deve ser compartilhado.
 import argparse
 import sqlite3
@@ -17,8 +17,8 @@ from pathlib import Path
 import pandas as pd
 from openpyxl import load_workbook
 
-from scripts.migracao_vulto import normalizadores as n
-from scripts.migracao_vulto.normalizadores import ValorInvalido
+from migracao_vulto import normalizadores as n
+from migracao_vulto.normalizadores import ValorInvalido
 
 ARQUIVO_BANCO = "vulto.db"
 ARQUIVO_CLIENTES = "clientes_fidelidade_FINAL_v3 (1).xlsx"
