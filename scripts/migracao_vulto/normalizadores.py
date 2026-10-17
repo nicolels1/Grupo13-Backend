@@ -22,8 +22,8 @@ class ValorInvalido(ValueError):
 
 # ---------- vazio e texto ----------
 
-# o que as planilhas e o banco usam para dizer "não tem"
-VAZIOS = {"", "-", "?", "n/a", "na", "nan", "none", "null"}
+# o que as planilhas e o banco usam para dizer "não tem" ("ver NF" é o custo vazio do catálogo)
+VAZIOS = {"", "-", "?", "n/a", "na", "nan", "none", "null", "nao tem", "não tem", "ver nf"}
 # cliente_ref de venda sem cliente identificado
 SEM_CLIENTE = {"nao informado", "não informado", "consumidor"}
 
@@ -85,8 +85,9 @@ def chave_busca(valor) -> str | None:
 
 # ---------- documentos e contatos ----------
 
-# CPF com só os 11 dígitos. Aceita máscara, espaços e número (o Excel guarda CPF como número e
-# come os zeros à esquerda: 4633375 49 -> 00463337549). CPF com dígito verificador errado vira pendência.
+# CPF com só os 11 dígitos. Aceita máscara e espaços. Os zeros à esquerda só voltam quando a célula é
+# número (o Excel come os zeros: 463337549 -> 00463337549); texto com menos de 11 dígitos vira pendência,
+# porque no banco esses valores costumam ser celular sem DDD. Dígito verificador errado também é pendência.
 def cpf(valor) -> str | None:
     if vazio(valor):
         return None
@@ -95,10 +96,27 @@ def cpf(valor) -> str | None:
             raise ValorInvalido("CPF com casas decimais")
         valor = int(valor)
     digitos = normalizar_cpf(str(valor))
-    if 9 <= len(digitos) <= 10:
+    if isinstance(valor, int) and 9 <= len(digitos) <= 10:
         digitos = digitos.zfill(11)
+    if len(digitos) != 11:
+        raise ValorInvalido("CPF sem 11 dígitos (pode ser telefone)")
     if not cpf_valido(digitos):
-        raise ValorInvalido("CPF inválido (tamanho ou dígito verificador)")
+        raise ValorInvalido("CPF com dígito verificador errado")
+    return digitos
+
+
+# CNPJ com só os 14 dígitos (pedido corporativo aparece no cliente_ref)
+def cnpj(valor) -> str | None:
+    if vazio(valor):
+        return None
+    digitos = re.sub(r"\D", "", str(valor))
+    if len(digitos) != 14 or digitos == digitos[0] * 14:
+        raise ValorInvalido("CNPJ sem 14 dígitos")
+    for tamanho_base in (12, 13):
+        pesos = list(range(tamanho_base - 7, 1, -1)) + list(range(9, 1, -1))
+        resto = sum(int(d) * p for d, p in zip(digitos, pesos)) % 11
+        if digitos[tamanho_base] != str(0 if resto < 2 else 11 - resto):
+            raise ValorInvalido("CNPJ com dígito verificador errado")
     return digitos
 
 
@@ -129,13 +147,16 @@ def telefone(valor) -> str | None:
 
 
 MASCARA_CPF = re.compile(r"\d{3}\.\d{3}\.\d{3}-\d{2}|\d{3} \d{3} \d{3} \d{2}")
-MASCARA_TELEFONE = re.compile(r".*[()+].*|\d{4,5}-\d{4}")
+MASCARA_CNPJ = re.compile(r"\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}")
+MASCARA_TELEFONE = re.compile(r".*[()+].*|\d{4,5}-\d{4}|\d{2} \d{8,9}")  # "11 954070139": DDD separado
 
 
 # cliente_ref da Vulto guarda CPF, e-mail, telefone ou @ no mesmo campo ("depende de quem cadastrou").
-# Devolve (tipo, valor padronizado). A máscara decide quando existe; só dígitos viram CPF se o dígito
-# verificador fecha (a chance de um celular passar por CPF válido é de ~1%), senão telefone.
-# No atendimento não existe CPF, então aceita_cpf=False manda os números direto para telefone.
+# Devolve (tipo, valor padronizado). Só classifica quando o formato não deixa dúvida: @, e-mail ou
+# máscara de CPF, CNPJ ou telefone. Número só com dígitos sai como tipo "numero", sem decidir se é CPF
+# ou celular (os dois têm 11 dígitos e ~1% dos celulares passa no dígito verificador do CPF): a regra
+# fica para a etapa 2, cruzando com o cadastro (ver README). No atendimento não existe CPF, então
+# aceita_cpf=False manda os números direto para telefone.
 def contato(valor, aceita_cpf: bool = True) -> tuple[str | None, str | None]:
     t = texto(valor)
     if t is None or t.lower() in SEM_CLIENTE:
@@ -146,14 +167,15 @@ def contato(valor, aceita_cpf: bool = True) -> tuple[str | None, str | None]:
         return ("email", email(t))
     if aceita_cpf and MASCARA_CPF.fullmatch(t):
         return ("cpf", cpf(t))
+    if aceita_cpf and MASCARA_CNPJ.fullmatch(t):
+        return ("cnpj", cnpj(t))
     if MASCARA_TELEFONE.fullmatch(t):
         return ("telefone", telefone(t))
-    digitos = re.sub(r"\D", "", t)
-    if not digitos or digitos != t.replace(" ", ""):
+    if not t.isdigit():
         raise ValorInvalido("contato em formato desconhecido")
-    if aceita_cpf and 9 <= len(digitos) <= 11 and cpf_valido(digitos.zfill(11)):
-        return ("cpf", digitos.zfill(11))
-    return ("telefone", telefone(digitos))
+    if aceita_cpf:
+        return ("numero", t)
+    return ("telefone", telefone(t))
 
 
 # ---------- números ----------
@@ -170,6 +192,8 @@ def decimal_br(valor) -> Decimal | None:
     s = str(valor).replace("R$", "").replace(" ", "").strip()
     if "," in s:  # vírgula é decimal, ponto é milhar
         s = s.replace(".", "").replace(",", ".")
+    elif re.fullmatch(r"\d{1,3}(\.\d{3})+", s):  # "1.500": mil e quinhentos ou um e cinquenta?
+        raise ValorInvalido("valor ambíguo (ponto pode ser milhar ou decimal)")
     try:
         return Decimal(s).quantize(CENTAVO)
     except InvalidOperation:
@@ -187,6 +211,19 @@ def inteiro(valor) -> int | None:
     if n != n.to_integral_value():
         raise ValorInvalido("quantidade com casas decimais")
     return int(n)
+
+
+# Contagem física: além do número, aparece "2 (1 no estoque + 1 vitrine)". O total é o número antes
+# do parêntese; só é aceito se as parcelas de dentro somam esse total
+def quantidade_contada(valor) -> int | None:
+    if isinstance(valor, str):
+        m = re.fullmatch(r"\s*(\d+)\s*\((.*)\)\s*", valor)
+        if m:
+            total = int(m.group(1))
+            if sum(int(p) for p in re.findall(r"\d+", m.group(2))) != total:
+                raise ValorInvalido("parcelas da contagem não somam o total")
+            return total
+    return inteiro(valor)
 
 
 # ---------- datas ----------
@@ -303,16 +340,18 @@ def tags(valor) -> list[str]:
     return vistas
 
 
-FORMATOS_PEDIDO = [("site", re.compile(r"S\d{6}")), ("app", re.compile(r"APP-\d{7}")), ("numero", re.compile(r"\d+"))]
+FORMATOS_PEDIDO = [("site", re.compile(r"S\d+")), ("app", re.compile(r"APP-\d+")), ("numero", re.compile(r"\d+"))]
 
 
 # Classifica o número de pedido citado no atendimento (S100234 = site, APP-7001324 = app, número solto
-# = id interno ou digitado pelo cliente). Só classifica: ligar ao pedido certo é a próxima etapa.
+# = id interno ou digitado pelo cliente). O prefixo decide o tipo; se a quantidade de dígitos não for a
+# usual (APP-4904), o código fica como veio e o vínculo com o pedido é que vai falhar. Tira o "#" e a palavra "pedido" que o atendente escreveu antes
+# ("#1094", "pedido 1146"). Só classifica: ligar ao pedido certo é a próxima etapa.
 def pedido(valor) -> tuple[str | None, str | None]:
     t = texto(valor)
     if t is None:
         return (None, None)
-    codigo = t.upper().replace(" ", "")
+    codigo = re.sub(r"^(PEDIDO|PED\.?|N[º°O]\.?)\s*", "", t.upper()).lstrip("#").replace(" ", "")
     for tipo, padrao in FORMATOS_PEDIDO:
         if padrao.fullmatch(codigo):
             return (tipo, codigo)

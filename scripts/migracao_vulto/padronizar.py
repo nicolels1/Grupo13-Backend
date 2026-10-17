@@ -15,6 +15,7 @@ import sqlite3
 from pathlib import Path
 
 import pandas as pd
+from openpyxl import load_workbook
 
 from scripts.migracao_vulto import normalizadores as n
 from scripts.migracao_vulto.normalizadores import ValorInvalido
@@ -165,12 +166,14 @@ def padronizar_clientes(origem: Path, destino: Path, pend: Pendencias):
     arquivo = origem / ARQUIVO_CLIENTES
     fonte = ARQUIVO_CLIENTES
 
-    # Clientes: CPF, nome, e-mail, telefone e data de cadastro (texto, nº de série do Excel ou data).
-    # nome_busca (sem acento, minúsculo) serve para achar duplicados depois.
+    # Clientes: CPF, nome, e-mail e telefone. Data de cadastro em texto, nº de série do Excel, data ou
+    # só mês/ano ("ago/26", marcado em data_cadastro_so_mes). nome_busca (sem acento, minúsculo) serve
+    # para achar duplicados depois.
     # Pontos, categoria, aceita_msg, loja_cadastro e Obs ficam como vieram: são padrão assumido ou decisão
     clientes = ler_aba(arquivo, "Clientes")
-    clientes = aplicar_regras(clientes, {"cpf": n.cpf, "E-mail": n.email, "Tel": n.telefone,
-                                         "Data Cadastro": n.data}, fonte, pend)
+    clientes = aplicar_regras(clientes, {"cpf": n.cpf, "E-mail": n.email, "Tel": n.telefone}, fonte, pend)
+    clientes = aplicar_par(clientes, "Data Cadastro", n.data_ou_mes, ("Data Cadastro", "data_cadastro_so_mes"),
+                           fonte, pend)
     clientes["nome_busca"] = clientes["Nome"].map(n.chave_busca)
     clientes["Nome"] = clientes["Nome"].map(n.nome_proprio)
     gravar(clientes, destino, "clientes_clientes")
@@ -185,10 +188,7 @@ def padronizar_clientes(origem: Path, destino: Path, pend: Pendencias):
     # Resgates: data (inclui "set/23", marcado em data_so_mes), pontos inteiros e desconto em Decimal.
     # A coluna cliente tem CPF ou só o nome: CPF vai para cliente_cpf, o resto fica em cliente_nome
     resgates = ler_aba(arquivo, "Resgates")
-    datas = [pend.aplicar(n.data_ou_mes, v, fonte, linha, "data", padrao=(None, False))
-             for linha, v in zip(resgates["linha_origem"], resgates["data"])]
-    resgates["data"] = [d for d, _ in datas]
-    resgates["data_so_mes"] = [so_mes for _, so_mes in datas]
+    resgates = aplicar_par(resgates, "data", n.data_ou_mes, ("data", "data_so_mes"), fonte, pend)
     resgates = aplicar_regras(resgates, {"pontos usados": n.inteiro, "desconto R$": n.decimal_br}, fonte, pend)
     resgates["cliente_cpf"] = [_cpf_ou_nada(v) for v in resgates["cliente"]]
     resgates["cliente_nome"] = [None if c else n.nome_proprio(v)
@@ -224,15 +224,60 @@ ABAS_CATALOGO = {
 COLUNAS_CATALOGO = ["sku", "nome", "categoria", "cor", "tamanho", "preco", "custo", "ean"]
 
 
+# Cores de fundo que as abas usam como marcação (legendas "vermelho = descontinuado" e
+# "amarelo = revisar preço"); há dois tons de vermelho, conforme quem marcou
+VERMELHOS = {"FFFF0000", "FFC00000"}
+AMARELO = "FFFFFF00"
+
+
+def _cor_fundo(celula) -> str | None:
+    if celula.fill is None or not celula.fill.fill_type:
+        return None
+    return celula.fill.fgColor.rgb
+
+
+# Lê as marcações que só existem na formatação (o pandas não enxerga): descontinuado é texto tachado ou
+# a linha inteira em vermelho (SKU e nome); revisar_preco é o fundo amarelo. Só o SKU em vermelho, com
+# o resto da linha normal, não diz o que é: fica sem valor e vira pendência.
+def marcar_formatacao(df: pd.DataFrame, planilha, mapa: dict, aba: str, pend: Pendencias) -> pd.DataFrame:
+    ws = planilha[aba]
+    cabecalho = [c.value for c in ws[mapa["cabecalho"] + 1]]
+    coluna_sku = cabecalho.index(mapa["sku"]) + 1
+    coluna_nome = cabecalho.index(mapa["nome"]) + 1
+    descontinuado, revisar = [], []
+    for linha_origem in df["linha_origem"]:
+        linha = int(linha_origem.rsplit("!", 1)[1])
+        celula_sku, celula_nome = ws.cell(linha, coluna_sku), ws.cell(linha, coluna_nome)
+        sku_vermelho = _cor_fundo(celula_sku) in VERMELHOS
+        nome_vermelho = _cor_fundo(celula_nome) in VERMELHOS
+        if celula_sku.font.strike or (sku_vermelho and nome_vermelho):
+            descontinuado.append(True)
+        elif sku_vermelho:
+            descontinuado.append(None)
+            pend.registrar(ARQUIVO_CATALOGO, linha_origem, "descontinuado", "só o SKU em vermelho",
+                           "marcação parcial: não dá para saber se é descontinuado")
+        else:
+            descontinuado.append(False)
+        revisar.append(_cor_fundo(celula_sku) == AMARELO)
+    df = df.copy()
+    df["descontinuado"] = descontinuado
+    df["revisar_preco"] = revisar
+    return df
+
+
 def padronizar_catalogo(origem: Path, destino: Path, pend: Pendencias):
     print(ARQUIVO_CATALOGO)
     arquivo = origem / ARQUIVO_CATALOGO
+    planilha = load_workbook(arquivo)  # com formatação, para as marcações de cor e tachado
     partes = []
     for aba, mapa in ABAS_CATALOGO.items():
         df = ler_aba(arquivo, aba, mapa["cabecalho"])
         # renomeia para os nomes comuns e descarta colunas de anotação (legenda de cor, obs, fórmula)
         df = df.rename(columns={mapa[c]: c for c in COLUNAS_CATALOGO})[["linha_origem", *COLUNAS_CATALOGO]]
         df = df[df["sku"].notna()]  # linha sem SKU é título, legenda ou espaço
+        # cabeçalho repetido no meio da aba (linha copiada e colada junto com os produtos)
+        df = df[df["sku"].astype(str).str.strip().str.lower() != mapa["sku"].lower()]
+        df = marcar_formatacao(df, planilha, mapa, aba, pend)
         df.insert(1, "aba", aba)
         partes.append(df)
     catalogo = pd.concat(partes, ignore_index=True)
@@ -282,9 +327,10 @@ def padronizar_contagem(origem: Path, destino: Path, pend: Pendencias):
         })
         partes.append(saida[saida["codigo"].notna()])
     contagem = pd.concat(partes, ignore_index=True)
-    # código em maiúsculas e quantidades inteiras; conversão para o SKU canônico fica para depois
-    contagem = aplicar_regras(contagem, {"codigo": n.sku, "quantidade": n.inteiro, "reservado": n.inteiro},
-                              ARQUIVO_CONTAGEM, pend)
+    # código em maiúsculas e quantidades inteiras ("2 (1 no estoque + 1 vitrine)" vira 2 se as parcelas
+    # somam o total); conversão para o SKU canônico fica para depois
+    contagem = aplicar_regras(contagem, {"codigo": n.sku, "quantidade": n.quantidade_contada,
+                                         "reservado": n.inteiro}, ARQUIVO_CONTAGEM, pend)
     gravar(contagem, destino, "contagem_set26")
 
 
