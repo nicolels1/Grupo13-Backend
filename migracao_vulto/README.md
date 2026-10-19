@@ -167,6 +167,8 @@ O sistema da Vulto creditava pontos para qualquer `cliente_ref` só com dígitos
 
 ### Solução proposta (ainda não implementada)
 
+> **Decidida (J1b no [registro de decisões](registro_decisoes.md)), com um ajuste:** o número que serve para CPF e para celular vira CPF, e não pendência; das 85 vendas, 57 aparecem escritas como CPF em outra fonte e nenhuma como telefone. Ficam sem cliente só as 39 que não servem para nenhum dos dois.
+
 Decidir em camadas, da evidência mais forte para a mais fraca:
 
 1. **Cadastro de clientes:** se o número está na coluna `cpf` da aba Clientes, é CPF; se está na coluna `Tel`, é telefone. Para isso, a planilha de clientes precisa ser lida antes do banco.

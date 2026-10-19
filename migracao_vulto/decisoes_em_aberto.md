@@ -12,7 +12,7 @@ As decisões de plataforma (P) mudam o formato em que vendas e estoque entram, e
 
 | Bloco | Quem | Decisões |
 |---|---|---|
-| 1. Decidir juntos primeiro | Nicole e Matias | J1, J2, P2, P7, V2–V5 |
+| 1. Decidir juntos primeiro | Nicole e Matias | J1 (decidida), J2, P2, P7, V2–V5 |
 | 2. Nicole | Nicole | P1, P3–P6, P8, P9, K1–K9, A1–A4, U1 |
 | 3. Matias | Matias | V1, V6–V10, E1–E5, C1–C5 |
 
@@ -20,7 +20,7 @@ O que cada decisão do bloco 1 destrava:
 
 | Decisão | Destrava | Por quê |
 |---|---|---|
-| J1 identificação do cliente | P2, K1, K8, A1, vendas | todo vínculo com o cliente passa por ela |
+| J1 identificação do cliente (decidida) | P2, K1, K8, A1, vendas | todo vínculo com o cliente passa por ela |
 | J2 SKU oficial | C1–C4, E1–E5, itens das vendas | todo vínculo com a peça passa por ela |
 | P2 cliente sem conta | vendas online, K8, A1 | pedido online e chamado exigem cliente |
 | P7 pagamento e estorno | V4, V6 | define como estorno e devolução entram |
@@ -32,18 +32,7 @@ Dependências que ficam dentro dos blocos 2 e 3: P8 (Nicole) depende de C4 e da 
 
 ## Bloco 1. Decidir juntos primeiro
 
-### J1. Como identificar o cliente (CPF × telefone × e-mail × @Instagram)
-- **Problema:** vendas, pontos e atendimento identificam o cliente por campos diferentes, e o `cliente_ref` mistura CPF, e-mail e telefone. 5.747 vendas só com dígitos podem ser CPF ou celular.
-- **Evidência:** `01_vendas` (ligações: 4.155 batem com CPF do cadastro, 75 com telefone, 1.517 não acham); README, seção "celular que passa por CPF válido" (324 ambíguos, 85 sem evidência).
-- **Opções:**
-
-| Opção | Ganho | Perda |
-|---|---|---|
-| a) Camadas: cadastro → formato → contexto (proposta do README) | Usa a evidência mais forte primeiro; cada ligação diz de onde veio | Mais trabalho; 85 vendas continuam ambíguas |
-| b) Só dígito verificador: passou é CPF | Simples | Liga ~110 celulares a "CPFs" de pessoas que não existem |
-| c) Só o que está no cadastro | Nenhuma ligação errada | Perde ~1.500 vendas que dariam para ligar |
-
-- **Sugestão:** a). Os ambíguos ficam sem cliente e entram como margem de erro.
+J1 (identificação do cliente) foi decidida: ver J1a e J1b no [registro de decisões](registro_decisoes.md).
 
 ### J2. Qual é o SKU oficial
 - **Problema:** 4 formatos: longo `VLT-CAT-NNN-COR-TAM`, curto `CAM004BM`, com espaço e `DIVERSO`. Escrito igual, só 55% dos itens acham o catálogo; pela chave comum (categoria + número + cor + tamanho), 77%.
