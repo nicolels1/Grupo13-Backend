@@ -211,8 +211,8 @@ Dependências entre os blocos: P9 (Nicole) cobre o vendedor e o autor das transf
 - **Opções:** a) aplicar retroativamente; b) **não aplicar no passado e passar a aplicar a partir da migração**.
 - **Sugestão:** b) para o vencimento e o Ouro: o cliente nunca viu ponto vencer. Para o dobro no online gravado errado (`web`, `ecommerce`), corrigir a favor do cliente; o impacto fica a calcular.
 
-#### K5. Planilha congelada + banco; antigos também na aba nova (178)
-- **Sugestão:** saldo da aba Clientes em 01/01/2025 + movimentos do banco. Os `PONTOS_2023` dos antigos não somam (pela aba LEIA ISSO, os ativos foram migrados em jan/24).
+#### K5. Saldo inicial
+Decidida: ver K5a a K5f no [registro de decisões](registro_decisoes.md).
 
 #### K6. Pontos indevidos: venda cancelada (367), aguardando (248), pedido duplicado (76), bug do app (4 clientes, 215.982)
 - **Depende de:** V3, V4 e V5 (quais vendas não valem).
