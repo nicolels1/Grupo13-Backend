@@ -38,6 +38,7 @@ Sem `VULTO_DATA_DIR`, informe a pasta no comando: `--origem ../vulto-backend/dat
 - `padronizar.py`: lê cada fonte, aplica os normalizadores e grava um CSV por tabela/aba, mais `pendencias.csv`.
 - `notebooks/`: análise exploratória (entender as fontes e testar regras antes de irem para os scripts). Ver o [README da pasta](notebooks/README.md).
 - [`mapeamento.md`](mapeamento.md): onde cada dado da Vulto entra no banco da Casa Lorenzi e o que a plataforma precisa ganhar.
+- [`decisoes_em_aberto.md`](decisoes_em_aberto.md): as opções de cada decisão ainda não tomada, com ganho, perda e uma sugestão.
 - [`registro_decisoes.md`](registro_decisoes.md): cada problema encontrado nos dados ou nas regras, a decisão tomada e o impacto no número final.
 - Toda linha de saída tem `linha_origem` (`vendas#272`, `Clientes!15`, `csv!40`), que deve atravessar todas as etapas até o banco da Lorenzi.
 
