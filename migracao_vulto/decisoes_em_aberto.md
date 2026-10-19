@@ -12,8 +12,8 @@ As decisões de plataforma (P) mudam o formato em que vendas e estoque entram, e
 
 | Bloco | Quem | Decisões |
 |---|---|---|
-| 1. Decidir juntos primeiro | Nicole e Matias | J1 (decidida), J2, P2, P7, V2–V5 |
-| 2. Nicole | Nicole | P1, P3–P6, P8, P9, K1–K9, A1–A4, U1 |
+| 1. Decidir juntos primeiro | Nicole e Matias | J1 (decidida), J2, J3, P2, P7, V2–V5 |
+| 2. Nicole | Nicole | P1, P3–P6, P8, P9, K1–K9, A1–A6 (A7 e A8 decididas), U1 |
 | 3. Matias | Matias | V1, V6–V10, E1–E5, C1–C5 |
 
 O que cada decisão do bloco 1 destrava:
@@ -22,6 +22,7 @@ O que cada decisão do bloco 1 destrava:
 |---|---|---|
 | J1 identificação do cliente (decidida) | P2, K1, K8, A1, vendas | todo vínculo com o cliente passa por ela |
 | J2 SKU oficial | C1–C4, E1–E5, itens das vendas | todo vínculo com a peça passa por ela |
+| J3 código do pedido citado no atendimento | A1, A2, A6, V6 | o atendimento só acha o pedido pelo número original da venda |
 | P2 cliente sem conta | vendas online, K8, A1 | pedido online e chamado exigem cliente |
 | P7 pagamento e estorno | V4, V6 | define como estorno e devolução entram |
 | V2–V5 o que conta como venda paga | K6, A2, faturamento | pontos de vendas que não valem; qual pedido sobra para o atendimento |
@@ -47,8 +48,26 @@ J1 (identificação do cliente) foi decidida: ver J1a e J1b no [registro de deci
 
 - **Sugestão:** a), guardando o código original na origem da migração (P4).
 
+### J3. Código do pedido citado no atendimento (atendimento → venda)
+- **Problema:** o atendimento só acha o pedido pelo número original da venda da Vulto, e esse número aparece de vários jeitos: na coluna `pedido` ou só no texto da mensagem; `S…`, `APP-…`, `APP` sem o prefixo (`7002175`), o `id` interno da venda (loja física, que não tem código) e até com os dígitos invertidos (`874101` → `S101478`).
+- **Evidência:** `05_atendimentos`, seção 5: 282 pedidos só no texto; 89 do app sem prefixo (nenhum bate com o `id` interno); dos 47 invertidos que batem, 43 com a venda até 60 dias antes (mediana de 9 dias, igual aos códigos normais).
+- **Depende das vendas (Matias):** `pedido_externo` vira `codigo_venda`, e o `id` da Vulto fica guardado na origem da migração (P4). Sem isso, nenhuma destas ligações funciona.
+- **Opções:**
+
+| Opção | Ganho | Perda |
+|---|---|---|
+| a) Todas as regras: coluna e texto; app sem prefixo; número solto e invertido só com a venda até 60 dias antes | 928 atendimentos acham a venda | Mais regras para explicar; os 43 invertidos se apoiam só na data |
+| b) Só a coluna, nos formatos conhecidos (`S…`, `APP-…`, número solto) | Simples | Perde ~370 ligações (as do texto, as do app sem prefixo e as invertidas) |
+| c) a) sem os invertidos | Nenhuma ligação "criativa" | Perde 43 |
+
+- **Sugestão:** a). Cada ligação guarda a regra que a fez (`como_achou_venda` no notebook), para mostrar na banca.
+
 ### P2. Cliente da Vulto sem login
 - **Por quê:** ~2.500 clientes do Vulto+ (mais 534 CPFs que só existem nos pontos), e o nosso banco só tem cliente com conta no Supabase Auth, com e-mail e CPF obrigatórios. Pedido online e chamado exigem cliente.
+- **Quem vira cliente sem conta (J1a):** quem tem CPF fora do cadastro e, sem CPF, quem tem e-mail. Nas vendas, 1.964 online são de 1.248 pessoas só com e-mail; no atendimento, 311 dos 1.104 com cliente (122 com CPF fora do cadastro e 189 só com e-mail).
+- **O que a c) exige no cadastro do site:** o "CPF já cadastrado" só olha `usuario`, então o cliente sem conta não trava o cadastro. Ao criar a conta, o backend puxa do cliente sem conta com aquele CPF **ou** aquele e-mail os pedidos, os chamados e os pontos, como `ligar_pedidos_pelo_cpf` já faz com o CPF na nota (ADR 0014). Na a), o CPF já estaria em `usuario` e a pessoa não conseguiria se cadastrar nem entrar.
+- **Regras do cliente sem conta:** CPF único; e-mail único; pelo menos um dos dois; guarda a camada que o identificou (J1b).
+- **Sugestão futura:** juntar pelo e-mail só depois de confirmar o e-mail. Hoje o cadastro não confirma (Entrega 2), e alguém que digitasse o e-mail de outra pessoa puxaria o histórico dela; é o mesmo risco aceito no CPF na nota.
 
 | Opção | Ganho | Perda |
 |---|---|---|
@@ -139,11 +158,11 @@ J1 (identificação do cliente) foi decidida: ver J1a e J1b no [registro de deci
 
 | Opção | Ganho | Perda |
 |---|---|---|
-| a) No chamado: `canal` e `contato_externo`, cliente opcional quando vem de fora; na mensagem: autor opcional + nome do autor externo | Os 1.647 entram, inclusive os 408 do Instagram, e a conversa vira mensagens | Ajuste em `chamado` e `mensagem` |
+| a) No chamado: `canal` e `contato_externo`, cliente opcional quando vem de fora; na mensagem: autor opcional + nome do autor externo | Os 1.633 entram (os sem cliente, com o contato externo), e a conversa vira mensagens | Ajuste em `chamado` e `mensagem` |
 | b) Só o chamado, com a conversa inteira na descrição | Menos trabalho | O histórico fica num bloco só, diferente dos chamados da Lorenzi |
-| c) Migrar só os que acham cliente e pedido | Nada muda no banco | Perde mais da metade |
+| c) Migrar só os que acham cliente | Nada muda no banco | Perde 529 dos 1.633 (255 de pré-venda), inclusive 74 de pós-venda que acham o pedido e 161 sem nenhum identificador |
 
-- **Sugestão:** a). Separar as falas pelo `[Atendente]:` (1.105 conversas têm).
+- **Sugestão:** a). Separar as falas pelo `[Atendente]:` (1.105 conversas têm). O cliente opcional vale só para os migrados: chamado novo continua exigindo conta (A8).
 
 #### P8. Item sem variante (`DIVERSO`, Batel)
 | Opção | Ganho | Perda |
@@ -200,18 +219,31 @@ J1 (identificação do cliente) foi decidida: ver J1a e J1b no [registro de deci
 
 ### Atendimento
 
-#### A1. Instagram sem como achar o cliente (408)
-- **Sugestão:** migrar com o @ como contato externo (P6), sem cliente.
+A7 (pré-venda sem cliente) e A8 (atendimento só na plataforma depois da migração) foram decididas: ver o [registro de decisões](registro_decisoes.md).
 
-#### A2. Número solto que bate com o id da venda (329)
-- **Evidência:** `05_atendimentos`: em 311, a venda é de até 60 dias antes.
-- **Sugestão:** ligar os 311; os 18 suspeitos ficam sem pedido.
+#### A1. Instagram sem como achar o cliente pelo contato (408)
+- **Evidência:** `05_atendimentos`, seção 5 (com a J1): pelo pedido, 204 ganham cliente (120 do cadastro, 30 com CPF fora dele e 54 só pelo e-mail, P2); 21 chegam a uma venda sem cliente e 3 a um comprador só com telefone; 84 são pré-venda, 19 têm nome igual (A5) e 71 ficam sem nada.
+- **Sugestão:** o @ fica como contato externo (P6) em todos; o cliente vem do pedido quando houver.
 
-#### A3. Spam (10)
+#### A2. Número solto que bate com o id da venda (399, contando os do texto)
+- **Evidência:** `05_atendimentos`: na coluna, em 311 dos 329 a venda é de até 60 dias antes; no texto, mais 88.
+- **Sugestão:** ligar só com a venda até 60 dias antes (regra da J3); o resto fica sem pedido.
+
+#### A3. Spam (10) e "teste" (4)
 - **Sugestão:** não migrar.
 
 #### A4. Categoria, status e encerramento
 - **Sugestão:** de-para do `assunto`/`tags` para `entrega`, `troca_devolucao`, `estorno`, `duvida` e `outros`. Concluído vira `concluido` + `resolvido`; o que estava em aberto há mais de 30 dias vira `concluido` + `sem_resposta`.
+
+#### A5. Nome do contato igual ao de um único cliente (39)
+- **Problema:** sem contato nem pedido que ache o cliente, mas o `nome_contato` (nome completo) é igual ao de um único cliente do cadastro. A J1a não prevê o nome como caminho até o CPF.
+- **Opções:** a) ligar ao cliente; b) **não ligar e guardar o nome como contato externo**.
+- **Sugestão:** b). Segue a J1a, e um homônimo poria a conversa de uma pessoa no histórico de outra (LGPD).
+
+#### A6. Atendimentos sem nenhum identificador (161)
+- **Evidência:** `05_atendimentos`, seção 5: nem o contato nem o pedido acham alguém. Troca/devolução 90 (28 "comprei na loja X", 26 com defeito), Vulto+ 50, entrega 7, pagamento 6, sem tag 8; 36 em aberto. O `usuario` da Lorenzi não guarda telefone nem @, então eles não se ligam sozinhos depois.
+- **Opções:** a) **migrar sem cliente, com o contato externo (P6)**; b) achar a venda pela loja, pela peça e pela data; c) não migrar.
+- **Sugestão:** a), e eles entram como margem de erro do atendimento. b) é chute (uma ligação errada é pior do que nenhuma); c) perde histórico de pós-venda. Os 50 de Vulto+ ("meus pontos sumiram", "ganhei 800 pontos numa compra de 300") servem de evidência para a K6.
 
 ### Unidades
 
@@ -233,6 +265,7 @@ J1 (identificação do cliente) foi decidida: ver J1a e J1b no [registro de deci
 - **Opções para a devolução:** a) achar o pedido original e lançar devolução + estorno (o nosso modelo, ADR 0015); b) manter como desconto no mês da devolução.
 - **Opções para a troca:** a) não é faturamento: só a movimentação de estoque (`saida_troca`); b) conta como venda (regra da Vulto, "registrar como venda nova").
 - **Sugestão:** a) e a). Impacto em R$ depois da V1.
+- **Atendimento:** 356 dos 507 atendimentos de troca/devolução citam a venda (69 de loja física sem cliente). Com a), o chamado migrado aponta para o pedido original; ligar a devolução criada ao chamado fica a conferir.
 
 #### V7. Frete (R$ 49.572,80 na coluna + frete escondido no total do app)
 - **Evidência:** REGRAS_OPERACAO ("frete entra no faturamento", com a ressalva da Paula); `01_vendas` (~800 vendas do app com o frete dentro do total).
