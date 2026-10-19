@@ -10,7 +10,7 @@ Legenda: ✅ cabe como está · ⚠️ cabe com uma regra de tradução (decisã
 |---|---|---|
 | 1. Unidades, 3. Clientes, 6. Fidelidade, 7. Atendimento | Nicole | O que a plataforma precisa ter para receber isso? |
 | 2. Catálogo, 4. Vendas, 5. Estoque | Matias | Que regra transforma o dado da Vulto no formato do nosso banco? |
-| Identificação do cliente (CPF × telefone × @Instagram), SKU oficial e as decisões que travam as outras (bloco 1 das [decisões em aberto](decisoes_em_aberto.md#ordem)) | Os dois juntos | Atravessam todas as partes |
+| Identificação do cliente (CPF × telefone × @Instagram), SKU oficial, código do pedido citado no atendimento e as decisões que travam as outras (bloco 1 das [decisões em aberto](decisoes_em_aberto.md#ordem)) | Os dois juntos | Atravessam todas as partes |
 
 ## Restrições do nosso banco que pesam na migração
 
@@ -95,7 +95,7 @@ Evidência: `notebooks/04_clientes_pontos.ipynb`. Decisões: J1, P2, K1, K2, K8,
 | cliente sem e-mail | `usuario.email` (obrigatório) | ⚠️ |
 | CPFs com 2+ cadastros (131) | um `usuario` por CPF | ⚠️ qual cadastro fica |
 | CPFs só no banco de pontos (534) | — | ⚠️ sem nome nem contato |
-| `Tel`, `aceita_msg`, `categoria`, `loja_cadastro`, `Data Cadastro` | — | ❌ (telefone, consentimento LGPD, categoria do Vulto+) |
+| `Tel`, `aceita_msg`, `categoria`, `loja_cadastro`, `Data Cadastro` | — | ❌ (telefone, consentimento LGPD, categoria do Vulto+); o telefone é o que liga venda e atendimento ao cliente na migração (J1) |
 | `Clientes.Obs` | — | ❌ (ou descartar) |
 | `clientes antigos` (300: nome, CPF/CNPJ, pontos 2023, última compra, status) | `usuario` (170 também na aba nova) | ⚠️ risco de cliente e pontos em dobro |
 | `clientes antigos.CPF/CNPJ` com CNPJ | — | ⚠️ a Lorenzi só tem CPF |
@@ -118,8 +118,8 @@ Evidência: `notebooks/01_vendas.ipynb` e `notebooks/06_batel.ipynb`. Decisões:
 | `vendas.status` | `pedido.status` | ⚠️ de-para (vazio, aguardando, chargeback, estornado...) |
 | cancelado | `pedido.status = 'cancelado'` + `motivo_cancelamento` | ⚠️ a Vulto não tem motivo |
 | `vendas.criado_em` | `pedido.criado_em` / `pago_em` | ✅ |
-| `vendas.cliente_ref` | `pedido.id_cliente` ou `cpf_nota` | ⚠️ online exige conta (ver Clientes) |
-| `vendas.pedido_externo` / `id` | `pedido.codigo_venda` | ⚠️ manter o número original para o atendimento achar o pedido; a loja física não tem código |
+| `vendas.cliente_ref` | `pedido.id_cliente` ou `cpf_nota` | ⚠️ online exige conta (ver Clientes); pela J1a, sem CPF o e-mail identifica um cliente sem conta (P2): 1.964 vendas online de 1.248 pessoas; só telefone fora do cadastro entra sem cliente; o atendimento herda esse cliente |
+| `vendas.pedido_externo` / `id` | `pedido.codigo_venda` | ⚠️ manter o número original: 928 atendimentos acham a venda por ele (J3); a loja física não tem código, e o atendimento a acha pelo `id` da Vulto (guardar na origem, P4) |
 | `vendas.vendedor` | `pedido.id_registrado_por` | ❌ vendedores da Vulto não têm conta (ou descartar) |
 | `vendas.compra_id` (7.665) | — | ⚠️ liga a venda à compra que gerou pontos (ver Fidelidade) |
 | `vendas.obs` (troca, devolução, sfs) | `pedido.devolucao`, `pagamento` de estorno, `movimentacao` | ⚠️ |
@@ -169,17 +169,19 @@ Evidência: `notebooks/04_clientes_pontos.ipynb`. Decisões: P5, K1–K7.
 
 ## 7. Atendimento (Nicole)
 
-Evidência: `notebooks/05_atendimentos.ipynb`. Decisões: P6, A1–A4.
+Evidência: `notebooks/05_atendimentos.ipynb` (seção 5: cliente × pedido). Decisões: J3, P2, P6, P9, A1–A6; já decididas: J1, A7 e A8 (registro).
 
 | Vulto | Casa Lorenzi | Situação |
 |---|---|---|
-| `atendimentos` (uma conversa) | `chamado` | ⚠️ |
+| `atendimentos` (uma conversa) | `chamado` | ⚠️ 1.633 a migrar (sem 10 spam e 4 "teste") |
 | `data_hora` | `chamado.criado_em` | ✅ |
 | `assunto` / `tags` | `chamado.categoria` + `assunto` | ⚠️ de-para para 5 categorias (`entrega`, `troca_devolucao`, `estorno`, `duvida`, `outros`) |
 | `status` | `chamado.status` + `motivo_encerramento` | ⚠️ |
-| `pedido_codigo` | `chamado.id_pedido` | ⚠️ 85% acham o pedido |
-| `contato` (telefone, e-mail, @Instagram) | `chamado.id_cliente` | ❌ exige conta; 408 do Instagram sem como achar o cliente |
-| `nome_contato` | — | ⚠️ ajuda a achar o cliente |
+| `pedido_codigo` | `chamado.id_pedido` | ⚠️ com as regras da J3, 928 acham a venda: código (397), número solto até 60 dias antes (399), app sem `APP-` (89), dígitos invertidos (43); 32 não acham |
+| `mensagem` (primeira fala) | `chamado.id_pedido` | ⚠️ 282 têm o pedido só no texto, com a coluna `pedido` vazia (J3) |
+| `contato` (telefone, e-mail, @Instagram) | `chamado.id_cliente` | ❌ exige conta; pelo contato, 580 acham um cliente do cadastro e 28 o e-mail de quem comprou (J1a); o @Instagram nunca acha |
+| dono do pedido (`vendas.cliente_ref` da venda citada) | `chamado.id_cliente` | ⚠️ vem antes do contato (o pedido do chamado é do próprio cliente); com o contato, 1.104 dos 1.633 têm cliente: 793 com CPF do cadastro, 122 com CPF fora dele e 189 só pelo e-mail (cliente sem conta, P2); quando os dois existem (349), sempre concordam; 35 fazem a ponte e-mail ↔ CPF; 69 vendas sem cliente |
+| `nome_contato` | — | ⚠️ 39 nomes completos iguais aos de um único cliente (A5) |
 | `mensagem` (conversa inteira num campo) | `chamado.descricao` + `mensagem` (uma por fala) | ⚠️ separar pelo `[Atendente]:` |
 | `canal` (WhatsApp, Instagram, e-mail) | — | ❌ |
 | `atendente` | `mensagem.id_autor`, `chamado.id_responsavel` | ❌ atendentes da Vulto sem conta |
