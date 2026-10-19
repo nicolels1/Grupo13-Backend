@@ -10,7 +10,7 @@ Legenda: ✅ cabe como está · ⚠️ cabe com uma regra de tradução (decisã
 |---|---|---|
 | 1. Unidades, 3. Clientes, 6. Fidelidade, 7. Atendimento | Nicole | O que a plataforma precisa ter para receber isso? |
 | 2. Catálogo, 4. Vendas, 5. Estoque | Matias | Que regra transforma o dado da Vulto no formato do nosso banco? |
-| Identificação do cliente (CPF × telefone × @Instagram) e SKU oficial | Os dois juntos | Atravessam todas as partes |
+| Identificação do cliente (CPF × telefone × @Instagram), SKU oficial e as decisões que travam as outras (bloco 1 das [decisões em aberto](decisoes_em_aberto.md#ordem)) | Os dois juntos | Atravessam todas as partes |
 
 ## Restrições do nosso banco que pesam na migração
 
