@@ -37,12 +37,13 @@ Dependências entre os blocos: P9 (Nicole) cobre o vendedor e o autor das transf
 - **Problema:** a J1b classificou só o `vendas.cliente_ref` (5.747). As **compras** (`banco_compras`, a base do crédito de pontos) têm 8.431 `cliente_tipo = numero`, e elas geraram **8.429 créditos com 5.810.452 pontos**: quase todo o passivo passa por esses números. O "CPF" de cada crédito em `pontos_mov` é o próprio `cliente_ref` da compra.
 - **Evidência:** `banco_compras` × `banco_pontos_mov` (`compra_id`) × `clientes_clientes`: 7.059 batem com um CPF do cadastro e 64 com um telefone; 7.185 têm o mesmo número de uma venda já classificada pela J1b; 538 números distintos só aparecem nas compras. 2.866 são de loja física (`pdv`), sem venda ligada pelo `compra_id`.
 - **Opções:** a) aplicar as mesmas camadas da J1b a `compras.cliente_ref` e a `pontos_mov.cpf`; b) aceitar o `pontos_mov.cpf` como CPF sem classificar.
-- **Sugestão:** a). Os créditos cujo número virar telefone saem do passivo do "CPF" e vão para a J1d. Impacto: a calcular.
+- **Resultado das camadas da J1b nas 8.431 compras:** CPF pelo cadastro 7.059 (4.699.683 pts), CPF pelo formato 1.156 (1.016.878 pts), ambíguo → CPF 110 (51.778 pts); telefone do cadastro 64 (24.860 pts); telefone fora do cadastro 14 (7.304 pts); nem CPF nem celular 28 (9.949 pts). **99,3% dos pontos continuam no CPF.**
+- **Sugestão:** a). Pela J1a, o telefone serve para achar o CPF no cadastro: os 64 créditos de telefone do cadastro vão para o **CPF do dono do telefone** e continuam no passivo. Os 14 de telefone fora do cadastro ficam como pontos órfãos (margem de erro). Os 28 "nem CPF nem celular" são o mesmo caso da K2 (dígito verificador errado) e seguem a decisão dela.
 
 ### J1d. Pontos creditados em celular sem DDD
 - **Problema:** o sistema creditava pontos para qualquer `cliente_ref` só com dígitos (`if ref.isdigit()` em `/compra` e `/venda`); com o celular digitado sem DDD, o crédito foi para um "CPF" de 9 dígitos.
-- **Evidência:** `pendencias.csv` (`pontos_mov.cpf`, "CPF sem 11 dígitos"): **108 créditos, 98 números, 38.514 pontos**. 93 batem com os 9 últimos dígitos de um telefone do cadastro, todos com um único cliente; 15 não batem com ninguém.
-- **Opções:** a) ligar ao dono do telefone (93) e o resto como pontos órfãos, contados à parte; b) todos como pontos órfãos; c) descartar ("pontos só com CPF").
+- **Evidência:** `pendencias.csv` (`pontos_mov.cpf`, "CPF sem 11 dígitos"): **108 créditos, 98 números, 38.514 pontos**. 84 números (93 créditos, 32.964 pontos) batem com os 9 últimos dígitos de um telefone do cadastro, todos com um único cliente; 14 números (15 créditos, 5.550 pontos) não batem com ninguém.
+- **Opções:** a) ligar ao dono do telefone (84 números) e o resto como pontos órfãos, contados à parte; b) todos como pontos órfãos; c) descartar ("pontos só com CPF").
 - **Sugestão:** a). Impacto: até 38.514 pontos (R$ 1.925,70 a R$ 0,05 ou R$ 3.851,40 a R$ 0,10) entre passivo ligado e margem de erro.
 
 ### J2. Qual é o SKU oficial
