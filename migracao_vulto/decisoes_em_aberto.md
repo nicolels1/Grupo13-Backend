@@ -197,9 +197,7 @@ Dependências entre os blocos: P9 (Nicole) cobre o vendedor e o autor das transf
 ### Clientes e Vulto+
 
 #### K1. CPF com 2 ou mais cadastros (131)
-- **Evidência:** `04_clientes_pontos`: em 71, os dois cadastros têm pontos; somar acrescenta 49.973 pontos. Com a K2, mais 2 cadastros (Clientes!213 e !2332) passam a ter o CPF de outro cadastro da mesma pessoa.
-- **Opções:** a) **juntar e somar os pontos**; b) ficar com o cadastro mais recente.
-- **Sugestão:** a). É dívida com o cliente, e a Head de CRM quer cada pessoa uma vez. Impacto: +49.973 pontos no passivo.
+Decidida: ver K1 no [registro de decisões](registro_decisoes.md).
 
 #### K2. CPF com dígito verificador errado (28 no cadastro, 134 nos pontos)
 Decidida: ver K2 no [registro de decisões](registro_decisoes.md).
