@@ -37,6 +37,7 @@ Sem `VULTO_DATA_DIR`, informe a pasta no comando: `--origem ../vulto-backend/dat
 - `normalizadores.py`: funções puras de padronização (uma por tipo de dado). Valor que não segue formato conhecido levanta `ValorInvalido` e vira pendência; nada é corrigido no chute.
 - `padronizar.py`: lê cada fonte, aplica os normalizadores e grava um CSV por tabela/aba, mais `pendencias.csv`.
 - `notebooks/`: análise exploratória (entender as fontes e testar regras antes de irem para os scripts). Ver o [README da pasta](notebooks/README.md).
+- [`mapeamento.md`](mapeamento.md): onde cada dado da Vulto entra no banco da Casa Lorenzi e o que a plataforma precisa ganhar.
 - [`registro_decisoes.md`](registro_decisoes.md): cada problema encontrado nos dados ou nas regras, a decisão tomada e o impacto no número final.
 - Toda linha de saída tem `linha_origem` (`vendas#272`, `Clientes!15`, `csv!40`), que deve atravessar todas as etapas até o banco da Lorenzi.
 
