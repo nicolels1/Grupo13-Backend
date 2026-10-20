@@ -189,7 +189,8 @@ def _ordem_padrao(ordem: str | None, palavras: list[str]) -> str:
 
 # na vitrine, uma busca sem resultado não termina em lista vazia: tenta as peças parecidas de longe
 # e, se nem isso, mostra as novidades. busca_alternativa diz qual das duas, para a loja avisar que
-# não é exatamente o que foi digitado
+# não é exatamente o que foi digitado. As sugestões vêm das duas redes, mesmo com a vitrine de uma
+# marca aberta: uma peça parecida da outra rede é melhor que nenhuma (a marca vem em cada produto)
 def listar_produtos(db: Session, limit: int, offset: int, publico: bool = False, busca: str | None = None,
                     ordem: str | None = None, **filtros) -> dict:
     if publico:
@@ -199,12 +200,13 @@ def listar_produtos(db: Session, limit: int, offset: int, publico: bool = False,
     produtos, total = repo.listar_produtos(db, limit, offset, palavras=palavras or None, ordem=ordem, **filtros)
     alternativa = None
     if publico and palavras and total == 0:
+        sugestoes = {**filtros, "marca": None}
         produtos, total = repo.listar_produtos(
-            db, limit, offset, palavras=palavras, aproximada=True, ordem="relevancia", **filtros,
+            db, limit, offset, palavras=palavras, aproximada=True, ordem="relevancia", **sugestoes,
         )
         alternativa = "parecidas"
         if total == 0:
-            produtos, total = repo.listar_produtos(db, limit, offset, ordem="novidades", **filtros)
+            produtos, total = repo.listar_produtos(db, limit, offset, ordem="novidades", **sugestoes)
             alternativa = "novidades" if total else None
     ids = [p.id_produto for p in produtos]
     variantes = repo.variantes_dos_produtos(db, ids)
@@ -228,9 +230,10 @@ def _ordem_do_tamanho(tamanho: str) -> tuple:
     return (2, 0, tamanho.lower())
 
 
-def tamanhos_a_venda(db: Session, id_categoria: int | None = None, busca: str | None = None) -> list[str]:
+def tamanhos_a_venda(db: Session, id_categoria: int | None = None, busca: str | None = None,
+                     marca: str | None = None) -> list[str]:
     palavras = palavras_da_busca(busca) or None
-    return sorted(repo.tamanhos_a_venda(db, id_categoria, palavras), key=_ordem_do_tamanho)
+    return sorted(repo.tamanhos_a_venda(db, id_categoria, palavras, marca), key=_ordem_do_tamanho)
 
 
 def buscar_produto(db: Session, id_produto: int, publico: bool = False) -> dict:

@@ -254,7 +254,7 @@ def test_disponivel_online_sem_variantes_nao_consulta():
 
 def test_tamanhos_saem_na_ordem_da_grade(monkeypatch):
     monkeypatch.setattr(catalogo_repository, "tamanhos_a_venda",
-                        lambda db, c, b: ["U", "42", "G", "38", "PP", "M", "Único"])
+                        lambda db, c, b, m: ["U", "42", "G", "38", "PP", "M", "Único"])
 
     assert catalogo.tamanhos_a_venda(SessaoFalsa()) == ["PP", "M", "G", "38", "42", "U", "Único"]
 
@@ -262,7 +262,7 @@ def test_tamanhos_saem_na_ordem_da_grade(monkeypatch):
 def test_rota_de_tamanhos_nao_e_lida_como_produto(client, monkeypatch):
     pedidos = []
     monkeypatch.setattr(catalogo_repository, "tamanhos_a_venda",
-                        lambda db, c, b: pedidos.append((c, b)) or ["M", "P"])
+                        lambda db, c, b, m: pedidos.append((c, b)) or ["M", "P"])
 
     resposta = client().get("/produtos/tamanhos", params={"id_categoria": 23, "busca": "camisa"})
 
@@ -361,6 +361,26 @@ def test_sem_nada_parecido_mostra_as_novidades(busca_vazia):
 
     assert resultado["busca_alternativa"] == "novidades" and resultado["total"] == 1
     assert "palavras" not in busca_vazia.chamadas[2] and busca_vazia.chamadas[2]["ordem"] == "novidades"
+
+
+# vitrine de uma marca: a lista é só da marca, mas as sugestões vêm das duas redes
+def test_sugestoes_da_vitrine_de_uma_marca_vem_das_duas_redes(busca_vazia):
+    busca_vazia.acha_parecidas = False  # passa pelas duas sugestões: parecidas e novidades
+
+    catalogo.listar_produtos(SessaoFalsa(), 10, 0, publico=True, busca="xablau", marca="vulto")
+
+    assert [c["marca"] for c in busca_vazia.chamadas] == ["vulto", None, None]
+
+
+def test_rota_repassa_a_marca(client, busca_vazia):
+    resposta = client().get("/produtos", params={"marca": "vulto"})
+
+    assert resposta.status_code == 200
+    assert busca_vazia.chamadas[0]["marca"] == "vulto"
+
+
+def test_marca_que_nao_existe_e_recusada(client, busca_vazia):
+    assert client().get("/produtos", params={"marca": "renner"}).status_code == 422
 
 
 def test_catalogo_interno_nao_troca_a_busca_por_outra_coisa(busca_vazia):

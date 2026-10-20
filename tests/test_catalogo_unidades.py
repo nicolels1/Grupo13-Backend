@@ -23,7 +23,7 @@ def banco(monkeypatch):
 
     monkeypatch.setattr(catalogo_repository, "buscar_categoria", lambda db, i: estado.categorias.get(i))
     monkeypatch.setattr(catalogo_repository, "categoria_por_nome", por_nome(estado.categorias))
-    monkeypatch.setattr(catalogo_repository, "listar_categorias", lambda db, ativo=None: list(estado.categorias.values()))
+    monkeypatch.setattr(catalogo_repository, "listar_categorias", lambda db, ativo=None, marca=None: list(estado.categorias.values()))
     monkeypatch.setattr(unidade_repository, "buscar_unidade", lambda db, i: estado.unidades.get(i))
     monkeypatch.setattr(unidade_repository, "unidade_por_nome", por_nome(estado.unidades))
     monkeypatch.setattr(unidade_repository, "listar_unidades", lambda db, ativo=None, tipo=None: list(estado.unidades.values()))
@@ -168,6 +168,16 @@ def test_listar_categorias_e_publico(api, banco):
 
     assert resposta.status_code == 200
     assert resposta.json() == {"items": [{"id_categoria": 1, "nome": "Camisas", "ativo": True, "imagem_url": None}]}
+
+
+def test_menu_da_vitrine_de_uma_marca(api, banco, monkeypatch):
+    pedidos = []
+    monkeypatch.setattr(catalogo_repository, "listar_categorias",
+                        lambda db, ativo=None, marca=None: pedidos.append((ativo, marca)) or [])
+
+    resposta = api(SessaoFalsa()).get("/categorias", params={"ativo": True, "marca": "vulto"})
+
+    assert (resposta.status_code, pedidos) == (200, [(True, "vulto")])
 
 
 def test_criar_categoria_sem_login_retorna_401(api, banco):
