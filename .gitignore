@@ -8,3 +8,5 @@ venv/
 # CSVs da migração da Vulto (têm CPF, e-mail e telefone de clientes)
 staging_vulto/
 tratado_vulto/
+# saída do numeros.py: só agregados, mas gerada; os números ficam em migracao_vulto/numeros.md
+numeros_vulto/

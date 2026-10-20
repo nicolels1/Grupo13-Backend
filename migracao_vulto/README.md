@@ -10,6 +10,7 @@ Scripts que preparam os dados da Vulto (banco SQLite e planilhas do `vulto-legad
 | 1. Padronização automática | `staging_vulto/` | Formato de data, número, CPF, e-mail, telefone, texto, encoding e cabeçalho de planilha. Nenhuma regra de negócio. | **Feita** (`padronizar.py`) |
 | 2. Tratamento | `tratado_vulto/` | Padrões assumidos (de-para) e decisões de negócio, com log de cada valor alterado. | A fazer |
 | 3. Carga | banco da Lorenzi | Insere os dados tratados, guardando a origem de cada registro. | A fazer |
+| Os três números | `numeros_vulto/` | Faturamento, estoque e passivo de pontos, calculados do staging com as decisões do registro. Só agregados. | **Feito** (`numeros.py`, resultado em [`numeros.md`](numeros.md)) |
 
 Cada etapa lê a pasta da anterior e regrava a sua do zero; regra nova entra no script e tudo roda de novo (não se cria um CSV por alteração). Os de-para da etapa 2 ficarão em CSVs pequenos em `de_para/`, versionados no git, e cada valor alterado vai para um único `alteracoes.csv` com a regra (número da decisão) que o mudou.
 
@@ -26,6 +27,7 @@ Depois, na raiz do repositório, com o venv ativo:
 ```bash
 pip install -r migracao_vulto/requirements.txt
 python -m migracao_vulto.padronizar --destino staging_vulto
+python -m migracao_vulto.numeros --origem staging_vulto --destino numeros_vulto
 ```
 
 Sem `VULTO_DATA_DIR`, informe a pasta no comando: `--origem ../vulto-backend/data`.
@@ -36,6 +38,8 @@ Sem `VULTO_DATA_DIR`, informe a pasta no comando: `--origem ../vulto-backend/dat
 
 - `normalizadores.py`: funções puras de padronização (uma por tipo de dado). Valor que não segue formato conhecido levanta `ValorInvalido` e vira pendência; nada é corrigido no chute.
 - `padronizar.py`: lê cada fonte, aplica os normalizadores e grava um CSV por tabela/aba, mais `pendencias.csv`.
+- `numeros.py`: calcula os três números da Entrega 3 (faturamento com a comparação com o relatório da Vulto, estoque em 01/10/2026 com o histórico desde jan/2025, passivo de pontos) a partir do staging. Os testes estão em `tests/test_numeros_vulto.py`.
+- [`numeros.md`](numeros.md): os três números, como chegamos neles e a margem de erro de cada um.
 - `notebooks/`: análise exploratória (entender as fontes e testar regras antes de irem para os scripts). Ver o [README da pasta](notebooks/README.md).
 - [`mapeamento.md`](mapeamento.md): onde cada dado da Vulto entra no banco da Casa Lorenzi e o que a plataforma precisa ganhar.
 - [`decisoes_em_aberto.md`](decisoes_em_aberto.md): as opções de cada decisão ainda não tomada, com ganho, perda e uma sugestão.
