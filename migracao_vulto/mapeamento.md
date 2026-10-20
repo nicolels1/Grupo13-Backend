@@ -60,7 +60,7 @@ Evidência: `banco_lojas`, `banco_funcionarios`, tabela `config` do vulto.db e `
 | `funcionarios.perfil` (vendedor, admin, gerente, operador) | `modelo_acesso` | ✅ modelos Vendedor e Atendente (P9) |
 | `funcionarios.senha` | — | ❌ descartada (já fica fora no staging) |
 | `config.estoque_minimo` (2) | `estoque.estoque_minimo` | ✅ lojas sem mínimo; no CD, um mês de saída com piso 2 (E14) |
-| `config.prazo_troca_dias` (30) | regra de troca da Lorenzi | ⚠️ sem decisão; a loja aceitava trocas de 31 a 50 dias depois (V6) |
+| `config.prazo_troca_dias` (30) | regra de troca da Lorenzi | ✅ 30 dias depois da entrega, a regra da Lorenzi (V20) |
 | `config.versao`, `config.senha_master` | — | ❌ descartados |
 | — | `unidade.marca` | ✅ coluna `marca` (P1) |
 
