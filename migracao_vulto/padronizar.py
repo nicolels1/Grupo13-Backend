@@ -11,6 +11,7 @@
 #   python -m migracao_vulto.padronizar --destino staging_vulto
 # O destino tem CPF, e-mail e telefone de clientes: fica fora do git (.gitignore) e não deve ser compartilhado.
 import argparse
+import re
 import sqlite3
 from pathlib import Path
 
@@ -266,6 +267,27 @@ def marcar_formatacao(df: pd.DataFrame, planilha, mapa: dict, aba: str, pend: Pe
     return df
 
 
+# Coleção de cada aba. A Marina pôs o Inverno 26 dentro da aba Verão 26, abaixo de uma linha de título
+# ("INVERNO 26 (PROVISÓRIO - MARINA) - AINDA SEM ABA PROPRIA"): o título sai e marca a coleção das
+# linhas de baixo (C15, C9)
+COLECAO_DA_ABA = {"VERAO 25": "Verão 25", "inverno25": "Inverno 25", "Verão 26": "Verão 26",
+                  "Atemporais": "Atemporais", "PLANILHA ANTIGA NAO USAR": "2024 (aba antiga)"}
+TITULO_COLECAO = re.compile(r"^\s*(INVERNO|VER[AÃ]O)\s+(\d{2})\b", re.IGNORECASE)
+
+
+def marcar_colecao(df: pd.DataFrame, aba: str) -> pd.DataFrame:
+    colecao, colecoes, titulos = COLECAO_DA_ABA[aba], [], []
+    for indice, sku, nome, preco in zip(df.index, df["sku"], df["nome"], df["preco"]):
+        m = TITULO_COLECAO.match(str(sku))
+        if m and pd.isna(nome) and pd.isna(preco):  # linha de título, não de produto
+            estacao = "Verão" if m.group(1).upper() != "INVERNO" else "Inverno"
+            colecao = f"{estacao} {m.group(2)}"
+            titulos.append(indice)
+        colecoes.append(colecao)
+    df = df.assign(colecao=colecoes)
+    return df.drop(index=titulos)
+
+
 def padronizar_catalogo(origem: Path, destino: Path, pend: Pendencias):
     print(ARQUIVO_CATALOGO)
     arquivo = origem / ARQUIVO_CATALOGO
@@ -278,8 +300,10 @@ def padronizar_catalogo(origem: Path, destino: Path, pend: Pendencias):
         df = df[df["sku"].notna()]  # linha sem SKU é título, legenda ou espaço
         # cabeçalho repetido no meio da aba (linha copiada e colada junto com os produtos)
         df = df[df["sku"].astype(str).str.strip().str.lower() != mapa["sku"].lower()]
+        df = marcar_colecao(df, aba)
         df = marcar_formatacao(df, planilha, mapa, aba, pend)
         df.insert(1, "aba", aba)
+        df.insert(2, "colecao", df.pop("colecao"))
         partes.append(df)
     catalogo = pd.concat(partes, ignore_index=True)
     # preço "R$ 129,90" ou número, custo, EAN como texto, tamanho e SKU em maiúsculas, nome sem espaços.
