@@ -345,6 +345,9 @@ def reivindicar(db: Session, cliente: Usuario, codigo_venda: str) -> dict:
         raise RecursoNaoEncontrado("Nenhuma compra na loja com esse código")
     if pedido.id_cliente is not None:
         raise Conflito("Essa compra já está ligada a uma conta")
+    # compra migrada com o cliente identificado: vai para a conta dele no cadastro, não pelo código (ADR 0016)
+    if pedido.id_cliente_sem_conta is not None:
+        raise Conflito("Essa compra já tem cliente: ela aparece na conta criada com o CPF ou o e-mail dele")
     pedido.id_cliente = cliente.id_usuario
     db.commit()
     return detalhar(db, pedido.id_pedido)

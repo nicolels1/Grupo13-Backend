@@ -8,7 +8,7 @@ from src.app import app
 from src.database.session import get_db
 from src.dependencies.permissoes import get_usuario_ativo
 from src.dependencies.supabase import get_supabase_admin, get_supabase_login
-from src.repositories import pedido_repository, permissao_repository, usuario_repository
+from src.repositories import cliente_sem_conta_repository, pedido_repository, permissao_repository, usuario_repository
 from src.use_cases import contas
 from src.use_cases.erros import (
     Conflito, MuitasTentativas, NaoAutenticado, RegraDeNegocio, SemPermissao, ServicoIndisponivel,
@@ -72,13 +72,20 @@ class AuthFalso:
 @pytest.fixture
 def banco(monkeypatch):
     # estado do "banco" usado pelas consultas dos repositories, trocadas por versões falsas
-    estado = SimpleNamespace(emails=set(), cpfs=set(), clientes={}, compras_da_loja={CPF: 2}, ligadas=[])
+    estado = SimpleNamespace(emails=set(), cpfs=set(), clientes={}, compras_da_loja={CPF: 2}, ligadas=[],
+                             migrados={}, passados=[])
 
     def ligar(db, cpf, id_cliente):
         estado.ligadas.append((cpf, id_cliente))
         return estado.compras_da_loja.get(cpf, 0)
 
+    # pedidos migrados do cliente sem conta com esse CPF ou e-mail (P2)
+    def passar(db, id_usuario, cpf, email):
+        estado.passados.append((id_usuario, cpf, email))
+        return estado.migrados.get(cpf, 0) + estado.migrados.get(email, 0)
+
     monkeypatch.setattr(pedido_repository, "ligar_pedidos_pelo_cpf", ligar)
+    monkeypatch.setattr(cliente_sem_conta_repository, "passar_para_conta", passar)
     monkeypatch.setattr(usuario_repository, "email_em_uso", lambda db, email: email in estado.emails)
     monkeypatch.setattr(usuario_repository, "cpf_em_uso", lambda db, cpf: cpf in estado.cpfs)
     monkeypatch.setattr(usuario_repository, "buscar_cliente_por_cpf", lambda db, cpf: estado.clientes.get(cpf))
@@ -109,6 +116,16 @@ def test_cadastro_liga_as_compras_da_loja_com_o_cpf_na_nota(banco):
 
     assert banco.ligadas == [(CPF, ID_LOGIN)]
     assert resposta["compras_ligadas"] == 2
+
+
+# cliente da Vulto que nunca teve conta: o histórico do CPF e do e-mail dele passa para a conta nova (P2)
+def test_cadastro_traz_o_historico_do_cliente_sem_conta(banco):
+    banco.migrados = {CPF: 3, "ana@email.com": 1}
+
+    resposta = cadastrar(SessaoFalsa(), AuthFalso())
+
+    assert banco.passados == [(ID_LOGIN, CPF, "ana@email.com")]
+    assert resposta["compras_ligadas"] == 2 + 3 + 1
 
 
 @pytest.mark.parametrize("campo, mensagem", [("emails", "E-mail já cadastrado"), ("cpfs", "CPF já cadastrado")])

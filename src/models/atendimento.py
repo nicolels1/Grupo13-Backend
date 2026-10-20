@@ -11,8 +11,12 @@ class Chamado(Base):
     __tablename__ = "chamado"
 
     id_chamado: Mapped[int] = mapped_column(primary_key=True)
-    id_cliente: Mapped[uuid.UUID] = mapped_column(
+    # cliente com conta ou, no atendimento migrado, cliente sem conta (P2): o cadastro passa para a conta
+    id_cliente: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("usuario.id_usuario", ondelete="RESTRICT")
+    )
+    id_cliente_sem_conta: Mapped[int | None] = mapped_column(
+        ForeignKey("cliente_sem_conta.id_cliente_sem_conta", ondelete="RESTRICT")
     )
     id_responsavel: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("usuario.id_usuario", ondelete="RESTRICT")
@@ -53,8 +57,11 @@ class Chamado(Base):
         CheckConstraint(
             "(status = 'concluido') = (motivo_encerramento IS NOT NULL)", name="concluido_exige_motivo"
         ),
+        CheckConstraint("num_nonnulls(id_cliente, id_cliente_sem_conta) = 1", name="um_cliente"),
         # "meus chamados" do cliente
         Index("ix_chamado_id_cliente", "id_cliente"),
+        # chamados que passam para a conta no cadastro
+        Index("ix_chamado_id_cliente_sem_conta", "id_cliente_sem_conta"),
     )
 
 

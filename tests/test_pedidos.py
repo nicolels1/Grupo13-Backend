@@ -276,6 +276,18 @@ def test_reivindicar_compra_da_loja(banco):
         pedidos.reivindicar(SessaoVendas(banco), cliente(ID_OUTRO), "CLABCD2345")
 
 
+# compra da Vulto com o cliente identificado: só vai para a conta criada com o CPF ou e-mail dele (P2)
+def test_compra_migrada_com_cliente_nao_e_reivindicada_pelo_codigo(banco):
+    from src.models.vendas import Pedido
+    banco.pedidos[91] = Pedido(id_pedido=91, codigo_venda="VLT-1001", id_cliente=None, id_cliente_sem_conta=7,
+                               id_unidade=LOJA_SP, canal="loja_fisica", status="entregue", valor_frete=0,
+                               valor_total=Decimal("10"))
+
+    with pytest.raises(Conflito, match="já tem cliente"):
+        pedidos.reivindicar(SessaoVendas(banco), cliente(), "VLT-1001")
+    assert banco.pedidos[91].id_cliente is None
+
+
 def test_reivindicar_codigo_inexistente(banco):
     with pytest.raises(RecursoNaoEncontrado):
         pedidos.reivindicar(SessaoVendas(banco), cliente(), "CLNADA")

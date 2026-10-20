@@ -4,7 +4,7 @@ from sqlalchemy import Select, and_, func, select, update
 from sqlalchemy.orm import Session, aliased
 
 from src.models.atendimento import Chamado, HistoricoChamado, Mensagem
-from src.models.contas import Usuario
+from src.models.contas import ClienteSemConta, Usuario
 from src.models.vendas import ItemPedido, Pedido
 
 Cliente = aliased(Usuario, name="cliente")
@@ -36,7 +36,8 @@ def buscar_item_pedido(db: Session, id_item: int) -> ItemPedido | None:
 # cliente, as da equipe que não são internas
 def _nao_lidas_do_outro_lado(lado: str):
     m = Mensagem
-    do_cliente = m.id_autor == Chamado.id_cliente
+    # IS NOT DISTINCT FROM: no chamado de cliente sem conta, só a fala sem autor é do cliente
+    do_cliente = m.id_autor.is_not_distinct_from(Chamado.id_cliente)
     condicao = do_cliente if lado == "equipe" else and_(~do_cliente, m.interna.is_(False))
     return (
         select(func.count())
@@ -47,22 +48,26 @@ def _nao_lidas_do_outro_lado(lado: str):
 
 
 def consulta_chamados(
-    lado: str, id_chamado=None, id_cliente=None, status=None, categoria=None, prioridade=None,
-    id_unidade=None, id_responsavel=None, sem_responsavel=None, com_mensagem_nova=None,
+    lado: str, id_chamado=None, id_cliente=None, id_cliente_sem_conta=None, status=None, categoria=None,
+    prioridade=None, id_unidade=None, id_responsavel=None, sem_responsavel=None, com_mensagem_nova=None,
 ) -> Select:
     nao_lidas = _nao_lidas_do_outro_lado(lado)
+    # cliente com conta ou cliente sem conta da migração (P2); este sem nome aparece pelo e-mail
+    cliente = func.coalesce(Cliente.nome, ClienteSemConta.nome, ClienteSemConta.email)
     consulta = (
         select(
-            *Chamado.__table__.columns, Cliente.nome.label("cliente"), Responsavel.nome.label("responsavel"),
+            *Chamado.__table__.columns, cliente.label("cliente"), Responsavel.nome.label("responsavel"),
             nao_lidas.label("mensagens_nao_lidas"),
         )
-        .join(Cliente, Cliente.id_usuario == Chamado.id_cliente)
+        .outerjoin(Cliente, Cliente.id_usuario == Chamado.id_cliente)
+        .outerjoin(ClienteSemConta, ClienteSemConta.id_cliente_sem_conta == Chamado.id_cliente_sem_conta)
         .outerjoin(Responsavel, Responsavel.id_usuario == Chamado.id_responsavel)
         .order_by(Chamado.criado_em.desc(), Chamado.id_chamado.desc())
     )
     filtros = []
     for coluna, valor in [
-        (Chamado.id_chamado, id_chamado), (Chamado.id_cliente, id_cliente), (Chamado.status, status),
+        (Chamado.id_chamado, id_chamado), (Chamado.id_cliente, id_cliente),
+        (Chamado.id_cliente_sem_conta, id_cliente_sem_conta), (Chamado.status, status),
         (Chamado.categoria, categoria), (Chamado.prioridade, prioridade), (Chamado.id_unidade, id_unidade),
         (Chamado.id_responsavel, id_responsavel),
     ]:
@@ -89,7 +94,11 @@ def detalhar_chamado(db: Session, lado: str, id_chamado: int):
 def consulta_mensagens(id_chamado: int, incluir_internas: bool) -> Select:
     m = Mensagem
     consulta = (
-        select(*m.__table__.columns, Usuario.nome.label("autor"), (m.id_autor != Chamado.id_cliente).label("da_equipe"))
+        # IS DISTINCT FROM: no chamado de cliente sem conta (id_cliente vazio), toda fala com autor é da equipe
+        select(
+            *m.__table__.columns, Usuario.nome.label("autor"),
+            m.id_autor.is_distinct_from(Chamado.id_cliente).label("da_equipe"),
+        )
         .join(Chamado, Chamado.id_chamado == m.id_chamado)
         .join(Usuario, Usuario.id_usuario == m.id_autor)
         .where(m.id_chamado == id_chamado)

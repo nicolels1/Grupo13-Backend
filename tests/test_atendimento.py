@@ -286,8 +286,9 @@ def test_nao_lidas_contam_o_outro_lado():
     equipe = sql(atendimento_repository.consulta_chamados("equipe"))
     do_cliente = sql(atendimento_repository.consulta_chamados("cliente"))
 
-    assert "mensagem.id_autor = chamado.id_cliente" in equipe
-    assert "mensagem.id_autor != chamado.id_cliente" in do_cliente
+    # DISTINCT: no chamado de cliente sem conta (id_cliente vazio) a comparação não fica desconhecida
+    assert "mensagem.id_autor IS NOT DISTINCT FROM chamado.id_cliente" in equipe
+    assert "mensagem.id_autor IS DISTINCT FROM chamado.id_cliente" in do_cliente
     assert "mensagem.interna IS false" in do_cliente  # interna nunca conta para o cliente
 
 

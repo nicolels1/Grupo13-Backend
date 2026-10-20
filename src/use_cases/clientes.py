@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from src.models.contas import Usuario
 from src.repositories import permissao_repository, usuario_repository
-from src.repositories import pedido_repository
+from src.repositories import cliente_sem_conta_repository, pedido_repository
 from src.use_cases.contas import traduzir_erro_auth
 from src.use_cases.erros import Conflito, RecursoNaoEncontrado, RegraDeNegocio
 from src.utils.cpf import cpf_valido, normalizar_cpf
@@ -40,6 +40,20 @@ def buscar_por_cpf(db: Session, cpf: str) -> Usuario:
     return cliente
 
 
+# cliente da migração da Vulto sem conta: a equipe consulta os dados; os pedidos e chamados dele saem
+# nas listas da equipe filtradas por id_cliente_sem_conta (ADR 0016)
+def listar_sem_conta(db: Session, limit: int, offset: int, busca: str | None = None) -> dict:
+    itens, total = cliente_sem_conta_repository.listar(db, limit, offset, busca)
+    return {"items": itens, "total": total, "limit": limit, "offset": offset}
+
+
+def buscar_sem_conta(db: Session, id_cliente_sem_conta: int):
+    cliente = cliente_sem_conta_repository.buscar(db, id_cliente_sem_conta)
+    if cliente is None:
+        raise RecursoNaoEncontrado("Cliente sem conta não encontrado")
+    return cliente
+
+
 # e-mail ou CPF errados são corrigidos em qualquer loja, com documento. Se o CPF certo já tem conta,
 # os pedidos passam para ela e a conta errada é desativada (case, seção 5). As compras da loja com o
 # CPF certo na nota passam para a conta que fica com ele (ADR 0014)
@@ -63,9 +77,13 @@ def corrigir(db: Session, auth, id_usuario: uuid.UUID, campos: dict) -> dict:
         cliente.email = email
 
     ligadas = 0
-    if cpf and cpf != cliente.cpf:
+    cpf_mudou = bool(cpf) and cpf != cliente.cpf
+    if cpf_mudou:
         cliente.cpf = cpf
         ligadas = pedido_repository.ligar_pedidos_pelo_cpf(db, cpf, cliente.id_usuario)
+    # o CPF ou o e-mail novo pode ser de um cliente sem conta: o histórico dele vem junto (ADR 0016)
+    if cpf_mudou or cliente.email != email_antigo:
+        ligadas += cliente_sem_conta_repository.passar_para_conta(db, cliente.id_usuario, cliente.cpf, cliente.email)
     # decidido antes do commit: depois do rollback, o SQLAlchemy relê o cliente com o e-mail antigo
     email_mudou_no_auth = cliente.email != email_antigo
     try:
@@ -85,6 +103,7 @@ def corrigir(db: Session, auth, id_usuario: uuid.UUID, campos: dict) -> dict:
 def _juntar_na_conta_certa(db: Session, auth, errada: Usuario, certa: Usuario) -> dict:
     pedido_repository.transferir_pedidos(db, errada.id_usuario, certa.id_usuario)
     ligadas = pedido_repository.ligar_pedidos_pelo_cpf(db, certa.cpf, certa.id_usuario)
+    ligadas += cliente_sem_conta_repository.passar_para_conta(db, certa.id_usuario, certa.cpf, certa.email)
     bloquear = errada.status_conta == "ativa"
     errada.status_conta = "inativa"
     db.commit()

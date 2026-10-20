@@ -16,6 +16,10 @@ class Pedido(Base):
     id_cliente: Mapped[uuid.UUID | None] = mapped_column(  # vazio em venda física sem CPF
         Uuid, ForeignKey("usuario.id_usuario", ondelete="RESTRICT")
     )
+    # comprador migrado que ainda não criou conta (P2); o cadastro passa o pedido para id_cliente
+    id_cliente_sem_conta: Mapped[int | None] = mapped_column(
+        ForeignKey("cliente_sem_conta.id_cliente_sem_conta", ondelete="RESTRICT")
+    )
     id_unidade: Mapped[int] = mapped_column(ForeignKey("unidade.id_unidade", ondelete="RESTRICT"))
     id_registrado_por: Mapped[uuid.UUID | None] = mapped_column(  # funcionário da venda física
         Uuid, ForeignKey("usuario.id_usuario", ondelete="RESTRICT")
@@ -56,11 +60,15 @@ class Pedido(Base):
             name="motivo_cancelamento_valido",
         ),
         CheckConstraint("devolucao IN ('nenhuma', 'parcial', 'total')", name="devolucao_valida"),
-        # venda online exige conta e modalidade; venda física não tem modalidade
+        # venda online exige cliente (com ou sem conta) e modalidade; venda física não tem modalidade
         CheckConstraint(
             "(canal = 'online') = (modalidade IS NOT NULL)", name="modalidade_so_online"
         ),
-        CheckConstraint("canal <> 'online' OR id_cliente IS NOT NULL", name="online_exige_cliente"),
+        CheckConstraint(
+            "canal <> 'online' OR id_cliente IS NOT NULL OR id_cliente_sem_conta IS NOT NULL",
+            name="online_exige_cliente",
+        ),
+        CheckConstraint("id_cliente IS NULL OR id_cliente_sem_conta IS NULL", name="um_so_cliente"),
         CheckConstraint(
             "(status = 'cancelado') = (motivo_cancelamento IS NOT NULL)", name="cancelado_exige_motivo"
         ),
@@ -78,6 +86,8 @@ class Pedido(Base):
         Index("ix_pedido_id_cliente_criado_em", "id_cliente", "criado_em"),
         # listas da equipe (vendas, caixa do dia) ordenadas pelo mais recente
         Index("ix_pedido_criado_em", "criado_em"),
+        # pedidos que passam para a conta no cadastro
+        Index("ix_pedido_id_cliente_sem_conta", "id_cliente_sem_conta"),
     )
 
 

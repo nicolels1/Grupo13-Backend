@@ -41,6 +41,39 @@ class Usuario(Base):
         ),
     )
 
+
+# cliente que nunca criou conta, trazido pela migração da Vulto (P2): pedidos, chamados e pontos
+# apontam para ele até a pessoa se cadastrar pelo site com o mesmo CPF ou e-mail, quando o histórico
+# passa para a conta e id_usuario guarda qual (ADR 0016). Não é uma conta: não tem login nem senha
+class ClienteSemConta(Base):
+    __tablename__ = "cliente_sem_conta"
+
+    id_cliente_sem_conta: Mapped[int] = mapped_column(primary_key=True)
+    cpf: Mapped[str | None] = mapped_column(String(11), unique=True)
+    # e-mail só identifica quem não tem CPF: e-mails de família são usados por mais de um CPF (P2)
+    email: Mapped[str | None] = mapped_column(String(255))
+    nome: Mapped[str | None] = mapped_column(String(150))  # quem só aparece nos pontos não tem nome (K8)
+    # só dígitos; fica sem DDD quando não deu para completar (K9a)
+    telefone: Mapped[str | None] = mapped_column(String(11))
+    aceita_mensagem: Mapped[bool | None] = mapped_column()  # vazio = não informado (K9b)
+    origem: Mapped[str] = mapped_column(String(20))
+    id_usuario: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("usuario.id_usuario", ondelete="RESTRICT")
+    )
+    criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint("cpf IS NOT NULL OR email IS NOT NULL", name="cpf_ou_email"),
+        CheckConstraint("cpf ~ '^[0-9]{11}$'", name="cpf_so_digitos"),
+        CheckConstraint("telefone ~ '^[0-9]{8,11}$'", name="telefone_so_digitos"),
+        CheckConstraint("origem IN ('migracao_vulto')", name="origem_valida"),
+        # e-mail único entre quem não tem CPF; é também a busca do cadastro pelo e-mail
+        Index(
+            "uq_cliente_sem_conta_email_sem_cpf", func.lower(email), unique=True,
+            postgresql_where=text("cpf IS NULL"),
+        ),
+    )
+
 class ModeloAcesso(Base):
     __tablename__ = "modelo_acesso"
 
