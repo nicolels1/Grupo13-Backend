@@ -89,15 +89,7 @@ Decidida: ver P3 no [registro de decisões](registro_decisoes.md).
 Decidida: ver P5 no [registro de decisões](registro_decisoes.md).
 
 #### P6. Atendimento externo (WhatsApp, Instagram, e-mail)
-- **Por quê:** a gerente quer os atendimentos "no nosso módulo, ligados ao cliente e ao pedido certo".
-
-| Opção | Ganho | Perda |
-|---|---|---|
-| a) No chamado: `canal` e `contato_externo`, cliente opcional quando vem de fora; na mensagem: autor opcional + nome do autor externo | Os 1.633 entram (os sem cliente, com o contato externo), e a conversa vira mensagens | Ajuste em `chamado` e `mensagem` |
-| b) Só o chamado, com a conversa inteira na descrição | Menos trabalho | O histórico fica num bloco só, diferente dos chamados da Lorenzi |
-| c) Migrar só os que acham cliente | Nada muda no banco | Perde 529 dos 1.633 (255 de pré-venda), inclusive 74 de pós-venda que acham o pedido e 161 sem nenhum identificador |
-
-- **Sugestão:** a). Separar as falas pelo `[Atendente]:` (1.105 conversas têm). O cliente opcional vale só para os migrados: chamado novo continua exigindo conta (A8).
+Decidida: ver P6 no [registro de decisões](registro_decisoes.md).
 
 #### P9. Funcionários da Vulto como autores
 Decidida: ver P9 no [registro de decisões](registro_decisoes.md).
@@ -134,15 +126,15 @@ Decidida: ver K9a e K9b no [registro de decisões](registro_decisoes.md).
 
 ### Atendimento
 
-#### A1. Instagram sem como achar o cliente pelo contato (408)
-- **Evidência:** `05_atendimentos`, seção 5 (com a J1): pelo pedido, 204 ganham cliente (120 do cadastro, 30 com CPF fora dele e 54 só pelo e-mail, P2); 21 chegam a uma venda sem cliente e 3 a um comprador só com telefone; 84 são pré-venda, 19 têm nome igual (A5) e 71 ficam sem nada.
+#### A1. Instagram sem como achar o cliente pelo contato (398 que migram, de 408)
+- **Evidência:** `05_atendimentos`, seção 5 (com a J1): pelo pedido, 204 ganham cliente (120 do cadastro, 30 com CPF fora dele e 54 só pelo e-mail, P2); 21 chegam a uma venda sem cliente e 3 a um comprador só com telefone; 84 são pré-venda, 19 têm nome igual (A5) e 67 ficam sem nada.
 - **Sugestão:** o @ fica como contato externo (P6) em todos; o cliente vem do pedido quando houver.
 
 #### A2. Número solto que bate com o id da venda (399, contando os do texto)
 Decidida: ver A2 no [registro de decisões](registro_decisoes.md).
 
-#### A3. Spam (10) e "teste" (4)
-- **Sugestão:** não migrar.
+#### A3. Spam e "teste"
+Decidida: ver A3 no [registro de decisões](registro_decisoes.md).
 
 #### A4. Categoria, status e encerramento
 - **Sugestão:** de-para do `assunto`/`tags` para `entrega`, `troca_devolucao`, `estorno`, `duvida` e `outros`. Concluído vira `concluido` + `resolvido`; o que estava em aberto há mais de 30 dias vira `concluido` + `sem_resposta`.
@@ -152,8 +144,8 @@ Decidida: ver A2 no [registro de decisões](registro_decisoes.md).
 - **Opções:** a) ligar ao cliente; b) **não ligar e guardar o nome como contato externo**.
 - **Sugestão:** b). Segue a J1a, e um homônimo poria a conversa de uma pessoa no histórico de outra (LGPD).
 
-#### A6. Atendimentos sem nenhum identificador (161)
-- **Evidência:** `05_atendimentos`, seção 5: nem o contato nem o pedido acham alguém. Troca/devolução 90 (28 "comprei na loja X", 26 com defeito), Vulto+ 50, entrega 7, pagamento 6, sem tag 8; 36 em aberto. O `usuario` da Lorenzi não guarda telefone nem @, então eles não se ligam sozinhos depois.
+#### A6. Atendimentos sem nenhum identificador (153)
+- **Evidência:** `05_atendimentos`, seção 5: nem o contato nem o pedido acham alguém. Troca/devolução 90 (28 "comprei na loja X", 26 com defeito), Vulto+ 50, entrega 7, pagamento 6; 35 em aberto. O `usuario` da Lorenzi não guarda telefone nem @, então eles não se ligam sozinhos depois.
 - **Opções:** a) **migrar sem cliente, com o contato externo (P6)**; b) achar a venda pela loja, pela peça e pela data; c) não migrar.
 - **Sugestão:** a), e eles entram como margem de erro do atendimento. b) é chute (uma ligação errada é pior do que nenhuma); c) perde histórico de pós-venda. Os 50 de Vulto+ ("meus pontos sumiram", "ganhei 800 pontos numa compra de 300") servem de evidência para a K6.
 
