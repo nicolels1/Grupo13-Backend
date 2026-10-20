@@ -42,7 +42,7 @@ Sem `VULTO_DATA_DIR`, informe a pasta no comando: `--origem ../vulto-backend/dat
 - [`numeros.md`](numeros.md): os três números, como chegamos neles e a margem de erro de cada um.
 - `notebooks/`: análise exploratória (entender as fontes e testar regras antes de irem para os scripts). Ver o [README da pasta](notebooks/README.md).
 - [`mapeamento.md`](mapeamento.md): onde cada dado da Vulto entra no banco da Casa Lorenzi e o que a plataforma precisa ganhar.
-- [`decisoes_em_aberto.md`](decisoes_em_aberto.md): as opções de cada decisão ainda não tomada, com ganho, perda e uma sugestão.
+- [`decisoes_em_aberto.md`](decisoes_em_aberto.md): as opções que foram discutidas em cada decisão; todas estão decididas e apontam para o registro.
 - [`registro_decisoes.md`](registro_decisoes.md): cada problema encontrado nos dados ou nas regras, a decisão tomada e o impacto no número final.
 - Toda linha de saída tem `linha_origem` (`vendas#272`, `Clientes!15`, `csv!40`), que deve atravessar todas as etapas até o banco da Lorenzi.
 
@@ -90,101 +90,51 @@ Pendências por motivo (o que não dá para padronizar sem decidir ou que não d
 | atendimento | `contato` | telefone sem DDD | 124 |
 | catálogo | `descontinuado` | só a célula do SKU em vermelho, resto da linha normal | 93 |
 
-## O que falta padronizar
+## O que ainda falta no código
 
-### Automáticas
+Todas as decisões estão tomadas: as 94 linhas do [registro de decisões](registro_decisoes.md). O que falta é levá-las para os scripts.
 
-Nenhuma conhecida. As oito encontradas na primeira execução foram implementadas (data só com mês/ano no cadastro, `nao tem`, `#1094`/`pedido 1146`, CNPJ, contagem com parcelas, cabeçalho repetido no catálogo, `ver NF` e marcações de formatação), além de telefone com DDD separado por espaço e pedido `APP-` com quantidade de dígitos diferente. Novas aparecem em `pendencias.csv` a cada execução.
+### Ajustes na etapa 1 (`padronizar.py`)
 
-### Padrão assumido (barato de errar, fácil de desfazer; entram na etapa 2 como de-para)
+| Decisão | Ajuste |
+|---|---|
+| K7b | Ler o ponto como milhar na coluna `pontos usados` da aba Resgates (`2.000` = 2.000 pts) |
+| C15 | Descartar a linha de título "INVERNO 26 (PROVISÓRIO - MARINA)..." da aba Verão 26 e usar o texto dela para marcar os 177 produtos de Inverno 26 (C9) |
+| — | Gravar como inteiro os ids de ligação que hoje saem como `2.0` (`vendas.compra_id`, `pontos_mov.compra_id`) e a `qtd` das entradas |
 
-| Variável | Problema | Regra proposta |
-|---|---|---|
-| `vendas/compras.cliente_ref` tipo `numero` | 5.747 vendas e 8.431 compras só com dígitos: CPF ou celular? | Cruzar com o cadastro e com o formato de celular (ver a última seção) |
-| `pontos_mov.cpf` com 9–10 dígitos | 108 lançamentos; celular sem DDD ou CPF sem zeros? | Cruzar com os telefones do cadastro (sem DDD) antes de completar zeros |
-| `Resgates.pontos usados` | `1.500` (9) | Ponto é milhar (pontos são inteiros) |
-| catálogo `descontinuado` parcial | Só o SKU em vermelho (93) | Também é descontinuado (decidido na C3) |
-| `vendas.canal`, `compras.canal` | 13 grafias, não batem com a loja | Ignorar e derivar de `loja_id` (1–4 loja física, 5 site, 6 app) |
-| `vendas.status` (valores claros) | `PAGO/pago/Pago/aprovado`, `cancelado/CANCELADA` | De-para para `pago` / `cancelado` (os ambíguos estão nas decisões) |
-| SKU (`estoque`, `itens_venda`, `entradas_estoque`, contagem, catálogo) | 4 formatos (`CAM004BM`, `vlt cal 001 preto 38`...) | Converter para `VLT-CAT-NNN-COR-TAM` e conferir contra o catálogo; o que não bater vira pendência |
-| `entradas_estoque.fornecedor` | `Serra Azul` ×4, `Rio Claro` ×3 | De-para para um nome |
-| `Clientes.Pontos` | `2.203`, `1200 pts`, `9,9k` | Ponto é milhar, tira `pts`, `k` = ×1000 (o `k` arredonda: entra na margem de erro do passivo) |
-| `Clientes.categoria` | 14 grafias, 425 vazias | De-para para bronze/prata/ouro (`vip?` fica vazio) |
-| `Clientes.aceita_msg` | `1/S/sim/x` e `0/N/nao`, 827 vazios | De-para para aceita / não aceita; vazio = não informado, sem envio (K9b) |
-| `Clientes.loja_cadastro` | 18 grafias (`bh`, `CWB`, `eldorado shop`) | De-para para a unidade |
-| `contagem.unidade` | Nome da loja em texto | De-para para a unidade |
-| catálogo `categoria`, `cor` | `Bermudas/shorts/Bottoms > Short`, `Olive/oliva` | De-para para as categorias e cores da Lorenzi (cor pode sair do código no SKU) |
-| `atendimento.canal`, `status`, `atendente` | 9, 10 e 8 grafias | De-para (`wpp` → whatsapp; `ok/resolvido/fechado` → concluido; `julia/Júlia (SAC)` → uma pessoa) |
+### Etapa 2 (`tratar.py`): de onde vem cada regra
 
-### Decisões de negócio (custam caro ou não dá para desfazer; precisam de alguém da diretoria e entram no registro de decisões)
+Os padrões assumidos e as decisões de negócio que esta seção listava como pendentes estão decididos:
 
-**Vendas e faturamento**
-- Total do app gravado em centavos (~2.200 vendas, misturado com vendas em reais): como identificar cada caso (conferir contra a soma dos itens).
-- Status `aguardando` (329), vazio (949), `estornado` (131), `chargeback` (38): contam como faturamento?
-- Pedidos do app duplicados (`aguardando` + `PAGO`, 76 pedidos): qual linha fica.
-- Devolução lançada como venda negativa (201) e troca como venda nova (328): converter em devolução/estorno da Lorenzi.
-- Frete (R$ 49,6 mil): é receita (Diego) ou repasse (Paula)?
-- Vendas de teste/QA em produção (37): excluir.
-- Batel em março/26: datas da planilha manual ambíguas (`02/03` lido como 3 de fevereiro, `03/03` sem ano) e "as principais" relançadas no sistema (risco de duplicidade).
-- Ship from store (56 vendas): baixar estoque da Pinheiros em vez do site?
+| Assunto | Decisões |
+|---|---|
+| Cliente: CPF, celular, e-mail e @ | J1a, J1b, J1c, J1d, K2, K9a |
+| SKU, cor, categoria e preço | J2, C1, C6, C7, C8, C13, C17, C18, C19 |
+| Peça descontinuada, código reaproveitado, variante fora do catálogo | C2, C3, C4 |
+| Canal, loja e status da venda | V12, P3, V2, V3, V4, V5, V13, V19 |
+| Centavos do app, frete, desconto e teste | V1, V7, V18, V8 |
+| Devolução e troca | V6, P7 |
+| Batel em março | V9, P8 |
+| Saldo, histórico e transferências do estoque | E1 a E13 |
+| Pontos: saldo inicial, valor, vencimento e categoria | K1, K3, K4a, K4b, K4c, K5a a K5f |
+| Pontos indevidos e resgates | K6, K7a, K8 |
+| Atendimento | J3, A1 a A8, P6 |
+| Autores (vendedor, SAC, transferência) | P9 |
 
-**Estoque**
-- Estoque negativo (1.156 SKU×loja) e lojas 5/6 (site/app) com estoque próprio duplicado do CD: qual saldo inicial vale (sistema × contagem física × WMS).
-- Contagens em datas diferentes (20/09 e 28/09, outras sem data) e a Savassi só por modelo: como chegar em 01/10.
-- Transferências anotadas pelos dois lados ou por um só.
-- Custo unitário vazio em 95% das entradas; custo médio (financeiro) × último custo (Compras).
-
-**Catálogo**
-- Peça em duas coleções: vale a mais nova (Marina) ou o menor preço (Diego/financeiro)?
-- SKU reaproveitado entre coleções.
-
-**Clientes e Vulto+**
-- CPF duplicado com dados diferentes (123 CPFs): qual cadastro fica e como somar os pontos.
-- CPF com dígito verificador errado (28 no cadastro, 83 nas vendas/compras, 134 nos pontos): não dá para corrigir; decidir se o cliente entra sem CPF e o que fazer com os pontos.
-- Telefone sem DDD (425 no cadastro, 209 nas vendas, 124 no atendimento): não dá para recuperar o DDD (a loja de cadastro sugere a cidade, mas é chute).
-- Valor do ponto: R$ 0,10 (config) ou R$ 0,05 (regra desde mar/2025); o passivo dobra conforme a escolha.
-- Expiração de 12 meses (18 para Ouro) e bônus Ouro nunca implementados: aplicar retroativamente?
-- Pontos creditados em vendas canceladas (367) ou aguardando pagamento (248) e créditos do bug do app.
-- Resgates anotados só na planilha (596) que não estão no banco.
-- Clientes antigos (300, 170 também na aba nova): risco de contar pontos duas vezes.
-- Cliente sem e-mail: a Lorenzi exige e-mail no `USUARIO`.
+Os três números já aplicam essas regras sobre o staging (`numeros.py`); a etapa 2 aplica as mesmas regras linha a linha, para a carga.
 
 ## Problema: celular que passa por CPF válido
 
 O `cliente_ref` da Vulto guarda CPF, e-mail ou telefone no mesmo campo, e muitas vezes só com os dígitos. Um celular tem 11 dígitos, igual ao CPF, e cerca de 1 em cada 100 celulares passa no dígito verificador do CPF por coincidência. Por isso a etapa 1 **não decide**: com máscara, a máscara decide; só com dígitos, o valor sai como tipo `numero` (`cliente_tipo = numero`), e a classificação fica para a etapa 2.
 
-### Tamanho do problema (dados de `vendas`)
+O sistema da Vulto também creditava pontos para qualquer `cliente_ref` só com dígitos (`if ref.isdigit()` em `/compra` e `/venda`): quando a loja digitava o celular, os pontos iam para um "CPF" que é telefone.
 
-| | Vendas |
-|---|---|
-| `cliente_ref` com 11 dígitos sem máscara | 5.747 |
-| ... que passam como CPF válido | 5.617 |
-| ... que têm formato de celular (DDD válido + 9) | 415 |
-| **... que são as duas coisas (ambíguos)** | **324** (114 números distintos) |
-| ambíguos encontrados na coluna `cpf` do cadastro | 235 |
-| ambíguos encontrados na coluna `Tel` do cadastro | 4 |
-| **ambíguos sem evidência** | **85** |
+### Solução adotada (J1b, J1c e J1d)
 
-### Também afeta o passivo de pontos
+Decidir em camadas, da evidência mais forte para a mais fraca (J1b, nas 5.747 vendas com `numero`):
 
-O sistema da Vulto creditava pontos para qualquer `cliente_ref` só com dígitos (`if ref.isdigit()` em `/compra` e `/venda`). Quando a loja digitava o celular, os pontos iam para um "CPF" que é telefone. Em `pontos_mov`, 108 lançamentos têm 9 dígitos começando com 9 (celular sem DDD), somando **38.514 pontos**; no total, 241 lançamentos com CPF inválido somam 90.086 pontos.
+1. **Cadastro de clientes:** o número na coluna `cpf` da aba Clientes é CPF; na coluna `Tel`, telefone (4.155 CPF e 75 telefone).
+2. **Formato:** só o dígito verificador fecha → CPF; só o formato de celular (DDD válido + 9 + 8 dígitos) → telefone (1.373 CPF e 20 telefone).
+3. **Serve para os dois → CPF** (85 vendas de 29 números; 57 aparecem escritas como CPF em outra fonte e nenhuma como telefone). Ficam sem cliente as 39 que não servem para nenhum dos dois.
 
-### Solução proposta (ainda não implementada)
-
-> **Decidida (J1b no [registro de decisões](registro_decisoes.md)), com um ajuste:** o número que serve para CPF e para celular vira CPF, e não pendência; das 85 vendas, 57 aparecem escritas como CPF em outra fonte e nenhuma como telefone. Ficam sem cliente só as 39 que não servem para nenhum dos dois.
-
-Decidir em camadas, da evidência mais forte para a mais fraca:
-
-1. **Cadastro de clientes:** se o número está na coluna `cpf` da aba Clientes, é CPF; se está na coluna `Tel`, é telefone. Para isso, a planilha de clientes precisa ser lida antes do banco.
-2. **Formato:** se não está no cadastro, comparar com o formato de celular (DDD válido + 9 + 8 dígitos):
-
-   | Dígito verificador fecha? | Formato de celular? | Resultado |
-   |---|---|---|
-   | sim | não | CPF |
-   | não | sim | telefone |
-   | sim | sim | pendência (ambíguo) |
-   | não | não | pendência |
-
-3. **Contexto:** o mesmo número com resgate em `pontos_mov` (resgate exige CPF) ou em outra venda com nome indica CPF. O que continuar ambíguo vai para o registro de decisões com a contagem exata.
-
-Para os pontos: lançamentos de `pontos_mov` cujo "CPF" for classificado como telefone são ligados ao cliente dono daquele telefone no cadastro, quando existir; os que não forem ligados ficam como pontos órfãos, contados à parte no passivo como margem de erro.
+As mesmas camadas valem para as compras e os pontos (J1c): o crédito feito num telefone do cadastro vai para o CPF do dono do telefone. O crédito em celular digitado sem DDD (J1d: 108 créditos, 38.514 pontos) vai para o dono pelos 9 últimos dígitos, sempre de um único cliente. Nenhum ponto fica órfão.
