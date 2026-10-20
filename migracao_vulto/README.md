@@ -38,7 +38,8 @@ Sem `VULTO_DATA_DIR`, informe a pasta no comando: `--origem ../vulto-backend/dat
 
 - `normalizadores.py`: funções puras de padronização (uma por tipo de dado). Valor que não segue formato conhecido levanta `ValorInvalido` e vira pendência; nada é corrigido no chute.
 - `padronizar.py`: lê cada fonte, aplica os normalizadores e grava um CSV por tabela/aba, mais `pendencias.csv`.
-- `numeros.py`: calcula os três números da Entrega 3 (faturamento com a comparação com o relatório da Vulto, estoque em 01/10/2026 com o histórico desde jan/2025, passivo de pontos) a partir do staging. Os testes estão em `tests/test_numeros_vulto.py`.
+- `regras.py`: as regras das decisões do registro (SKU, situação e canal da venda, centavos do app, Batel, dono dos pontos, saldo inicial, estornos, FIFO, posição contada e histórico do estoque). Usadas pelo `numeros.py` e pelo tratamento, para que os números e a carga sigam a mesma regra.
+- `numeros.py`: calcula os três números da Entrega 3 (faturamento com a comparação com o relatório da Vulto, estoque em 01/10/2026 com o histórico desde jan/2025, passivo de pontos) a partir do staging, com as regras do `regras.py`. Os testes estão em `tests/test_numeros_vulto.py`.
 - [`numeros.md`](numeros.md): os três números, como chegamos neles e a margem de erro de cada um.
 - `notebooks/`: análise exploratória (entender as fontes e testar regras antes de irem para os scripts). Ver o [README da pasta](notebooks/README.md).
 - [`mapeamento.md`](mapeamento.md): onde cada dado da Vulto entra no banco da Casa Lorenzi e o que a plataforma precisa ganhar.

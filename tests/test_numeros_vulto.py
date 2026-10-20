@@ -4,6 +4,7 @@ import pytest
 pd = pytest.importorskip("pandas")
 
 from migracao_vulto import numeros as n  # noqa: E402
+from migracao_vulto import regras as r  # noqa: E402
 
 
 # ---------- faturamento ----------
@@ -13,11 +14,11 @@ from migracao_vulto import numeros as n  # noqa: E402
     ["VLT-CAM-004-BRA-M", "CAM004BM", "vlt cam 004 branco m"],
 )
 def test_chave_sku_igual_nos_tres_formatos(sku):
-    assert n.chave_sku(sku) == "CAM004BM"
+    assert r.chave_sku(sku) == "CAM004BM"
 
 
 def test_chave_sku_desconhecido_e_none():
-    assert n.chave_sku("DIVERSO") is None
+    assert r.chave_sku("DIVERSO") is None
 
 
 @pytest.mark.parametrize(
@@ -26,12 +27,12 @@ def test_chave_sku_desconhecido_e_none():
      ("cancelado", "cancelado"), ("aguardando", "aguardando"), ("chargeback", "chargeback")],
 )
 def test_situacao_junta_as_grafias(status, esperado):
-    assert n.situacao(status) == esperado
+    assert r.situacao(status) == esperado
 
 
 def test_situacao_desconhecida_levanta_erro():
     with pytest.raises(ValueError):
-        n.situacao("devolvido")
+        r.situacao("devolvido")
 
 
 @pytest.mark.parametrize(
@@ -40,28 +41,28 @@ def test_situacao_desconhecida_levanta_erro():
      (None, None, "12345678909", None), (None, "00000000000", None, "APP-9900014")],
 )
 def test_eh_teste(obs, ref, valor, pedido):
-    assert n.eh_teste(obs, ref, valor, pedido)
+    assert r.eh_teste(obs, ref, valor, pedido)
 
 
 def test_venda_comum_nao_e_teste():
-    assert not n.eh_teste("troca", "cliente@gmail.com", "52998224725", "S100234")
+    assert not r.eh_teste("troca", "cliente@gmail.com", "52998224725", "S100234")
 
 
 def test_tipo_lancamento():
-    assert n.tipo_lancamento(-89.9, "devolucao ref #12") == "devolucao"
-    assert n.tipo_lancamento(89.9, "Troca tam") == "troca"
-    assert n.tipo_lancamento(89.9, None) == "venda"
+    assert r.tipo_lancamento(-89.9, "devolucao ref #12") == "devolucao"
+    assert r.tipo_lancamento(89.9, "Troca tam") == "troca"
+    assert r.tipo_lancamento(89.9, None) == "venda"
 
 
 def test_canal_pelo_codigo_do_pedido_e_nao_pela_loja():
-    assert n.canal_venda("5", "APP-7001340") == "app"
-    assert n.canal_venda("5", "S100234") == "site"
-    assert n.canal_venda("2", None) == "loja"
+    assert r.canal_venda("5", "APP-7001340") == "app"
+    assert r.canal_venda("5", "S100234") == "site"
+    assert r.canal_venda("2", None) == "loja"
 
 
 def test_mes_brasilia_volta_a_venda_da_noite_para_o_dia_anterior():
-    assert n.mes_brasilia("2026-10-01 02:28:31+00:00") == "2026-09"
-    assert n.mes_utc("2026-10-01 02:28:31+00:00") == "2026-10"
+    assert r.mes_brasilia("2026-10-01 02:28:31+00:00") == "2026-09"
+    assert r.mes_utc("2026-10-01 02:28:31+00:00") == "2026-10"
 
 
 @pytest.mark.parametrize(
@@ -69,12 +70,12 @@ def test_mes_brasilia_volta_a_venda_da_noite_para_o_dia_anterior():
     [("2026-02-03 00:00:00", "2026-03-02"), ("03/03", "2026-03-03"), ("22/03/2026", "2026-03-22")],
 )
 def test_data_batel_destroca_dia_e_mes(valor, esperado):
-    assert n.data_batel(valor) == esperado
+    assert r.data_batel(valor) == esperado
 
 
 def test_data_batel_formato_desconhecido():
     with pytest.raises(ValueError):
-        n.data_batel("março")
+        r.data_batel("março")
 
 
 def _catalogo():
@@ -93,14 +94,14 @@ def test_pedidos_em_centavos_pela_razao_com_o_catalogo():
                       ("2", "APP-2", "6", None, None, None, "100", "0", "0", "PAGO", "2025-08-01 12:00:00+00:00", None)])
     itens = pd.DataFrame({"venda_id": ["1", "2"], "sku": ["CAM004BM", "VLT-CAM-004-BRA-M"],
                           "qtd": ["1", "1"], "preco_unit": ["10000", "100"]})
-    assert n.pedidos_em_centavos(vendas, itens, _catalogo()) == {"1": True, "2": False}
+    assert r.pedidos_em_centavos(vendas, itens, _catalogo()) == {"1": True, "2": False}
 
 
 def test_pedido_do_app_sem_preco_de_catalogo_levanta_erro():
     vendas = _vendas([("1", "APP-1", "6", None, None, None, "10000", "0", "0", "PAGO", "2025-08-01 12:00:00+00:00", None)])
     itens = pd.DataFrame({"venda_id": ["1"], "sku": ["DIVERSO"], "qtd": ["1"], "preco_unit": ["10000"]})
     with pytest.raises(ValueError):
-        n.pedidos_em_centavos(vendas, itens, _catalogo())
+        r.pedidos_em_centavos(vendas, itens, _catalogo())
 
 
 def test_faturamento_aplica_as_decisoes_e_a_ponte_fecha():
@@ -117,7 +118,7 @@ def test_faturamento_aplica_as_decisoes_e_a_ponte_fecha():
     itens = pd.DataFrame({"venda_id": ["1", "2", "3", "4", "5", "6", "7"],
                           "sku": ["VLT-CAM-004-BRA-M"] * 7, "qtd": ["1"] * 7,
                           "preco_unit": ["10000", "100", "100", "100", "-100", "100", "100"]})
-    lanc = n.lancamentos_banco(vendas, itens, _catalogo())
+    lanc = r.lancamentos_banco(vendas, itens, _catalogo())
     fat = lanc.set_index("id")["faturamento"]
     assert fat["1"] == 100.0 and fat["2"] == 100.0  # sem frete (V7) e sem centavos (V1)
     assert fat["3"] == 0 and fat["4"] == 0 and fat["6"] == 0  # cancelada, troca, cópia aguardando (V5)
@@ -137,24 +138,24 @@ def test_faturamento_aplica_as_decisoes_e_a_ponte_fecha():
     [("2.203", 2203), ("1389 pts", 1389), ("15.000", 15000), ("2,7k", 2700), ("15,0k", 15000), (None, 0)],
 )
 def test_pontos_planilha_le_os_formatos(valor, esperado):
-    assert n.pontos_planilha(valor) == esperado
+    assert r.pontos_planilha(valor) == esperado
 
 
 def test_epoca_do_ponto_pela_data_do_credito():
-    assert n.epoca("2025-02-28 23:59:00") == "antigo"
-    assert n.epoca("2025-03-01") == "novo"
+    assert r.epoca("2025-02-28 23:59:00") == "antigo"
+    assert r.epoca("2025-03-01") == "novo"
 
 
 def test_candidatos_um_digito():
     conhecidos = {"52998224725", "11144477735"}
-    assert n.candidatos_um_digito("52998224726", conhecidos) == ["52998224725"]
-    assert n.candidatos_um_digito("99998224726", conhecidos) == []
+    assert r.candidatos_um_digito("52998224726", conhecidos) == ["52998224725"]
+    assert r.candidatos_um_digito("99998224726", conhecidos) == []
 
 
 def test_pontos_do_resgate_corrige_o_ponto_de_milhar():
     resgates = pd.DataFrame({"linha_origem": ["R!1", "R!2", "R!3"], "pontos usados": ["2.0", None, "500.0"]})
     pendencias = pd.DataFrame({"coluna": ["pontos usados"], "linha": ["R!2"], "valor": ["1.500"]})
-    assert n.pontos_do_resgate(resgates, pendencias).tolist() == [2000, 1500, 500]
+    assert r.pontos_do_resgate(resgates, pendencias).tolist() == [2000, 1500, 500]
 
 
 def _identidades():
@@ -162,7 +163,7 @@ def _identidades():
                              "Tel": ["+5511987654321", None]})
     pendencias = pd.DataFrame({"fonte": ["clientes"], "coluna": ["Tel"], "linha": ["Clientes!3"],
                                "valor": ["91234-5678"], "motivo": ["telefone sem DDD"]})
-    return n.Identidades(clientes, pendencias, {"52998224725", "11144477735"})
+    return r.Identidades(clientes, pendencias, {"52998224725", "11144477735"})
 
 
 def test_identidades_acham_o_dono_do_telefone():
@@ -186,7 +187,7 @@ def test_valorar_fifo_gasta_primeiro_o_ponto_antigo():
         "epoca": ["antigo", "novo", "novo", "novo"],
         "fifo": [False, False, True, False],  # o último é um estorno do crédito de junho
     })
-    saldo = n.valorar_fifo(movimentos).loc["A"]
+    saldo = r.valorar_fifo(movimentos).loc["A"]
     assert (saldo["antigo"], saldo["novo"], saldo["pontos"]) == (0, 200, 200)
 
 
@@ -197,17 +198,17 @@ def test_valorar_fifo_gasta_primeiro_o_ponto_antigo():
     ["VLT-VES-006-VIN-M", "VES006HM", "vlt ves 006 vinho m", "VLT VES 006 VINHO M"],
 )
 def test_sku_oficial_converte_os_tres_formatos(sku):
-    assert n.sku_oficial(sku) == "VLT-VES-006-VIN-M"
+    assert r.sku_oficial(sku) == "VLT-VES-006-VIN-M"
 
 
 def test_sku_oficial_usa_a_tabela_de_letras_e_nao_a_inicial():
-    assert n.sku_oficial("CAL001V38") == "VLT-CAL-001-OLI-38"  # V = verde oliva, não vinho
-    assert n.sku_oficial("TRI012CGG") == "VLT-TRI-012-CIN-GG"
+    assert r.sku_oficial("CAL001V38") == "VLT-CAL-001-OLI-38"  # V = verde oliva, não vinho
+    assert r.sku_oficial("TRI012CGG") == "VLT-TRI-012-CIN-GG"
 
 
 @pytest.mark.parametrize("sku", ["DIVERSO", "VLT-CA-L023-LIL-36", "VLT VES 006 MARROM", "SAI00O3GG", None])
 def test_sku_oficial_recusa_o_que_nao_da_para_converter(sku):
-    assert n.sku_oficial(sku) is None
+    assert r.sku_oficial(sku) is None
 
 
 @pytest.mark.parametrize(
@@ -216,18 +217,18 @@ def test_sku_oficial_recusa_o_que_nao_da_para_converter(sku):
      ("enviado eldorado - 1 pçs", ("Vulto Shopping Eldorado", 1)), ("TRANSF PINHEIROS 4", ("Vulto Pinheiros", 4))],
 )
 def test_saida_do_cd_le_destino_e_quantidade(obs, esperado):
-    assert n.saida_do_cd(obs) == esperado
+    assert r.saida_do_cd(obs) == esperado
 
 
 def test_saida_do_cd_ignora_recebimento():
-    assert n.saida_do_cd("recebido do CD romaneio 6") is None
-    assert n.saida_do_cd(None) is None
+    assert r.saida_do_cd("recebido do CD romaneio 6") is None
+    assert r.saida_do_cd(None) is None
 
 
 def test_distribuir_pelo_maior_resto_mantem_o_total():
-    partes = n.distribuir(10, {"A": 1, "B": 1, "C": 1})
+    partes = r.distribuir(10, {"A": 1, "B": 1, "C": 1})
     assert sum(partes.values()) == 10 and sorted(partes.values()) == [3, 3, 4]
-    assert n.distribuir(5, {"A": 0}) == {}
+    assert r.distribuir(5, {"A": 0}) == {}
 
 
 def _movimentos(linhas):
@@ -238,18 +239,18 @@ def test_posicao_baixa_os_movimentos_depois_da_contagem_e_zera_o_negativo():
     contada = pd.DataFrame({"unidade": ["L", "L"], "sku": ["A", "B"], "q": [5, 1]})
     movimentos = _movimentos([("L", "A", "2026-09-20", -2), ("L", "A", "2026-09-19", -9),
                               ("L", "B", "2026-09-25", -3), ("L", "A", "2026-10-01", -1)])
-    p = n.posicao_na_data_base(contada, movimentos, {"L": "2026-09-20"}).set_index("sku")
+    p = r.posicao_na_data_base(contada, movimentos, {"L": "2026-09-20"}).set_index("sku")
     assert p.loc["A", "q"] == 3  # a venda do dia da contagem baixa; a de antes e a de outubro não
     assert p.loc["B", "q"] == 0 and p.loc["B", "calculado"] == -2
 
 
 def test_historico_volta_no_tempo_e_lanca_ajuste_quando_faltaria_peca(monkeypatch):
-    monkeypatch.setattr(n, "INICIO_HISTORICO", "2026-09-01")
+    monkeypatch.setattr(r, "INICIO_HISTORICO", "2026-09-01")
     contada = pd.DataFrame({"unidade": ["L"], "sku": ["A"], "q": [2]})
     # vendeu 3 em 10/09 e recebeu 6 em 05/09, mas só há 2: das 4 que existiam em 04/09 (2 + 3 − 6 < 0),
     # faltou registrar a saída de 1 peça depois da entrada
     movimentos = _movimentos([("L", "A", "2026-09-10", -3), ("L", "A", "2026-09-05", 6), ("L", "A", "2026-09-03", -2)])
-    historico, ajustes = n.reconstruir_historico(contada, movimentos, {"L": "2026-09-20"})
+    historico, ajustes = r.reconstruir_historico(contada, movimentos, {"L": "2026-09-20"})
     saldo = historico.set_index("dia")["pecas"]
     assert saldo["2026-09-30"] == 2 and saldo["2026-09-09"] == 5 and saldo["2026-09-04"] == 0
     assert saldo["2026-09-02"] == 2  # desfaz a venda de 03/09
@@ -260,6 +261,6 @@ def test_separar_canal_da_pinheiros_sem_mudar_o_total():
     posicao = pd.DataFrame({"unidade": ["Vulto Pinheiros", "CD Cajamar"], "sku": ["A", "A"], "q": [3, 10]})
     vendidos = pd.DataFrame({"unidade": ["Vulto Pinheiros"] * 2, "sku": ["A", "A"], "q": [-1, -4],
                              "origem": ["venda site", "venda site"]})
-    p = n.separar_canal(posicao, vendidos).groupby(["unidade", "canal"])["q"].sum()
+    p = r.separar_canal(posicao, vendidos).groupby(["unidade", "canal"])["q"].sum()
     assert p[("Vulto Pinheiros", "online")] == 3 and ("Vulto Pinheiros", "loja_fisica") not in p.index
     assert p[("CD Cajamar", "online")] == 10
