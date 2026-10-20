@@ -94,13 +94,15 @@ Pendências por motivo (o que não dá para padronizar sem decidir ou que não d
 
 Todas as decisões estão tomadas: ver o [registro de decisões](registro_decisoes.md). O que falta é levá-las para os scripts.
 
-### Ajustes na etapa 1 (`padronizar.py`)
+### Ajustes na etapa 1 (`padronizar.py`), feitos
 
 | Decisão | Ajuste |
 |---|---|
-| K7b | Ler o ponto como milhar na coluna `pontos usados` da aba Resgates (`2.000` = 2.000 pts) |
-| C15 | Descartar a linha de título "INVERNO 26 (PROVISÓRIO - MARINA)..." da aba Verão 26 e usar o texto dela para marcar os 177 produtos de Inverno 26 (C9) |
-| — | Gravar como inteiro os ids de ligação que hoje saem como `2.0` (`vendas.compra_id`, `pontos_mov.compra_id`) e a `qtd` das entradas |
+| K7b | O ponto de milhar da coluna `pontos usados` da aba Resgates é lido como milhar (`2.000` = 2.000 pts): 19 resgates passam a vir certos, e as pendências dessa coluna somem |
+| C15, C9 | A linha de título "INVERNO 26 (PROVISÓRIO - MARINA)..." da aba Verão 26 sai do catálogo, e as 177 linhas abaixo dela ficam com a coleção Inverno 26, na coluna nova `colecao` (a `aba` continua como estava) |
+| — | Colunas de inteiros com algum vazio voltam a ser gravadas como inteiras: `compra_id` das vendas e dos pontos, `qtd` das entradas, `loja_id` dos funcionários, `QTD` da Batel e `reservado` da contagem saíam como `2.0` |
+
+Os três números não mudam com esses ajustes (`numeros.py` gera os mesmos CSVs).
 
 ### Etapa 2 (`tratar.py`): de onde vem cada regra
 

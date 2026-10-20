@@ -11,6 +11,7 @@
 #   python -m migracao_vulto.padronizar --destino staging_vulto
 # O destino tem CPF, e-mail e telefone de clientes: fica fora do git (.gitignore) e não deve ser compartilhado.
 import argparse
+import re
 import sqlite3
 from pathlib import Path
 
@@ -88,9 +89,21 @@ def ler_aba(arquivo: Path, aba: str, linha_cabecalho: int = 0) -> pd.DataFrame:
     return limpar_textos(df)
 
 
+# Coluna de inteiros com algum vazio vira decimal no pandas (o limpar_textos remonta as colunas) e sai
+# como "2.0" no CSV, e aí o compra_id "2.0" não acha a compra "2". Volta a ser inteira quando todos os
+# valores são inteiros
+def inteiros_de_volta(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    for coluna in df.columns:
+        serie = df[coluna]
+        if pd.api.types.is_float_dtype(serie) and serie.notna().any() and (serie.dropna() % 1 == 0).all():
+            df[coluna] = serie.astype("Int64")
+    return df
+
+
 def gravar(df: pd.DataFrame, destino: Path, nome: str):
     caminho = destino / f"{nome}.csv"
-    df.to_csv(caminho, index=False, encoding="utf-8")
+    inteiros_de_volta(df).to_csv(caminho, index=False, encoding="utf-8")
     print(f"  {caminho.name}: {len(df)} linhas")
 
 
@@ -190,7 +203,7 @@ def padronizar_clientes(origem: Path, destino: Path, pend: Pendencias):
     # A coluna cliente tem CPF ou só o nome: CPF vai para cliente_cpf, o resto fica em cliente_nome
     resgates = ler_aba(arquivo, "Resgates")
     resgates = aplicar_par(resgates, "data", n.data_ou_mes, ("data", "data_so_mes"), fonte, pend)
-    resgates = aplicar_regras(resgates, {"pontos usados": n.inteiro, "desconto R$": n.decimal_br}, fonte, pend)
+    resgates = aplicar_regras(resgates, {"pontos usados": n.pontos_milhar, "desconto R$": n.decimal_br}, fonte, pend)
     resgates["cliente_cpf"] = [_cpf_ou_nada(v) for v in resgates["cliente"]]
     resgates["cliente_nome"] = [None if c else n.nome_proprio(v)
                                 for v, c in zip(resgates["cliente"], resgates["cliente_cpf"])]
@@ -266,6 +279,27 @@ def marcar_formatacao(df: pd.DataFrame, planilha, mapa: dict, aba: str, pend: Pe
     return df
 
 
+# Coleção de cada aba. A Marina pôs o Inverno 26 dentro da aba Verão 26, abaixo de uma linha de título
+# ("INVERNO 26 (PROVISÓRIO - MARINA) - AINDA SEM ABA PROPRIA"): o título sai e marca a coleção das
+# linhas de baixo (C15, C9)
+COLECAO_DA_ABA = {"VERAO 25": "Verão 25", "inverno25": "Inverno 25", "Verão 26": "Verão 26",
+                  "Atemporais": "Atemporais", "PLANILHA ANTIGA NAO USAR": "2024 (aba antiga)"}
+TITULO_COLECAO = re.compile(r"^\s*(INVERNO|VER[AÃ]O)\s+(\d{2})\b", re.IGNORECASE)
+
+
+def marcar_colecao(df: pd.DataFrame, aba: str) -> pd.DataFrame:
+    colecao, colecoes, titulos = COLECAO_DA_ABA[aba], [], []
+    for indice, sku, nome, preco in zip(df.index, df["sku"], df["nome"], df["preco"]):
+        m = TITULO_COLECAO.match(str(sku))
+        if m and pd.isna(nome) and pd.isna(preco):  # linha de título, não de produto
+            estacao = "Verão" if m.group(1).upper() != "INVERNO" else "Inverno"
+            colecao = f"{estacao} {m.group(2)}"
+            titulos.append(indice)
+        colecoes.append(colecao)
+    df = df.assign(colecao=colecoes)
+    return df.drop(index=titulos)
+
+
 def padronizar_catalogo(origem: Path, destino: Path, pend: Pendencias):
     print(ARQUIVO_CATALOGO)
     arquivo = origem / ARQUIVO_CATALOGO
@@ -278,8 +312,10 @@ def padronizar_catalogo(origem: Path, destino: Path, pend: Pendencias):
         df = df[df["sku"].notna()]  # linha sem SKU é título, legenda ou espaço
         # cabeçalho repetido no meio da aba (linha copiada e colada junto com os produtos)
         df = df[df["sku"].astype(str).str.strip().str.lower() != mapa["sku"].lower()]
+        df = marcar_colecao(df, aba)
         df = marcar_formatacao(df, planilha, mapa, aba, pend)
         df.insert(1, "aba", aba)
+        df.insert(2, "colecao", df.pop("colecao"))
         partes.append(df)
     catalogo = pd.concat(partes, ignore_index=True)
     # preço "R$ 129,90" ou número, custo, EAN como texto, tamanho e SKU em maiúsculas, nome sem espaços.
