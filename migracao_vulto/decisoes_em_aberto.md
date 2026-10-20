@@ -125,8 +125,7 @@ Decidida: ver K9a e K9b no [registro de decisões](registro_decisoes.md).
 ### Atendimento
 
 #### A1. Instagram sem como achar o cliente pelo contato (398 que migram, de 408)
-- **Evidência:** `05_atendimentos`, seção 5 (com a J1): pelo pedido, 204 ganham cliente (120 do cadastro, 30 com CPF fora dele e 54 só pelo e-mail, P2); 21 chegam a uma venda sem cliente e 3 a um comprador só com telefone; 84 são pré-venda, 19 têm nome igual (A5) e 67 ficam sem nada.
-- **Sugestão:** o @ fica como contato externo (P6) em todos; o cliente vem do pedido quando houver.
+Decidida: ver A1 no [registro de decisões](registro_decisoes.md).
 
 #### A2. Número solto que bate com o id da venda (399, contando os do texto)
 Decidida: ver A2 no [registro de decisões](registro_decisoes.md).
@@ -135,17 +134,13 @@ Decidida: ver A2 no [registro de decisões](registro_decisoes.md).
 Decidida: ver A3 no [registro de decisões](registro_decisoes.md).
 
 #### A4. Categoria, status e encerramento
-- **Sugestão:** de-para do `assunto`/`tags` para `entrega`, `troca_devolucao`, `estorno`, `duvida` e `outros`. Concluído vira `concluido` + `resolvido`; o que estava em aberto há mais de 30 dias vira `concluido` + `sem_resposta`.
+Decidida: ver A4a e A4b no [registro de decisões](registro_decisoes.md).
 
 #### A5. Nome do contato igual ao de um único cliente (39)
-- **Problema:** sem contato nem pedido que ache o cliente, mas o `nome_contato` (nome completo) é igual ao de um único cliente do cadastro. A J1a não prevê o nome como caminho até o CPF.
-- **Opções:** a) ligar ao cliente; b) **não ligar e guardar o nome como contato externo**.
-- **Sugestão:** b). Segue a J1a, e um homônimo poria a conversa de uma pessoa no histórico de outra (LGPD).
+Decidida: ver A5 no [registro de decisões](registro_decisoes.md).
 
-#### A6. Atendimentos sem nenhum identificador (153)
-- **Evidência:** `05_atendimentos`, seção 5: nem o contato nem o pedido acham alguém. Troca/devolução 90 (28 "comprei na loja X", 26 com defeito), Vulto+ 50, entrega 7, pagamento 6; 35 em aberto. O `usuario` da Lorenzi não guarda telefone nem @, então eles não se ligam sozinhos depois.
-- **Opções:** a) **migrar sem cliente, com o contato externo (P6)**; b) achar a venda pela loja, pela peça e pela data; c) não migrar.
-- **Sugestão:** a), e eles entram como margem de erro do atendimento. b) é chute (uma ligação errada é pior do que nenhuma); c) perde histórico de pós-venda. Os 50 de Vulto+ ("meus pontos sumiram", "ganhei 800 pontos numa compra de 300") servem de evidência para a K6.
+#### A6. Atendimentos sem nenhum identificador (150)
+Decidida: ver A6 no [registro de decisões](registro_decisoes.md).
 
 ---
 
