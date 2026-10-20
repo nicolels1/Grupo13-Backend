@@ -30,12 +30,20 @@ Agrupamento de produtos no catálogo.
 Peça do catálogo, independente de cor e tamanho.
 _Evite_: item, artigo
 
+**Marca**:
+Rede dona de um produto ou de uma unidade: Casa Lorenzi (`lorenzi`) ou Vulto (`vulto`). As duas redes ficam nas mesmas tabelas e a marca separa o que é de cada uma. Erro de cadastro se corrige enquanto não há histórico (unidade sem movimentação de estoque nem venda, produto sem venda); depois disso a marca não muda, para o faturamento de uma rede não passar para a outra.
+_Evite_: rede (como nome do campo), loja
+
 **Variante**:
 Combinação de cor e tamanho de um produto; é o que tem SKU, preço e estoque. Peça sem cor ou tamanho usa "Única" e "U".
 _Evite_: SKU (como nome do conceito), modelo
 
 **SKU**:
 Código único que identifica uma variante.
+
+**EAN**:
+Código de barras da etiqueta (EAN-13), único por variante; o caixa acha a peça pelo leitor. Toda variante tem um: o de fábrica, quando a peça traz, ou um código interno gerado pelo banco (começa com 20, faixa que a GS1 reserva para uso da loja).
+_Evite_: código de barras como sinônimo de SKU
 
 **Foto do produto**:
 Imagem de um produto, opcionalmente de uma cor específica, exibida numa ordem definida.
@@ -204,6 +212,10 @@ _Evite_: conta de funcionário, conta admin
 Pessoa com conta do tipo cliente, identificada por CPF.
 _Evite_: consumidor, comprador
 
+**Cliente sem conta**:
+Cliente trazido pela migração da Vulto que nunca criou conta, identificado pelo CPF ou, sem ele, pelo e-mail. Não entra na plataforma; seus pedidos e chamados passam para a conta quando ele se cadastra com o mesmo CPF ou e-mail (ADR 0016).
+_Evite_: cliente inativo, conta pendente
+
 **Funcionário**:
 Pessoa com conta interna. Para comprar, usa uma conta de cliente pessoal.
 _Evite_: colaborador, usuário interno
@@ -266,6 +278,12 @@ Sinalização de uma avaliação inadequada feita por outro cliente; uma por cli
 **Ocultação**:
 Retirada de uma avaliação do ar pela equipe, sempre com motivo.
 _Evite_: exclusão, remoção
+
+## Migração da Vulto
+
+**Origem da migração**:
+Registro de onde veio cada dado migrado da Vulto (arquivo e linha) e do que a migração mudou nele: o valor original e a decisão do registro de decisões que o mudou. Nunca é alterado.
+_Evite_: log da migração, auditoria
 
 ## Plataforma interna
 
