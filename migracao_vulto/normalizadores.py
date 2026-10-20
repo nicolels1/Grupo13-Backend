@@ -226,6 +226,14 @@ def quantidade_contada(valor) -> int | None:
     return inteiro(valor)
 
 
+# Pontos do resgate (K7b): ponto inteiro, então "2.000" e "1.500" têm ponto de milhar (2.000 pts, não 2).
+# Só o formato com grupos de 3 dígitos depois do ponto; o resto segue a regra do inteiro
+def pontos_milhar(valor) -> int | None:
+    if isinstance(valor, str) and re.fullmatch(r"\s*\d{1,3}(\.\d{3})+\s*", valor):
+        return int(valor.strip().replace(".", ""))
+    return inteiro(valor)
+
+
 # ---------- datas ----------
 
 # Data e hora sempre em UTC. Com "Z" ou fuso explícito (-03:00) o fuso é o informado; sem fuso é

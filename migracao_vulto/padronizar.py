@@ -190,7 +190,7 @@ def padronizar_clientes(origem: Path, destino: Path, pend: Pendencias):
     # A coluna cliente tem CPF ou só o nome: CPF vai para cliente_cpf, o resto fica em cliente_nome
     resgates = ler_aba(arquivo, "Resgates")
     resgates = aplicar_par(resgates, "data", n.data_ou_mes, ("data", "data_so_mes"), fonte, pend)
-    resgates = aplicar_regras(resgates, {"pontos usados": n.inteiro, "desconto R$": n.decimal_br}, fonte, pend)
+    resgates = aplicar_regras(resgates, {"pontos usados": n.pontos_milhar, "desconto R$": n.decimal_br}, fonte, pend)
     resgates["cliente_cpf"] = [_cpf_ou_nada(v) for v in resgates["cliente"]]
     resgates["cliente_nome"] = [None if c else n.nome_proprio(v)
                                 for v, c in zip(resgates["cliente"], resgates["cliente_cpf"])]
