@@ -48,7 +48,7 @@ Conferidas contra os models (`src/models/`) e as migrations em 19/10/2026.
 
 ## 1. Unidades (Nicole)
 
-Evidência: `banco_lojas`, `banco_funcionarios`, tabela `config` do vulto.db. Decisões: U1, P1, P9.
+Evidência: `banco_lojas`, `banco_funcionarios`, tabela `config` do vulto.db e `notebooks/07_funcionarios.ipynb`. Decisões: U1, P1, P9.
 
 | Vulto | Casa Lorenzi | Situação |
 |---|---|---|
