@@ -37,3 +37,4 @@ from src.models.avaliacoes import (  # noqa: F401
     FotoAvaliacao,
     VotoUtil,
 )
+from src.models.migracao import OrigemMigracao  # noqa: F401
