@@ -96,7 +96,7 @@ Evidência: `notebooks/04_clientes_pontos.ipynb`. Decisões: J1, P2, K1, K2, K8,
 | CPFs com 2+ cadastros (131) | um cliente por CPF | ✅ um cliente por CPF, somando os pontos (K1) |
 | CPFs só no banco de pontos (534) | cliente sem conta (P2) | ✅ cliente sem conta, com CPF e saldo, sem nome (K8) |
 | `Tel`, `aceita_msg`, `categoria`, `loja_cadastro`, `Data Cadastro` | cliente sem conta (P2) e fidelidade (P5) | ✅ telefone completado pelo DDD de outra fonte (K9a), consentimento em três estados (K9b), categoria do Vulto+ (K4c), data e loja do cadastro mais antigo (K1) |
-| `Clientes.Obs` | — | ⚠️ "não ligar" vale como recusa (K9b); as outras anotações não têm decisão |
+| `Clientes.Obs` | — | ✅ só o "não ligar" vale (K9b); o resto fica na origem da migração (K10) |
 | `clientes antigos` (300: nome, CPF/CNPJ, pontos 2023, última compra, status) | cliente sem conta (P2) | ✅ vale o saldo da aba nova para quem está nas duas (K5c); os 122 só na aba antiga entram como clientes (K5d) |
 | `clientes antigos.CPF/CNPJ` com CNPJ | — | ✅ nenhum CNPJ na aba: os 300 têm 11 dígitos |
 | `clientes antigos.STATUS` (ativo, inativo, bloqueado ×46) | saldo inicial (K5d) | ✅ todos entram como clientes; só os ATIVOS levam o saldo de 2023 (K5d) |
