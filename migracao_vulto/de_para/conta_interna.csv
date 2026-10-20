@@ -1,0 +1,18 @@
+conta,nome,email,modelo,loja_id,funcionario_vulto,decisao
+beatriz.souza,Beatriz Souza,beatriz.souza@vulto.example,Vendedor,1,1,P9
+rafael.lima,Rafael Lima,rafael.lima@vulto.example,Vendedor,1,2,P9
+rafaela.couto,Rafaela Couto,rafaela.couto@vulto.example,Vendedor,1,3,P9
+camila.duarte,Camila Duarte,camila.duarte@vulto.example,Vendedor,1,4,P9
+jessica.prado,Jéssica Prado,jessica.prado@vulto.example,Vendedor,2,6,P9
+thiago.martins,Thiago Martins,thiago.martins@vulto.example,Vendedor,2,7,P9
+larissa.rocha,Larissa Rocha,larissa.rocha@vulto.example,Vendedor,2,8,P9
+carlos.mendes,Carlos Mendes,carlos.mendes@vulto.example,Vendedor,3,10,P9
+ana.paula.reis,Ana Paula Reis,ana.paula.reis@vulto.example,Vendedor,3,11,P9
+bianca.torres,Bianca Torres,bianca.torres@vulto.example,Vendedor,3,12,P9
+fernanda.kowalski,Fernanda Kowalski,fernanda.kowalski@vulto.example,Vendedor,4,14,P9
+gustavo.lenz,Gustavo Lenz,gustavo.lenz@vulto.example,Vendedor,4,15,P9
+patricia.wolff,Patrícia Wolff,patricia.wolff@vulto.example,Vendedor,4,16,P9
+julia01,Júlia,julia01@vulto.example,Atendente,,,P9
+renata01,Renata,renata01@vulto.example,Atendente,,,P9
+marcos01,Marcos,marcos01@vulto.example,Atendente,,,P9
+migracao,Migração Vulto,migracao@vulto.example,Migração,,,P9
