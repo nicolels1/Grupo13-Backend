@@ -198,21 +198,43 @@ Evidência: `notebooks/05_atendimentos.ipynb` (seção 5: cliente × pedido). De
 | Método de pagamento (fora a Batel) | `pagamento` | Depende do P7 |
 | Autor de mensagem e de transferência | `mensagem`, `transferencia` | Depende do P6 |
 
-## O que a plataforma precisa ganhar (sai do ❌)
+## O que a plataforma precisa ganhar
 
-| # | O quê | Por quê |
+Lista final da etapa 5, tirada do [registro de decisões](registro_decisoes.md). O detalhe e o porquê de cada item estão na linha da decisão.
+
+### Mudanças no banco e no código
+
+| Decisão | O quê | Onde |
 |---|---|---|
-| P1 | **Marca** (Lorenzi × Vulto) na unidade e no produto | "as peças da Vulto convivendo com as da Lorenzi"; relatórios por rede |
-| P2 | **Cliente sem login** (ou criar as contas no Supabase Auth) | ~2.500 clientes Vulto+, pedidos online e chamados exigem cliente |
-| P3 | **Canal detalhado do pedido** (loja, site, app) | faturamento por canal |
-| P4 | **Origem da migração** em cada registro (`linha_origem`) | rastreabilidade: de onde veio cada dado |
-| P5 | **Fidelidade**: saldo e movimentos de pontos, regras | Vulto+ e o passivo de pontos |
-| P6 | **Atendimento externo**: canal, contato e autor de fora do sistema | WhatsApp e Instagram dentro do nosso módulo |
-| P7 | **Pagamento e devolução da Vulto**: método desconhecido, devolução como estorno | o banco recusa pedido negativo e exige método |
-| P8 | Pedido sem item com variante (`DIVERSO`, Batel) | itens sem SKU |
-| P9 | **Funcionários da Vulto** como autores (vendedor, atendente, quem lançou o estoque) | vendas, chamados, mensagens e transferências exigem ou pedem um usuário |
+| P1 | Coluna **`marca`** (`lorenzi` ou `vulto`) na unidade e no produto; o que já existe recebe `lorenzi` | `unidade`, `produto` |
+| P2 | Tabela de **cliente sem conta** (CPF, nome, e-mail, telefone, consentimento, origem), com chave opcional em pedido e chamado; `online_exige_cliente` passa a aceitar o cliente sem conta; ao criar a conta pelo site, o que estiver no CPF ou no e-mail passa para ela | tabela nova; `pedido`, `chamado`, cadastro |
+| P3 | Coluna **`canal_venda`** no pedido (`loja`, `site`, `app`), sem mexer no `canal` do estoque | `pedido` |
+| P4 | Tabela **`origem_migracao`**: registro na plataforma, fonte e linha de origem, campo, valor original e a decisão que o mudou | tabela nova |
+| P5 | **Fidelidade**: movimentos de pontos (crédito, resgate, estorno, ajuste e vencimento) com o saldo por trigger, como o estoque; tabela de regras com a data em que valem (valor do ponto da K3) | tabelas novas |
+| K4a | A tabela de regras da P5 ganha a **marca**, o vencimento, o bônus por categoria e o multiplicador por canal | regras de fidelidade |
+| P6 | **Atendimento externo**: `chamado.canal_externo` e `chamado.contato_externo`, `mensagem.nome_autor_externo`; autor da mensagem opcional; ajuste em `consulta_mensagens` e nas não lidas | `chamado`, `mensagem` |
+| A4a | Categoria **`pagamento`** no chamado (regra do banco, modelo e front), também para os chamados novos | `chamado` |
+| P7 | Valor **`nao_informado`** em `pagamento.metodo` e **`migracao`** em `pagamento.origem`, aceitos só em pedido migrado | `pagamento` |
+| V18 | Coluna **`valor_desconto`** no pedido | `pedido` |
+| C12 | Coluna **`ean`** na variante e a busca do caixa pelo código de barras | `variante`, caixa |
 
-Fora da lista (a decidir se vale guardar ou se descarta): desconto, custo, fornecedor e nota fiscal, EAN, coleção, parcelas.
+Sugestão ainda não registrada como decisão: filtro `marca` em `GET /produtos` e `GET /categorias` (esta só com as categorias que têm produto da marca), para a vitrine poder mostrar cada rede separada sem duplicar as categorias (P1, C18).
+
+### Dados que a carga cria, sem mudar o banco
+
+| Decisão | O quê |
+|---|---|
+| P9 | 17 contas internas inativas: 13 vendedores, 3 do SAC e "Migração Vulto" |
+| P8 | Produto e variante genéricos "Item sem cadastro Vulto", inativos e sem estoque |
+| U1 | 5 unidades com o endereço "A confirmar"; a Pinheiros como loja despachante (`despacha_online`) |
+| E7 | Estoque `online` da Pinheiros, separado da contagem |
+| C16 | Imagem genérica da marca Vulto em cada produto |
+| C18 | Categorias que a Lorenzi não tem (ex.: Tricô) |
+| C2 | Produto da peça antiga, com SKU de sufixo, nos 6 códigos reaproveitados |
+
+### Descartados (decidido)
+
+Custo (C11), fornecedor e nota fiscal das entradas (E9), coleção como coluna (C9) e senha dos funcionários. O parcelamento da Batel vira `cartao_credito` (V9).
 
 ## Cobertura: todas as colunas de todas as fontes
 
