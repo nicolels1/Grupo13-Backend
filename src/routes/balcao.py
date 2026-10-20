@@ -70,7 +70,9 @@ def trocar(id_pedido: int, dados: TrocaCriar, usuario: Usuario = Depends(BALCAO)
                 "Para movimentar, as rotas de estoque continuam exigindo as permissões de estoque.",
 )
 def consultar_peca(
-    busca: str | None = Query(None, description="Parte do SKU ou do nome do produto"),
+    busca: str | None = Query(
+        None, description="Parte do SKU ou do nome do produto, ou o código de barras (EAN) inteiro"
+    ),
     id_variante: int | None = None,
     id_unidade: int | None = None,
     canal: Canal | None = None,

@@ -35,7 +35,9 @@ def listar_estoque(
     id_unidade: int | None = None,
     id_variante: int | None = None,
     canal: Canal | None = None,
-    busca: str | None = Query(None, description="Parte do SKU ou do nome do produto"),
+    busca: str | None = Query(
+        None, description="Parte do SKU ou do nome do produto, ou o código de barras (EAN) inteiro"
+    ),
     abaixo_minimo: bool | None = Query(None, description="Só as linhas abaixo (true) ou não abaixo (false) do mínimo"),
     paginacao: dict = Depends(_paginacao),
     _: Usuario = Depends(VER_ESTOQUE),

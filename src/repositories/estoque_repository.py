@@ -65,7 +65,8 @@ def _filtros_comuns(colunas, id_unidade, id_variante, canal, busca) -> list:
         filtros.append(colunas["canal"] == canal)
     if busca:
         padrao = f"%{busca}%"
-        filtros.append(or_(Variante.sku.ilike(padrao), Produto.nome.ilike(padrao)))
+        # o leitor de código de barras manda o EAN inteiro: só o código exato acha a peça
+        filtros.append(or_(Variante.sku.ilike(padrao), Produto.nome.ilike(padrao), Variante.ean == busca.strip()))
     return filtros
 
 

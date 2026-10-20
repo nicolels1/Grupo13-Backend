@@ -3,9 +3,10 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from src.entities.comum import Marca, Pagina, sem_espacos
+from src.utils.ean import ean_valido
 
 
 # ---------- categoria ----------
@@ -38,6 +39,16 @@ class CategoriaSaida(BaseModel):
 Preco = Annotated[Decimal, Field(ge=0, max_digits=10, decimal_places=2)]
 
 
+def _ean(valor: str) -> str:
+    ean = valor.strip()
+    if not ean_valido(ean):
+        raise ValueError("EAN precisa ter 13 dígitos com o dígito verificador certo")
+    return ean
+
+
+Ean = Annotated[str, AfterValidator(_ean)]
+
+
 # carga inicial de estoque da variante numa unidade e canal (vira movimentação saldo_inicial)
 class EstoqueInicial(BaseModel):
     id_unidade: int
@@ -47,6 +58,7 @@ class EstoqueInicial(BaseModel):
 
 class VarianteCriar(BaseModel):
     sku: str = Field(min_length=1, max_length=50)
+    ean: Ean | None = Field(default=None, description="Vazio: o banco gera um código interno (começa com 20)")
     # peça sem cor ou tamanho usa "Única" e "U" (glossário)
     cor: str = Field(default="Única", min_length=1, max_length=50)
     tamanho: str = Field(default="U", min_length=1, max_length=20)
@@ -71,6 +83,8 @@ class VarianteCriar(BaseModel):
 # cor e tamanho não mudam: o estoque e os pedidos estão presos à variante
 class VarianteAlterar(BaseModel):
     sku: str | None = Field(default=None, min_length=1, max_length=50)
+    # toda peça tem código de barras: dá para trocar, não para tirar (null é ignorado)
+    ean: Ean | None = None
     preco: Preco | None = None
     ativo: bool | None = None
 
@@ -88,6 +102,7 @@ class VarianteSaida(BaseModel):
     id_variante: int
     id_produto: int
     sku: str
+    ean: str
     cor: str
     tamanho: str
     preco: Decimal

@@ -221,6 +221,10 @@ def variante_por_sku(db: Session, sku: str) -> Variante | None:
     return db.scalar(select(Variante).where(func.upper(Variante.sku) == sku.upper()))
 
 
+def variante_por_ean(db: Session, ean: str) -> Variante | None:
+    return db.scalar(select(Variante).where(Variante.ean == ean))
+
+
 # alguma variante do produto já foi vendida: a partir daí a marca faz parte do histórico
 def produto_vendido(db: Session, id_produto: int) -> bool:
     return db.scalar(select(exists().where(

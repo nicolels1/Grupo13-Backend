@@ -11,6 +11,7 @@ from src.app import app
 from src.database.session import get_db
 from src.dependencies.permissoes import get_usuario_opcional
 from src.models.catalogo import CategoriaProduto, Produto, Variante
+from src.utils.ean import ean_interno
 from src.repositories import catalogo_repository
 from src.use_cases import catalogo
 from src.use_cases.erros import RecursoNaoEncontrado
@@ -26,7 +27,7 @@ def produto(id_produto=5, ativo=True, id_categoria=1):
 
 def variante(id_variante, ativo=True):
     return Variante(id_variante=id_variante, id_produto=5, sku=f"CAM-{id_variante}", cor="Azul", tamanho="M",
-                    preco=Decimal("59.90"), ativo=ativo)
+                    ean=ean_interno(id_variante), preco=Decimal("59.90"), ativo=ativo)
 
 
 @pytest.fixture

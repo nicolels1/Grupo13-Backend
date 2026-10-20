@@ -138,6 +138,7 @@ def montar_imagem(imagem: ImagemProduto) -> dict:
 def montar_variante(variante: Variante, disponiveis: set[int] | None = None) -> dict:
     return {
         "id_variante": variante.id_variante, "id_produto": variante.id_produto, "sku": variante.sku,
+        "ean": variante.ean,
         "cor": variante.cor, "tamanho": variante.tamanho, "preco": variante.preco, "ativo": variante.ativo,
         "disponivel": None if disponiveis is None else variante.id_variante in disponiveis,
     }
@@ -302,14 +303,19 @@ def remover_imagem(db: Session, storage, id_imagem: int) -> None:
 
 def _conferir_variantes_novas(db: Session, id_produto: int | None, variantes: list[dict]) -> None:
     skus = [v["sku"] for v in variantes]
+    eans = [v["ean"] for v in variantes if v.get("ean")]
     combinacoes = [(v["cor"].lower(), v["tamanho"].lower()) for v in variantes]
     if len(set(skus)) != len(skus):
         raise Conflito("SKU repetido na lista de variantes")
+    if len(set(eans)) != len(eans):
+        raise Conflito("EAN repetido na lista de variantes")
     if len(set(combinacoes)) != len(combinacoes):
         raise Conflito("Cor e tamanho repetidos na lista de variantes")
     for variante in variantes:
         if repo.variante_por_sku(db, variante["sku"]) is not None:
             raise Conflito(f"SKU {variante['sku']} já existe")
+        if variante.get("ean") and repo.variante_por_ean(db, variante["ean"]) is not None:
+            raise Conflito(f"EAN {variante['ean']} já é de outra peça")
         if id_produto is not None and repo.variante_por_cor_e_tamanho(
             db, id_produto, variante["cor"], variante["tamanho"]
         ) is not None:
@@ -320,6 +326,9 @@ def _conferir_variantes_novas(db: Session, id_produto: int | None, variantes: li
 # o estoque inicial entra como movimentação saldo_inicial, e o trigger cria a linha de ESTOQUE
 def _criar_variante(db: Session, id_produto: int, id_usuario: uuid.UUID, dados: dict) -> Variante:
     estoque_inicial = dados.pop("estoque_inicial", [])
+    # sem EAN de fábrica, fica de fora do INSERT e o trigger gera o código interno
+    if dados.get("ean") is None:
+        dados.pop("ean", None)
     variante = Variante(id_produto=id_produto, **dados)
     db.add(variante)
     db.flush()
@@ -379,6 +388,10 @@ def alterar_variante(db: Session, id_variante: int, id_usuario: uuid.UUID, campo
         outra = repo.variante_por_sku(db, campos["sku"])
         if outra is not None and outra.id_variante != id_variante:
             raise Conflito(f"SKU {campos['sku']} já existe")
+    if "ean" in campos and campos["ean"] != variante.ean:
+        outra = repo.variante_por_ean(db, campos["ean"])
+        if outra is not None and outra.id_variante != id_variante:
+            raise Conflito(f"EAN {campos['ean']} já é de outra peça")
     if "preco" in campos and campos["preco"] != variante.preco:
         db.add(HistoricoPreco(
             id_variante=id_variante, preco_anterior=variante.preco,

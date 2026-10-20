@@ -3,7 +3,8 @@ from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import (
-    CheckConstraint, DateTime, ForeignKey, Index, Numeric, String, Text, UniqueConstraint, Uuid, func, text,
+    CheckConstraint, DateTime, FetchedValue, ForeignKey, Index, Numeric, String, Text, UniqueConstraint, Uuid, func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -68,6 +69,9 @@ class Variante(Base):
     id_variante: Mapped[int] = mapped_column(primary_key=True)
     id_produto: Mapped[int] = mapped_column(ForeignKey("produto.id_produto", ondelete="RESTRICT"))
     sku: Mapped[str] = mapped_column(String(50), unique=True)
+    # código de barras da etiqueta (EAN-13, C12). Sem o de fábrica, o trigger gera um interno
+    # (começa com 20, faixa que a GS1 reserva para uso da loja)
+    ean: Mapped[str] = mapped_column(String(13), unique=True, server_default=FetchedValue())
     cor: Mapped[str] = mapped_column(String(50))  # peça sem cor usa "Única"
     tamanho: Mapped[str] = mapped_column(String(20))  # peça sem tamanho usa "U"
     preco: Mapped[Decimal] = mapped_column(Numeric(10, 2))
@@ -76,6 +80,7 @@ class Variante(Base):
     __table_args__ = (
         UniqueConstraint("id_produto", "cor", "tamanho"),
         CheckConstraint("preco >= 0", name="preco_nao_negativo"),
+        CheckConstraint("ean_valido(ean)", name="ean_valido"),
     )
 
 
