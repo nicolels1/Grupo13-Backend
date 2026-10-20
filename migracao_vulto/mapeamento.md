@@ -59,7 +59,7 @@ Evidência: `banco_lojas`, `banco_funcionarios`, tabela `config` do vulto.db e `
 | `funcionarios` (24: nome, código, loja, perfil, ativo) | `usuario` `interna` + `modelo_acesso` | ✅ 13 vendedores e 3 do SAC viram conta interna inativa; o resto vira a conta "Migração Vulto" (P9) |
 | `funcionarios.perfil` (vendedor, admin, gerente, operador) | `modelo_acesso` | ✅ modelos Vendedor e Atendente (P9) |
 | `funcionarios.senha` | — | ❌ descartada (já fica fora no staging) |
-| `config.estoque_minimo` (2) | `estoque.estoque_minimo` | ⚠️ sem decisão: aplicar a todas as variantes da Vulto ou deixar vazio |
+| `config.estoque_minimo` (2) | `estoque.estoque_minimo` | ✅ lojas sem mínimo; no CD, um mês de saída com piso 2 (E14) |
 | `config.prazo_troca_dias` (30) | regra de troca da Lorenzi | ⚠️ sem decisão; a loja aceitava trocas de 31 a 50 dias depois (V6) |
 | `config.versao`, `config.senha_master` | — | ❌ descartados |
 | — | `unidade.marca` | ✅ coluna `marca` (P1) |
@@ -231,6 +231,7 @@ Sugestão ainda não registrada como decisão: filtro `marca` em `GET /produtos`
 | C16 | Imagem genérica da marca Vulto em cada produto |
 | C18 | Categorias que a Lorenzi não tem (ex.: Tricô) |
 | C2 | Produto da peça antiga, com SKU de sufixo, nos 6 códigos reaproveitados |
+| E14 | Estoque mínimo do CD: a saída de cada peça nos últimos 30 dias, com piso 2 |
 
 ### Descartados (decidido)
 

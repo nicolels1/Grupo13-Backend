@@ -92,7 +92,7 @@ Pendências por motivo (o que não dá para padronizar sem decidir ou que não d
 
 ## O que ainda falta no código
 
-Todas as decisões estão tomadas: as 94 linhas do [registro de decisões](registro_decisoes.md). O que falta é levá-las para os scripts.
+Todas as decisões estão tomadas: ver o [registro de decisões](registro_decisoes.md). O que falta é levá-las para os scripts.
 
 ### Ajustes na etapa 1 (`padronizar.py`)
 
