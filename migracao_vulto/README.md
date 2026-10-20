@@ -37,6 +37,8 @@ Sem `VULTO_DATA_DIR`, informe a pasta no comando: `--origem ../vulto-backend/dat
 - `normalizadores.py`: funções puras de padronização (uma por tipo de dado). Valor que não segue formato conhecido levanta `ValorInvalido` e vira pendência; nada é corrigido no chute.
 - `padronizar.py`: lê cada fonte, aplica os normalizadores e grava um CSV por tabela/aba, mais `pendencias.csv`.
 - `notebooks/`: análise exploratória (entender as fontes e testar regras antes de irem para os scripts). Ver o [README da pasta](notebooks/README.md).
+- [`mapeamento.md`](mapeamento.md): onde cada dado da Vulto entra no banco da Casa Lorenzi e o que a plataforma precisa ganhar.
+- [`decisoes_em_aberto.md`](decisoes_em_aberto.md): as opções de cada decisão ainda não tomada, com ganho, perda e uma sugestão.
 - [`registro_decisoes.md`](registro_decisoes.md): cada problema encontrado nos dados ou nas regras, a decisão tomada e o impacto no número final.
 - Toda linha de saída tem `linha_origem` (`vendas#272`, `Clientes!15`, `csv!40`), que deve atravessar todas as etapas até o banco da Lorenzi.
 
@@ -97,14 +99,14 @@ Nenhuma conhecida. As oito encontradas na primeira execução foram implementada
 | `vendas/compras.cliente_ref` tipo `numero` | 5.747 vendas e 8.431 compras só com dígitos: CPF ou celular? | Cruzar com o cadastro e com o formato de celular (ver a última seção) |
 | `pontos_mov.cpf` com 9–10 dígitos | 108 lançamentos; celular sem DDD ou CPF sem zeros? | Cruzar com os telefones do cadastro (sem DDD) antes de completar zeros |
 | `Resgates.pontos usados` | `1.500` (9) | Ponto é milhar (pontos são inteiros) |
-| catálogo `descontinuado` parcial | Só o SKU em vermelho (93) | Confirmar com a Marina o que a marcação significa |
+| catálogo `descontinuado` parcial | Só o SKU em vermelho (93) | Também é descontinuado (decidido na C3) |
 | `vendas.canal`, `compras.canal` | 13 grafias, não batem com a loja | Ignorar e derivar de `loja_id` (1–4 loja física, 5 site, 6 app) |
 | `vendas.status` (valores claros) | `PAGO/pago/Pago/aprovado`, `cancelado/CANCELADA` | De-para para `pago` / `cancelado` (os ambíguos estão nas decisões) |
 | SKU (`estoque`, `itens_venda`, `entradas_estoque`, contagem, catálogo) | 4 formatos (`CAM004BM`, `vlt cal 001 preto 38`...) | Converter para `VLT-CAT-NNN-COR-TAM` e conferir contra o catálogo; o que não bater vira pendência |
 | `entradas_estoque.fornecedor` | `Serra Azul` ×4, `Rio Claro` ×3 | De-para para um nome |
 | `Clientes.Pontos` | `2.203`, `1200 pts`, `9,9k` | Ponto é milhar, tira `pts`, `k` = ×1000 (o `k` arredonda: entra na margem de erro do passivo) |
 | `Clientes.categoria` | 14 grafias, 425 vazias | De-para para bronze/prata/ouro (`vip?` fica vazio) |
-| `Clientes.aceita_msg` | `1/S/sim/x` e `0/N/nao`, 827 vazios | De-para para `true`/`false`; vazio = `false` (LGPD: na dúvida, não envia) |
+| `Clientes.aceita_msg` | `1/S/sim/x` e `0/N/nao`, 827 vazios | De-para para aceita / não aceita; vazio = não informado, sem envio (K9b) |
 | `Clientes.loja_cadastro` | 18 grafias (`bh`, `CWB`, `eldorado shop`) | De-para para a unidade |
 | `contagem.unidade` | Nome da loja em texto | De-para para a unidade |
 | catálogo `categoria`, `cor` | `Bermudas/shorts/Bottoms > Short`, `Olive/oliva` | De-para para as categorias e cores da Lorenzi (cor pode sair do código no SKU) |
@@ -164,6 +166,8 @@ O `cliente_ref` da Vulto guarda CPF, e-mail ou telefone no mesmo campo, e muitas
 O sistema da Vulto creditava pontos para qualquer `cliente_ref` só com dígitos (`if ref.isdigit()` em `/compra` e `/venda`). Quando a loja digitava o celular, os pontos iam para um "CPF" que é telefone. Em `pontos_mov`, 108 lançamentos têm 9 dígitos começando com 9 (celular sem DDD), somando **38.514 pontos**; no total, 241 lançamentos com CPF inválido somam 90.086 pontos.
 
 ### Solução proposta (ainda não implementada)
+
+> **Decidida (J1b no [registro de decisões](registro_decisoes.md)), com um ajuste:** o número que serve para CPF e para celular vira CPF, e não pendência; das 85 vendas, 57 aparecem escritas como CPF em outra fonte e nenhuma como telefone. Ficam sem cliente só as 39 que não servem para nenhum dos dois.
 
 Decidir em camadas, da evidência mais forte para a mais fraca:
 
