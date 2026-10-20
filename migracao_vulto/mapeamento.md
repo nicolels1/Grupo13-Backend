@@ -217,6 +217,7 @@ Lista final da etapa 5, tirada do [registro de decisões](registro_decisoes.md).
 | P7 | Valor **`nao_informado`** em `pagamento.metodo` e **`migracao`** em `pagamento.origem`, aceitos só em pedido migrado | `pagamento` |
 | V18 | Coluna **`valor_desconto`** no pedido | `pedido` |
 | C12 | Coluna **`ean`** na variante e a busca do caixa pelo código de barras | `variante`, caixa |
+| V13 | Na troca e na devolução, o pedido migrado sem `entregue_em` conta o prazo a partir do `pago_em`; o pedido é migrado quando está na `origem_migracao` (P4) | regra de troca (`devolucoes.py`) |
 
 Sugestão ainda não registrada como decisão: filtro `marca` em `GET /produtos` e `GET /categorias` (esta só com as categorias que têm produto da marca), para a vitrine poder mostrar cada rede separada sem duplicar as categorias (P1, C18).
 
