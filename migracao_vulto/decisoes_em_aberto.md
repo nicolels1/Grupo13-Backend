@@ -27,7 +27,7 @@ O que cada decisão do bloco 1 destrava:
 | P7 pagamento e estorno | V4 | define como estorno e devolução entram |
 | V2–V5 o que conta como venda paga | K6, A2, faturamento | pontos de vendas que não valem; qual pedido sobra para o atendimento |
 
-Dependências entre os blocos: P9 (Nicole) cobre o vendedor e o autor das transferências e do cancelamento, que as decisões V14 e E4 do registro usam. Basta avisar quando decidir.
+Dependências entre os blocos: a P9 (decidida) define a conta "Migração Vulto", autora das transferências e dos cancelamentos que a V14 e a E4 usam.
 
 ---
 
@@ -100,15 +100,7 @@ Decidida: ver P5 no [registro de decisões](registro_decisoes.md).
 - **Sugestão:** a). Separar as falas pelo `[Atendente]:` (1.105 conversas têm). O cliente opcional vale só para os migrados: chamado novo continua exigindo conta (A8).
 
 #### P9. Funcionários da Vulto como autores
-- **Por quê:** a mensagem exige autor e a transferência exige solicitante; vendedor e quem lançou o estoque estão em texto livre (48 grafias de vendedor).
-
-| Opção | Ganho | Perda |
-|---|---|---|
-| a) Uma conta interna inativa por funcionário (24) | Autoria real | Contas no Auth com e-mail inventado; as grafias não batem com o cadastro |
-| b) Uma conta "Migração Vulto" inativa como autor, e o nome original guardado em texto (P4 ou P6) | Uma conta só; nada inventado | Não filtra por vendedor da Vulto |
-| c) Descartar a autoria | Simples | Perde quem atendeu e quem vendeu |
-
-- **Sugestão:** b).
+Decidida: ver P9 no [registro de decisões](registro_decisoes.md).
 
 ### Clientes e Vulto+
 
