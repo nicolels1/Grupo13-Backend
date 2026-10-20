@@ -45,7 +45,7 @@ def banco(monkeypatch):
 
 def com_produto(banco):
     banco.produtos[5] = Produto(id_produto=5, id_categoria=1, nome="Camisa", descricao_tecnica="t",
-                                descricao_cliente="c", ativo=True)
+                                descricao_cliente="c", marca="lorenzi", ativo=True)
     banco.variantes[50] = Variante(id_variante=50, id_produto=5, sku="CAM-AZ-M", cor="Azul", tamanho="M",
                                    preco=Decimal("59.90"), ativo=True)
 
@@ -162,6 +162,22 @@ def test_mover_produto_para_categoria_desativada(banco):
         catalogo.alterar_produto(SessaoFalsa(), 5, {"id_categoria": 2})
 
 
+def test_corrige_marca_de_produto_nunca_vendido(banco, monkeypatch):
+    com_produto(banco)
+    monkeypatch.setattr(catalogo_repository, "produto_vendido", lambda db, i: False)
+
+    assert catalogo.alterar_produto(SessaoFalsa(), 5, {"marca": "vulto"})["marca"] == "vulto"
+
+
+def test_marca_de_produto_vendido_nao_muda(banco, monkeypatch):
+    com_produto(banco)
+    monkeypatch.setattr(catalogo_repository, "produto_vendido", lambda db, i: True)
+
+    with pytest.raises(Conflito, match="marca não muda"):
+        catalogo.alterar_produto(SessaoFalsa(), 5, {"marca": "vulto"})
+    assert banco.produtos[5].marca == "lorenzi"
+
+
 def test_historico_de_variante_inexistente(banco):
     with pytest.raises(RecursoNaoEncontrado):
         catalogo.historico_preco(SessaoFalsa(), 99, None)
@@ -189,6 +205,16 @@ def test_criar_produto_pela_rota(api, banco):
 
     assert resposta.status_code == 201
     assert resposta.json()["variantes"][0]["cor"] == "Única"
+    assert resposta.json()["marca"] == "lorenzi"
+
+
+def test_criar_produto_da_vulto(api, banco):
+    corpo = {"id_categoria": 1, "nome": "Camiseta", "descricao_tecnica": "t", "descricao_cliente": "c",
+             "marca": "vulto"}
+
+    resposta = api(SessaoFalsa(), usuario=funcionario()).post("/produtos", json=corpo)
+
+    assert (resposta.status_code, resposta.json()["marca"]) == (201, "vulto")
 
 
 def test_preco_negativo_e_recusado(api, banco):

@@ -8,6 +8,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database.base import Base
+from src.models.estoque import MARCAS
 
 
 class CategoriaProduto(Base):
@@ -51,10 +52,14 @@ class Produto(Base):
     nome: Mapped[str] = mapped_column(String(150))
     descricao_tecnica: Mapped[str] = mapped_column(Text)
     descricao_cliente: Mapped[str] = mapped_column(Text)
+    marca: Mapped[str] = mapped_column(String(10), default="lorenzi", server_default="lorenzi")
     ativo: Mapped[bool] = mapped_column(default=True, server_default=text("true"))
 
-    # filtro por categoria na vitrine
-    __table_args__ = (Index("ix_produto_id_categoria", "id_categoria"),)
+    __table_args__ = (
+        # filtro por categoria na vitrine
+        Index("ix_produto_id_categoria", "id_categoria"),
+        CheckConstraint(f"marca IN {MARCAS}", name="marca_valida"),
+    )
 
 
 class Variante(Base):

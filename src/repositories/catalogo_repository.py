@@ -1,10 +1,11 @@
 from datetime import datetime
 
-from sqlalchemy import Select, and_, func, literal, or_, select
+from sqlalchemy import Select, and_, exists, func, literal, or_, select
 from sqlalchemy.orm import Session
 
 from src.models.catalogo import CategoriaProduto, HistoricoPreco, ImagemProduto, Produto, Variante
 from src.models.estoque import Estoque, Unidade
+from src.models.vendas import ItemPedido
 
 
 def listar_categorias(db: Session, ativo: bool | None = None) -> list[CategoriaProduto]:
@@ -218,6 +219,13 @@ def buscar_variante(db: Session, id_variante: int) -> Variante | None:
 
 def variante_por_sku(db: Session, sku: str) -> Variante | None:
     return db.scalar(select(Variante).where(func.upper(Variante.sku) == sku.upper()))
+
+
+# alguma variante do produto já foi vendida: a partir daí a marca faz parte do histórico
+def produto_vendido(db: Session, id_produto: int) -> bool:
+    return db.scalar(select(exists().where(
+        ItemPedido.id_variante == Variante.id_variante, Variante.id_produto == id_produto,
+    )))
 
 
 def variante_por_cor_e_tamanho(db: Session, id_produto: int, cor: str, tamanho: str) -> Variante | None:

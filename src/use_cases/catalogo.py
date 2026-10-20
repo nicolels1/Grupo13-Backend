@@ -154,6 +154,7 @@ def montar_produto(
         "nome": produto.nome,
         "descricao_tecnica": None if publico else produto.descricao_tecnica,
         "descricao_cliente": produto.descricao_cliente,
+        "marca": produto.marca,
         "ativo": produto.ativo,
         "variantes": [montar_variante(v, disponiveis) for v in visiveis],
         "imagens": [montar_imagem(i) for i in imagens],
@@ -348,8 +349,12 @@ def criar_produto(db: Session, id_usuario: uuid.UUID, dados: dict) -> dict:
     return montar_produto(produto, criadas)
 
 
+# a marca só se corrige antes da primeira venda: depois disso, mudar levaria o faturamento do
+# produto para a outra rede
 def alterar_produto(db: Session, id_produto: int, campos: dict) -> dict:
     produto = _produto_ou_404(db, id_produto)
+    if campos.get("marca", produto.marca) != produto.marca and repo.produto_vendido(db, id_produto):
+        raise Conflito("A marca não muda depois que o produto foi vendido")
     if "id_categoria" in campos and campos["id_categoria"] != produto.id_categoria:
         _conferir_categoria(db, campos["id_categoria"])
     for campo, valor in campos.items():

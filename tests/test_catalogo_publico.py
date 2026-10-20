@@ -21,7 +21,7 @@ BRASILIA = ZoneInfo("America/Sao_Paulo")
 
 def produto(id_produto=5, ativo=True, id_categoria=1):
     return Produto(id_produto=id_produto, id_categoria=id_categoria, nome="Camisa", descricao_tecnica="algodão 30.1",
-                   descricao_cliente="macia", ativo=ativo)
+                   descricao_cliente="macia", marca="lorenzi", ativo=ativo)
 
 
 def variante(id_variante, ativo=True):

@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from src.entities.comum import Pagina, sem_espacos
+from src.entities.comum import Marca, Pagina, sem_espacos
 
 
 # ---------- categoria ----------
@@ -108,6 +108,7 @@ class ProdutoCriar(BaseModel):
     nome: str = Field(min_length=2, max_length=150)
     descricao_tecnica: str = Field(min_length=1)
     descricao_cliente: str = Field(min_length=1)
+    marca: Marca = "lorenzi"
     variantes: list[VarianteCriar] = Field(default_factory=list)
 
     _limpa = field_validator("nome", "descricao_tecnica", "descricao_cliente", mode="before")(sem_espacos)
@@ -118,6 +119,7 @@ class ProdutoAlterar(BaseModel):
     nome: str | None = Field(default=None, min_length=2, max_length=150)
     descricao_tecnica: str | None = Field(default=None, min_length=1)
     descricao_cliente: str | None = Field(default=None, min_length=1)
+    marca: Marca | None = Field(default=None, description="Só antes da primeira venda")
     ativo: bool | None = None
 
     _limpa = field_validator("nome", "descricao_tecnica", "descricao_cliente", mode="before")(sem_espacos)
@@ -145,6 +147,7 @@ class ProdutoSaida(BaseModel):
     nome: str
     descricao_tecnica: str | None = Field(description="Só para quem gerencia o catálogo; vazia na visão pública")
     descricao_cliente: str
+    marca: Marca
     ativo: bool
     variantes: list[VarianteSaida]
     imagens: list[ImagemSaida] = Field(default_factory=list, description="Na ordem de exibição")

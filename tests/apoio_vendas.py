@@ -65,7 +65,7 @@ class SessaoVendas(SessaoComTrigger):
 @pytest.fixture
 def banco(monkeypatch):
     produto = Produto(id_produto=1, id_categoria=1, nome="Camisa", descricao_tecnica="t", descricao_cliente="c",
-                      ativo=True)
+                      marca="lorenzi", ativo=True)
     estado = SimpleNamespace(
         variantes={
             CAMISA: (Variante(id_variante=CAMISA, id_produto=1, sku="CAM-M", cor="Azul", tamanho="M",
