@@ -76,14 +76,7 @@ Decidida: ver P1 no [registro de decisões](registro_decisoes.md).
 Decidida: ver P3 no [registro de decisões](registro_decisoes.md).
 
 #### P4. Origem da migração (rastreabilidade)
-- **Por quê:** cada registro precisa dizer de onde veio (`vendas#272`, `Clientes!15`) e que regra o mudou.
-
-| Opção | Ganho | Perda |
-|---|---|---|
-| a) Coluna `linha_origem` em cada tabela migrada | Aparece direto na consulta | Coluna em ~12 tabelas que só a Vulto usa |
-| b) Uma tabela `origem_migracao` (tabela, id, linha de origem, valor original) | Um lugar só; não mexe nas tabelas da Entrega 2 | Uma junção para mostrar na demo |
-
-- **Sugestão:** b).
+Decidida: ver P4 no [registro de decisões](registro_decisoes.md).
 
 #### P5. Fidelidade (Vulto+)
 Decidida: ver P5 no [registro de decisões](registro_decisoes.md).
@@ -105,9 +98,14 @@ Decidida: ver K2 no [registro de decisões](registro_decisoes.md).
 #### K3. Valor do ponto: R$ 0,10 (sistema) × R$ 0,05 (regra desde mar/2025)
 Decidida: ver K3 no [registro de decisões](registro_decisoes.md).
 
-#### K4. Vencimento (12 meses; 18 para Ouro), Ouro +50% e dobro no online
-- **Opções:** a) aplicar retroativamente; b) **não aplicar no passado e passar a aplicar a partir da migração**.
-- **Sugestão:** b) para o vencimento e o Ouro: o cliente nunca viu ponto vencer. Para o dobro no online gravado errado (`web`, `ecommerce`), corrigir a favor do cliente; o impacto fica a calcular.
+#### K4. Vencimento, Ouro +50% e dobro no online
+As regras passam a valer da migração em diante, por marca: ver K4a no [registro de decisões](registro_decisoes.md).
+
+##### K4b. Créditos do online que não ganharam o dobro
+Decidida: ver K4b no [registro de decisões](registro_decisoes.md).
+
+##### K4c. Categoria do cliente
+Decidida: ver K4c no [registro de decisões](registro_decisoes.md).
 
 #### K5. Saldo inicial
 Decidida: ver K5a a K5f no [registro de decisões](registro_decisoes.md).
