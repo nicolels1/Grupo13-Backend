@@ -106,7 +106,7 @@ Nenhuma conhecida. As oito encontradas na primeira execução foram implementada
 | `entradas_estoque.fornecedor` | `Serra Azul` ×4, `Rio Claro` ×3 | De-para para um nome |
 | `Clientes.Pontos` | `2.203`, `1200 pts`, `9,9k` | Ponto é milhar, tira `pts`, `k` = ×1000 (o `k` arredonda: entra na margem de erro do passivo) |
 | `Clientes.categoria` | 14 grafias, 425 vazias | De-para para bronze/prata/ouro (`vip?` fica vazio) |
-| `Clientes.aceita_msg` | `1/S/sim/x` e `0/N/nao`, 827 vazios | De-para para `true`/`false`; vazio = `false` (LGPD: na dúvida, não envia) |
+| `Clientes.aceita_msg` | `1/S/sim/x` e `0/N/nao`, 827 vazios | De-para para aceita / não aceita; vazio = não informado, sem envio (K9b) |
 | `Clientes.loja_cadastro` | 18 grafias (`bh`, `CWB`, `eldorado shop`) | De-para para a unidade |
 | `contagem.unidade` | Nome da loja em texto | De-para para a unidade |
 | catálogo `categoria`, `cor` | `Bermudas/shorts/Bottoms > Short`, `Olive/oliva` | De-para para as categorias e cores da Lorenzi (cor pode sair do código no SKU) |
