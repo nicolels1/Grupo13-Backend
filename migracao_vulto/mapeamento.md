@@ -52,7 +52,7 @@ Evidência: `banco_lojas`, `banco_funcionarios`, tabela `config` do vulto.db e `
 
 | Vulto | Casa Lorenzi | Situação |
 |---|---|---|
-| `lojas` 1–4 (Pinheiros, Eldorado, Savassi, Batel) | `unidade`, `tipo = 'loja'` | ⚠️ endereço completo não existe na Vulto; Pinheiros com `despacha_online` (ship from store) |
+| `lojas` 1–4 (Pinheiros, Eldorado, Savassi, Batel) | `unidade`, `tipo = 'loja'` | ✅ endereço "A confirmar" e Pinheiros com `despacha_online` (ship from store), U1 |
 | `lojas` 7 (CD Cajamar) | `unidade`, `tipo = 'cd'` | ⚠️ mesmo problema do endereço |
 | `lojas` 5 (site) e 6 (app) | não são unidades: são o canal `online` do CD | ⚠️ |
 | `lojas.cidade` | `unidade.cidade` | ✅ |
@@ -78,7 +78,7 @@ Evidência: `notebooks/02_catalogo.ipynb`. Decisões: J2, C1–C5, P1, P8.
 | aba da planilha (coleção: Verão 25, Inverno 25, Verão 26, Atemporais) | — | ❌ não temos coleção (só serve para a regra do preço) |
 | aba `PLANILHA ANTIGA NAO USAR` (297) | `historico_preco` ou descartar | ⚠️ |
 | preços das coleções antigas | `historico_preco` | ⚠️ |
-| `catalogo.descontinuado` | `variante.ativo = false` | ⚠️ 93 sem marcação clara |
+| `catalogo.descontinuado` | `variante.ativo` (falso só sem estoque; C3) + origem da migração | ✅ as 93 com só o SKU em vermelho também são descontinuadas (C3) |
 | `catalogo.revisar_preco` (fundo amarelo, 5) | — | ⚠️ pendência para a Marina |
 | variantes vendidas que não estão no catálogo (452) | `variante` criada a partir do modelo | ⚠️ |
 | `catalogo.custo` | — | ❌ não guardamos custo (e o oficial é o custo médio, que não está na planilha) |

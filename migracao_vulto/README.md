@@ -99,7 +99,7 @@ Nenhuma conhecida. As oito encontradas na primeira execução foram implementada
 | `vendas/compras.cliente_ref` tipo `numero` | 5.747 vendas e 8.431 compras só com dígitos: CPF ou celular? | Cruzar com o cadastro e com o formato de celular (ver a última seção) |
 | `pontos_mov.cpf` com 9–10 dígitos | 108 lançamentos; celular sem DDD ou CPF sem zeros? | Cruzar com os telefones do cadastro (sem DDD) antes de completar zeros |
 | `Resgates.pontos usados` | `1.500` (9) | Ponto é milhar (pontos são inteiros) |
-| catálogo `descontinuado` parcial | Só o SKU em vermelho (93) | Confirmar com a Marina o que a marcação significa |
+| catálogo `descontinuado` parcial | Só o SKU em vermelho (93) | Também é descontinuado (decidido na C3) |
 | `vendas.canal`, `compras.canal` | 13 grafias, não batem com a loja | Ignorar e derivar de `loja_id` (1–4 loja física, 5 site, 6 app) |
 | `vendas.status` (valores claros) | `PAGO/pago/Pago/aprovado`, `cancelado/CANCELADA` | De-para para `pago` / `cancelado` (os ambíguos estão nas decisões) |
 | SKU (`estoque`, `itens_venda`, `entradas_estoque`, contagem, catálogo) | 4 formatos (`CAM004BM`, `vlt cal 001 preto 38`...) | Converter para `VLT-CAT-NNN-COR-TAM` e conferir contra o catálogo; o que não bater vira pendência |
