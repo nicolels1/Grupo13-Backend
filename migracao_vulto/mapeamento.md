@@ -173,14 +173,14 @@ Evidência: `notebooks/05_atendimentos.ipynb` (seção 5: cliente × pedido). De
 
 | Vulto | Casa Lorenzi | Situação |
 |---|---|---|
-| `atendimentos` (uma conversa) | `chamado` | ⚠️ 1.633 a migrar (sem 10 spam e 4 "teste") |
+| `atendimentos` (uma conversa) | `chamado` | ⚠️ 1.625 a migrar (sem 15 spam e 7 "teste", A3) |
 | `data_hora` | `chamado.criado_em` | ✅ |
 | `assunto` / `tags` | `chamado.categoria` + `assunto` | ⚠️ de-para para 5 categorias (`entrega`, `troca_devolucao`, `estorno`, `duvida`, `outros`) |
 | `status` | `chamado.status` + `motivo_encerramento` | ⚠️ |
 | `pedido_codigo` | `chamado.id_pedido` | ⚠️ com as regras da J3, 928 acham a venda: código (397), número solto até 60 dias antes (399), app sem `APP-` (89), dígitos invertidos (43); 32 não acham |
 | `mensagem` (primeira fala) | `chamado.id_pedido` | ⚠️ 282 têm o pedido só no texto, com a coluna `pedido` vazia (J3) |
 | `contato` (telefone, e-mail, @Instagram) | `chamado.id_cliente` | ❌ exige conta; pelo contato, 580 acham um cliente do cadastro e 28 o e-mail de quem comprou (J1a); o @Instagram nunca acha |
-| dono do pedido (`vendas.cliente_ref` da venda citada) | `chamado.id_cliente` | ⚠️ vem antes do contato (o pedido do chamado é do próprio cliente); com o contato, 1.104 dos 1.633 têm cliente: 793 com CPF do cadastro, 122 com CPF fora dele e 189 só pelo e-mail (cliente sem conta, P2); quando os dois existem (349), sempre concordam; 35 fazem a ponte e-mail ↔ CPF; 69 vendas sem cliente |
+| dono do pedido (`vendas.cliente_ref` da venda citada) | `chamado.id_cliente` | ⚠️ vem antes do contato (o pedido do chamado é do próprio cliente); com o contato, 1.104 dos 1.625 têm cliente: 793 com CPF do cadastro, 122 com CPF fora dele e 189 só pelo e-mail (cliente sem conta, P2); quando os dois existem (349), sempre concordam; 35 fazem a ponte e-mail ↔ CPF; 69 vendas sem cliente |
 | `nome_contato` | — | ⚠️ 39 nomes completos iguais aos de um único cliente (A5) |
 | `mensagem` (conversa inteira num campo) | `chamado.descricao` + `mensagem` (uma por fala) | ⚠️ separar pelo `[Atendente]:` |
 | `canal` (WhatsApp, Instagram, e-mail) | — | ❌ |
