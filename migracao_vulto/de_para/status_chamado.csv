@@ -1,0 +1,11 @@
+valor_vulto,situacao,decisao
+ok,concluido,A4b
+resolvido,concluido,A4b
+Resolvido,concluido,A4b
+fechado,concluido,A4b
+finalizado,concluido,A4b
+aberto,em_aberto,A4b
+pendente,em_aberto,A4b
+em andamento,em_aberto,A4b
+aguardando cliente,em_aberto,A4b
+(vazio),em_aberto,A4b

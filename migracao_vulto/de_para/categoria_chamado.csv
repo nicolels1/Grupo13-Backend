@@ -1,0 +1,8 @@
+tag,categoria,assunto,migra,decisao
+troca;tamanho,troca_devolucao,Troca ou devolução,sim,A4a
+entrega;atraso,entrega,Entrega,sim,A4a
+pre-venda,duvida,Dúvida de produto,sim,A4a
+vulto+;pontos,outros,Vulto+,sim,A4a
+pagamento;financeiro,pagamento,Pagamento,sim,A4a
+loja,outros,Loja,sim,A4a
+(vazio),,,nao,A3
