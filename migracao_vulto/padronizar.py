@@ -89,9 +89,21 @@ def ler_aba(arquivo: Path, aba: str, linha_cabecalho: int = 0) -> pd.DataFrame:
     return limpar_textos(df)
 
 
+# Coluna de inteiros com algum vazio vira decimal no pandas (o limpar_textos remonta as colunas) e sai
+# como "2.0" no CSV, e aí o compra_id "2.0" não acha a compra "2". Volta a ser inteira quando todos os
+# valores são inteiros
+def inteiros_de_volta(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    for coluna in df.columns:
+        serie = df[coluna]
+        if pd.api.types.is_float_dtype(serie) and serie.notna().any() and (serie.dropna() % 1 == 0).all():
+            df[coluna] = serie.astype("Int64")
+    return df
+
+
 def gravar(df: pd.DataFrame, destino: Path, nome: str):
     caminho = destino / f"{nome}.csv"
-    df.to_csv(caminho, index=False, encoding="utf-8")
+    inteiros_de_volta(df).to_csv(caminho, index=False, encoding="utf-8")
     print(f"  {caminho.name}: {len(df)} linhas")
 
 
