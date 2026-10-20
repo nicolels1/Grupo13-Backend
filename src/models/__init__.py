@@ -1,5 +1,6 @@
 # importa os models para registrá-los no Base.metadata (o Alembic lê daqui)
 from src.models.contas import (  # noqa: F401
+    ClienteSemConta,
     ModeloAcesso,
     ModeloPermissao,
     Permissao,
@@ -36,3 +37,4 @@ from src.models.avaliacoes import (  # noqa: F401
     FotoAvaliacao,
     VotoUtil,
 )
+from src.models.migracao import OrigemMigracao  # noqa: F401

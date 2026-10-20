@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from src.entities.comum import sem_espacos
+from src.entities.comum import Marca, sem_espacos
 
 TipoUnidade = Literal["loja", "cd"]
 
@@ -20,6 +20,7 @@ def _cep(valor: str) -> str:
 class UnidadeCriar(BaseModel):
     nome: str = Field(min_length=2, max_length=100)
     tipo: TipoUnidade
+    marca: Marca = "lorenzi"
     despacha_online: bool = False
     rua: str = Field(min_length=1, max_length=200)
     numero: str = Field(min_length=1, max_length=20)
@@ -52,6 +53,7 @@ class UnidadeCriar(BaseModel):
 # tipo não muda depois de criada: loja e CD têm estoques e regras diferentes
 class UnidadeAlterar(BaseModel):
     nome: str | None = Field(default=None, min_length=2, max_length=100)
+    marca: Marca | None = Field(default=None, description="Só antes da primeira movimentação ou venda")
     despacha_online: bool | None = None
     rua: str | None = Field(default=None, min_length=1, max_length=200)
     numero: str | None = Field(default=None, min_length=1, max_length=20)
@@ -81,6 +83,7 @@ class UnidadeSaida(BaseModel):
     id_unidade: int
     nome: str
     tipo: str
+    marca: Marca
     despacha_online: bool
     rua: str
     numero: str

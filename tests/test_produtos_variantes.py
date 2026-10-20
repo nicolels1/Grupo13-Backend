@@ -5,6 +5,7 @@ import pytest
 
 from src.entities.catalogo import ProdutoCriar, VarianteCriar
 from src.models.catalogo import CategoriaProduto, HistoricoPreco, Produto, Variante
+from src.utils.ean import ean_interno
 from src.models.estoque import MovimentacaoEstoque
 from src.repositories import estoque_repository
 from src.repositories import catalogo_repository
@@ -36,6 +37,8 @@ def banco(monkeypatch):
     monkeypatch.setattr(r, "ids_disponiveis_online", lambda db, ids: set())
     monkeypatch.setattr(r, "variante_por_sku", lambda db, sku: next(
         (v for v in estado.variantes.values() if v.sku.upper() == sku.upper()), None))
+    monkeypatch.setattr(r, "variante_por_ean", lambda db, ean: next(
+        (v for v in estado.variantes.values() if v.ean == ean), None))
     monkeypatch.setattr(r, "variante_por_cor_e_tamanho", lambda db, p, cor, tam: next(
         (v for v in estado.variantes.values()
          if v.id_produto == p and v.cor.lower() == cor.lower() and v.tamanho.lower() == tam.lower()), None))
@@ -45,9 +48,9 @@ def banco(monkeypatch):
 
 def com_produto(banco):
     banco.produtos[5] = Produto(id_produto=5, id_categoria=1, nome="Camisa", descricao_tecnica="t",
-                                descricao_cliente="c", ativo=True)
+                                descricao_cliente="c", marca="lorenzi", ativo=True)
     banco.variantes[50] = Variante(id_variante=50, id_produto=5, sku="CAM-AZ-M", cor="Azul", tamanho="M",
-                                   preco=Decimal("59.90"), ativo=True)
+                                   ean=ean_interno(50), preco=Decimal("59.90"), ativo=True)
 
 
 def novo_produto(**kw):
@@ -116,6 +119,51 @@ def test_sku_que_ja_existe_no_banco(banco):
         catalogo.criar_produto(SessaoFalsa(), ID_FUNCIONARIO, novo_produto())
 
 
+# sem EAN de fábrica, a peça ganha o código interno (o trigger do banco; a SessaoFalsa imita)
+def test_variante_sem_ean_ganha_codigo_interno(banco):
+    produto = catalogo.criar_produto(SessaoFalsa(), ID_FUNCIONARIO, novo_produto())
+
+    assert all(v["ean"].startswith("20") for v in produto["variantes"])
+
+
+def test_variante_guarda_o_ean_de_fabrica(banco):
+    variantes = [{"sku": "vlt-cam-004-bra-p", "ean": "7894105009227", "preco": "89.90"}]
+
+    produto = catalogo.criar_produto(SessaoFalsa(), ID_FUNCIONARIO, novo_produto(variantes=variantes))
+
+    assert produto["variantes"][0]["ean"] == "7894105009227"
+
+
+def test_ean_que_ja_existe_no_banco(banco):
+    com_produto(banco)
+    variantes = [{"sku": "outra", "ean": ean_interno(50), "preco": "10"}]
+
+    with pytest.raises(Conflito, match="já é de outra peça"):
+        catalogo.criar_produto(SessaoFalsa(), ID_FUNCIONARIO, novo_produto(variantes=variantes))
+
+
+def test_ean_repetido_na_mesma_lista(banco):
+    variantes = [{"sku": "a", "tamanho": "P", "ean": "7894105009227", "preco": "10"},
+                 {"sku": "b", "tamanho": "M", "ean": "7894105009227", "preco": "10"}]
+
+    with pytest.raises(Conflito, match="EAN repetido"):
+        catalogo.criar_produto(SessaoFalsa(), ID_FUNCIONARIO, novo_produto(variantes=variantes))
+
+
+def test_ean_cortado_pelo_excel_e_recusado():
+    with pytest.raises(ValidationError, match="dígito verificador"):
+        VarianteCriar(sku="CAL021P42", ean="7890231000000", preco="10")
+
+
+def test_trocar_ean_para_um_que_ja_existe(banco):
+    com_produto(banco)
+    banco.variantes[51] = Variante(id_variante=51, id_produto=5, sku="CAM-AZ-G", cor="Azul", tamanho="G",
+                                   ean=ean_interno(51), preco=Decimal("1"), ativo=True)
+
+    with pytest.raises(Conflito, match="já é de outra peça"):
+        catalogo.alterar_variante(SessaoFalsa(), 51, ID_FUNCIONARIO, {"ean": ean_interno(50)})
+
+
 def test_adicionar_variante_com_cor_e_tamanho_existentes(banco):
     com_produto(banco)
     dados = VarianteCriar(sku="NOVO", cor="AZUL", tamanho="m", preco="10").model_dump()
@@ -149,7 +197,7 @@ def test_mesmo_preco_nao_grava_historico(banco):
 def test_trocar_sku_para_um_que_ja_existe(banco):
     com_produto(banco)
     banco.variantes[51] = Variante(id_variante=51, id_produto=5, sku="CAM-AZ-G", cor="Azul", tamanho="G",
-                                   preco=Decimal("1"), ativo=True)
+                                   ean=ean_interno(51), preco=Decimal("1"), ativo=True)
 
     with pytest.raises(Conflito):
         catalogo.alterar_variante(SessaoFalsa(), 51, ID_FUNCIONARIO, {"sku": "CAM-AZ-M"})
@@ -160,6 +208,22 @@ def test_mover_produto_para_categoria_desativada(banco):
 
     with pytest.raises(RegraDeNegocio):
         catalogo.alterar_produto(SessaoFalsa(), 5, {"id_categoria": 2})
+
+
+def test_corrige_marca_de_produto_nunca_vendido(banco, monkeypatch):
+    com_produto(banco)
+    monkeypatch.setattr(catalogo_repository, "produto_vendido", lambda db, i: False)
+
+    assert catalogo.alterar_produto(SessaoFalsa(), 5, {"marca": "vulto"})["marca"] == "vulto"
+
+
+def test_marca_de_produto_vendido_nao_muda(banco, monkeypatch):
+    com_produto(banco)
+    monkeypatch.setattr(catalogo_repository, "produto_vendido", lambda db, i: True)
+
+    with pytest.raises(Conflito, match="marca não muda"):
+        catalogo.alterar_produto(SessaoFalsa(), 5, {"marca": "vulto"})
+    assert banco.produtos[5].marca == "lorenzi"
 
 
 def test_historico_de_variante_inexistente(banco):
@@ -189,6 +253,16 @@ def test_criar_produto_pela_rota(api, banco):
 
     assert resposta.status_code == 201
     assert resposta.json()["variantes"][0]["cor"] == "Única"
+    assert resposta.json()["marca"] == "lorenzi"
+
+
+def test_criar_produto_da_vulto(api, banco):
+    corpo = {"id_categoria": 1, "nome": "Camiseta", "descricao_tecnica": "t", "descricao_cliente": "c",
+             "marca": "vulto"}
+
+    resposta = api(SessaoFalsa(), usuario=funcionario()).post("/produtos", json=corpo)
+
+    assert (resposta.status_code, resposta.json()["marca"]) == (201, "vulto")
 
 
 def test_preco_negativo_e_recusado(api, banco):

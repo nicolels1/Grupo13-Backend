@@ -10,6 +10,7 @@ from src.database.session import get_db
 from src.dependencies.permissoes import get_usuario_ativo
 from src.models.estoque import MovimentacaoEstoque
 from src.repositories import permissao_repository
+from src.utils.ean import ean_interno
 
 ID_FUNCIONARIO = uuid.UUID("33333333-3333-3333-3333-333333333333")
 
@@ -55,6 +56,9 @@ class SessaoFalsa:
         for coluna in tabela.columns:
             if getattr(objeto, coluna.key) is None and coluna.default is not None and coluna.default.is_scalar:
                 setattr(objeto, coluna.key, coluna.default.arg)
+        # o trigger gera_ean_interno: variante sem EAN de fábrica ganha o código interno
+        if tabela.name == "variante" and objeto.ean is None:
+            objeto.ean = ean_interno(objeto.id_variante)
 
 
 class SessaoComTrigger(SessaoFalsa):

@@ -1,16 +1,22 @@
 from datetime import datetime
 
-from sqlalchemy import Select, and_, func, literal, or_, select
+from sqlalchemy import Select, and_, exists, func, literal, or_, select
 from sqlalchemy.orm import Session
 
 from src.models.catalogo import CategoriaProduto, HistoricoPreco, ImagemProduto, Produto, Variante
 from src.models.estoque import Estoque, Unidade
+from src.models.vendas import ItemPedido
 
 
-def listar_categorias(db: Session, ativo: bool | None = None) -> list[CategoriaProduto]:
+# marca: só as categorias com algum produto ativo dessa rede (o menu da vitrine de cada marca)
+def listar_categorias(db: Session, ativo: bool | None = None, marca: str | None = None) -> list[CategoriaProduto]:
     consulta = select(CategoriaProduto).order_by(CategoriaProduto.nome)
     if ativo is not None:
         consulta = consulta.where(CategoriaProduto.ativo == ativo)
+    if marca is not None:
+        consulta = consulta.where(CategoriaProduto.id_categoria.in_(
+            select(Produto.id_categoria).where(Produto.marca == marca, Produto.ativo)
+        ))
     return list(db.scalars(consulta))
 
 
@@ -128,7 +134,8 @@ def _relevancia(palavras: list[str]):
 def listar_produtos(db: Session, limit: int, offset: int, id_categoria: int | None = None,
                     ativo: bool | None = None, palavras: list[str] | None = None, aproximada: bool = False,
                     categoria_ativa: bool | None = None, tamanhos: list[str] | None = None,
-                    disponivel: bool | None = None, ordem: str = "nome") -> tuple[list[Produto], int]:
+                    disponivel: bool | None = None, marca: str | None = None,
+                    ordem: str = "nome") -> tuple[list[Produto], int]:
     consulta = select(Produto)
     if categoria_ativa is not None:
         consulta = consulta.join(CategoriaProduto, CategoriaProduto.id_categoria == Produto.id_categoria).where(
@@ -136,6 +143,8 @@ def listar_produtos(db: Session, limit: int, offset: int, id_categoria: int | No
         )
     if id_categoria is not None:
         consulta = consulta.where(Produto.id_categoria == id_categoria)
+    if marca is not None:
+        consulta = consulta.where(Produto.marca == marca)
     if ativo is not None:
         consulta = consulta.where(Produto.ativo == ativo)
     if palavras:
@@ -158,7 +167,8 @@ def listar_produtos(db: Session, limit: int, offset: int, id_categoria: int | No
 
 # tamanhos distintos das variantes à venda na vitrine (variante, produto e categoria ativos),
 # com a mesma busca da lista para os dois concordarem
-def tamanhos_a_venda(db: Session, id_categoria: int | None = None, palavras: list[str] | None = None) -> list[str]:
+def tamanhos_a_venda(db: Session, id_categoria: int | None = None, palavras: list[str] | None = None,
+                     marca: str | None = None) -> list[str]:
     consulta = (
         select(Variante.tamanho).distinct()
         .join(Produto, Produto.id_produto == Variante.id_produto)
@@ -167,6 +177,8 @@ def tamanhos_a_venda(db: Session, id_categoria: int | None = None, palavras: lis
     )
     if id_categoria is not None:
         consulta = consulta.where(Produto.id_categoria == id_categoria)
+    if marca is not None:
+        consulta = consulta.where(Produto.marca == marca)
     if palavras:
         consulta = consulta.where(_filtro_da_busca(palavras))
     return list(db.scalars(consulta))
@@ -218,6 +230,17 @@ def buscar_variante(db: Session, id_variante: int) -> Variante | None:
 
 def variante_por_sku(db: Session, sku: str) -> Variante | None:
     return db.scalar(select(Variante).where(func.upper(Variante.sku) == sku.upper()))
+
+
+def variante_por_ean(db: Session, ean: str) -> Variante | None:
+    return db.scalar(select(Variante).where(Variante.ean == ean))
+
+
+# alguma variante do produto já foi vendida: a partir daí a marca faz parte do histórico
+def produto_vendido(db: Session, id_produto: int) -> bool:
+    return db.scalar(select(exists().where(
+        ItemPedido.id_variante == Variante.id_variante, Variante.id_produto == id_produto,
+    )))
 
 
 def variante_por_cor_e_tamanho(db: Session, id_produto: int, cor: str, tamanho: str) -> Variante | None:

@@ -7,6 +7,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 from src.database.base import Base
 
 CANAIS = "('loja_fisica', 'online')"
+# rede dona da unidade e do produto: uma plataforma só, com cada rede visível (P1)
+MARCAS = "('lorenzi', 'vulto')"
 
 
 class Unidade(Base):
@@ -15,6 +17,7 @@ class Unidade(Base):
     id_unidade: Mapped[int] = mapped_column(primary_key=True)
     nome: Mapped[str] = mapped_column(String(100), unique=True)
     tipo: Mapped[str] = mapped_column(String(10))
+    marca: Mapped[str] = mapped_column(String(10), default="lorenzi", server_default="lorenzi")
     despacha_online: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
     rua: Mapped[str] = mapped_column(String(200))
     numero: Mapped[str] = mapped_column(String(20))
@@ -27,6 +30,7 @@ class Unidade(Base):
 
     __table_args__ = (
         CheckConstraint("tipo IN ('loja', 'cd')", name="tipo_valido"),
+        CheckConstraint(f"marca IN {MARCAS}", name="marca_valida"),
         # o CD sempre despacha online; loja só se marcada
         CheckConstraint("tipo <> 'cd' OR despacha_online", name="cd_despacha_online"),
     )

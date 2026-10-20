@@ -140,6 +140,7 @@ class PedidoSaida(BaseModel):
     id_pedido: int
     codigo_venda: str
     id_cliente: uuid.UUID | None
+    id_cliente_sem_conta: int | None = Field(description="Comprador migrado que ainda não criou conta")
     cliente: str | None
     id_unidade: int
     unidade: str
@@ -227,6 +228,23 @@ class ClienteResumo(BaseModel):
     email: str
     cpf: str | None
     status_conta: str
+
+
+# cliente da migração da Vulto que ainda não criou conta (ADR 0016); só a equipe consulta
+class ClienteSemContaSaida(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id_cliente_sem_conta: int
+    nome: str | None
+    cpf: str | None
+    email: str | None
+    telefone: str | None
+    aceita_mensagem: bool | None = Field(description="Aceita receber mensagens; vazio = não informado")
+    origem: str
+    id_usuario: uuid.UUID | None = Field(
+        description="Conta que recebeu o histórico quando a pessoa se cadastrou; vazio = ainda sem conta",
+    )
+    criado_em: datetime
 
 
 class ClienteCorrigido(ClienteResumo):

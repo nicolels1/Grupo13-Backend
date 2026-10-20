@@ -23,7 +23,7 @@ def banco(monkeypatch):
 
     monkeypatch.setattr(catalogo_repository, "buscar_categoria", lambda db, i: estado.categorias.get(i))
     monkeypatch.setattr(catalogo_repository, "categoria_por_nome", por_nome(estado.categorias))
-    monkeypatch.setattr(catalogo_repository, "listar_categorias", lambda db, ativo=None: list(estado.categorias.values()))
+    monkeypatch.setattr(catalogo_repository, "listar_categorias", lambda db, ativo=None, marca=None: list(estado.categorias.values()))
     monkeypatch.setattr(unidade_repository, "buscar_unidade", lambda db, i: estado.unidades.get(i))
     monkeypatch.setattr(unidade_repository, "unidade_por_nome", por_nome(estado.unidades))
     monkeypatch.setattr(unidade_repository, "listar_unidades", lambda db, ativo=None, tipo=None: list(estado.unidades.values()))
@@ -35,7 +35,8 @@ def categoria(id_categoria, nome, ativo=True):
 
 
 def unidade(id_unidade, nome, tipo="loja", despacha_online=False):
-    return Unidade(id_unidade=id_unidade, nome=nome, tipo=tipo, despacha_online=despacha_online, ativo=True,
+    return Unidade(id_unidade=id_unidade, nome=nome, tipo=tipo, marca="lorenzi", despacha_online=despacha_online,
+                   ativo=True,
                    complemento=None, **{**ENDERECO, "uf": "SP", "cep": "01000000"})
 
 
@@ -89,6 +90,15 @@ def test_cd_sempre_despacha_online():
     assert UnidadeCriar(nome="CD", tipo="cd", **ENDERECO).despacha_online is True
 
 
+def test_unidade_sem_marca_e_da_lorenzi():
+    assert UnidadeCriar(nome="Loja Centro", tipo="loja", **ENDERECO).marca == "lorenzi"
+
+
+def test_marca_invalida():
+    with pytest.raises(ValidationError):
+        UnidadeCriar(nome="Loja", tipo="loja", marca="outra", **ENDERECO)
+
+
 @pytest.mark.parametrize("cep", ["0100", "abc", "010000000"])
 def test_cep_invalido(cep):
     with pytest.raises(ValidationError):
@@ -123,6 +133,32 @@ def test_buscar_unidade_inexistente(banco):
         unidades.buscar_unidade(SessaoFalsa(), 9)
 
 
+def test_corrige_marca_de_unidade_sem_historico(banco, monkeypatch):
+    banco.unidades[1] = unidade(1, "Vulto Savassi")
+    monkeypatch.setattr(unidade_repository, "tem_historico", lambda db, i: False)
+
+    alterada = unidades.alterar_unidade(SessaoFalsa(), 1, {"marca": "vulto"})
+
+    assert alterada.marca == "vulto"
+
+
+def test_marca_de_unidade_com_historico_nao_muda(banco, monkeypatch):
+    banco.unidades[1] = unidade(1, "Loja Centro")
+    monkeypatch.setattr(unidade_repository, "tem_historico", lambda db, i: True)
+
+    with pytest.raises(Conflito, match="marca não muda"):
+        unidades.alterar_unidade(SessaoFalsa(), 1, {"marca": "vulto"})
+    assert banco.unidades[1].marca == "lorenzi"
+
+
+# mandar a mesma marca no PATCH não é mudança: nem consulta o histórico
+def test_mesma_marca_nao_confere_historico(banco, monkeypatch):
+    banco.unidades[1] = unidade(1, "Loja Centro")
+    monkeypatch.setattr(unidade_repository, "tem_historico", lambda db, i: pytest.fail("não devia consultar"))
+
+    assert unidades.alterar_unidade(SessaoFalsa(), 1, {"marca": "lorenzi"}).marca == "lorenzi"
+
+
 # ---------- rotas ----------
 
 def test_listar_categorias_e_publico(api, banco):
@@ -132,6 +168,16 @@ def test_listar_categorias_e_publico(api, banco):
 
     assert resposta.status_code == 200
     assert resposta.json() == {"items": [{"id_categoria": 1, "nome": "Camisas", "ativo": True, "imagem_url": None}]}
+
+
+def test_menu_da_vitrine_de_uma_marca(api, banco, monkeypatch):
+    pedidos = []
+    monkeypatch.setattr(catalogo_repository, "listar_categorias",
+                        lambda db, ativo=None, marca=None: pedidos.append((ativo, marca)) or [])
+
+    resposta = api(SessaoFalsa()).get("/categorias", params={"ativo": True, "marca": "vulto"})
+
+    assert (resposta.status_code, pedidos) == (200, [(True, "vulto")])
 
 
 def test_criar_categoria_sem_login_retorna_401(api, banco):
@@ -174,6 +220,14 @@ def test_criar_unidade_e_listar(api, banco):
 
     assert criada.status_code == 201
     assert (criada.json()["despacha_online"], criada.json()["uf"], criada.json()["cep"]) == (True, "SP", "01000000")
+
+
+def test_criar_unidade_da_vulto(api, banco):
+    cliente = api(SessaoFalsa(), usuario=funcionario())
+
+    criada = cliente.post("/unidades", json={"nome": "Vulto Savassi", "tipo": "loja", "marca": "vulto", **ENDERECO})
+
+    assert (criada.status_code, criada.json()["marca"]) == (201, "vulto")
 
 
 def test_unidade_inexistente_retorna_404(api, banco):

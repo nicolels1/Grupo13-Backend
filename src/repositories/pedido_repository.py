@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from src.models.avaliacoes import Avaliacao
 from src.models.catalogo import Produto, Variante
-from src.models.contas import Usuario
+from src.models.contas import ClienteSemConta, Usuario
 from src.models.estoque import Estoque, MovimentacaoEstoque, Unidade
 from src.models.vendas import EnderecoEntrega, ItemPedido, Pagamento, Pedido
 
@@ -57,28 +57,33 @@ def disponivel_online(db: Session, ids_variante: list[int]) -> list:
 # ---------- leitura dos pedidos ----------
 
 def consulta_pedidos(
-    id_cliente=None, status=None, canal=None, modalidade=None, id_unidade=None, codigo_venda=None,
+    id_cliente=None, id_cliente_sem_conta=None, status=None, canal=None, modalidade=None, id_unidade=None,
+    codigo_venda=None,
     pronto_antes_de: datetime | None = None, cpf: str | None = None, entregue_desde: datetime | None = None,
     criado_desde: datetime | None = None, criado_ate: datetime | None = None,
 ):
+    # cliente com conta ou cliente sem conta da migração (P2); este sem nome aparece pelo e-mail
+    cliente = func.coalesce(Usuario.nome, ClienteSemConta.nome, ClienteSemConta.email)
     consulta = (
-        select(Pedido, Usuario.nome.label("cliente"), Unidade.nome.label("unidade"))
+        select(Pedido, cliente.label("cliente"), Unidade.nome.label("unidade"))
         .join(Unidade, Unidade.id_unidade == Pedido.id_unidade)
         .outerjoin(Usuario, Usuario.id_usuario == Pedido.id_cliente)
+        .outerjoin(ClienteSemConta, ClienteSemConta.id_cliente_sem_conta == Pedido.id_cliente_sem_conta)
         .order_by(Pedido.criado_em.desc(), Pedido.id_pedido.desc())
     )
     filtros = []
     for coluna, valor in [
-        (Pedido.id_cliente, id_cliente), (Pedido.status, status), (Pedido.canal, canal),
+        (Pedido.id_cliente, id_cliente), (Pedido.id_cliente_sem_conta, id_cliente_sem_conta),
+        (Pedido.status, status), (Pedido.canal, canal),
         (Pedido.modalidade, modalidade), (Pedido.id_unidade, id_unidade),
     ]:
         if valor is not None:
             filtros.append(coluna == valor)
     if codigo_venda:
         filtros.append(func.upper(Pedido.codigo_venda) == codigo_venda.upper())
-    # CPF da conta ou CPF na nota (balcão de troca e devolução)
+    # CPF da conta, CPF na nota ou CPF do cliente sem conta (balcão de troca e devolução)
     if cpf is not None:
-        filtros.append(or_(Pedido.cpf_nota == cpf, Usuario.cpf == cpf))
+        filtros.append(or_(Pedido.cpf_nota == cpf, Usuario.cpf == cpf, ClienteSemConta.cpf == cpf))
     if criado_desde is not None:
         filtros.append(Pedido.criado_em >= criado_desde)
     if criado_ate is not None:

@@ -9,7 +9,7 @@ from src.entities.catalogo import (
     OrdemProdutos, PaginaProdutos, ProdutoAlterar, ProdutoCriar, ProdutoSaida, VarianteAlterar, VarianteCriar,
     VarianteSaida,
 )
-from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Lista, campos_alterados
+from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Lista, Marca, campos_alterados
 from src.models.contas import Usuario
 from src.repositories import catalogo_repository
 from src.use_cases import catalogo
@@ -20,11 +20,23 @@ router = APIRouter(tags=["catalogo"])
 
 ERROS_CATEGORIA = {404: {"description": "Categoria não encontrada"}, 409: {"description": "Categoria já existe"}}
 
+# vitrine de cada rede (estilo "uma loja, várias marcas"): sem marca, as duas juntas
+FILTRO_MARCA_PRODUTOS = (
+    "Só os produtos dessa rede. Quando a busca não acha nada, as sugestões (busca_alternativa) "
+    "vêm das duas redes"
+)
+FILTRO_MARCA_CATEGORIAS = "Só as categorias com algum produto ativo dessa rede (o menu da vitrine da marca)"
+
 
 # público: a vitrine do cliente também lista as categorias
 @router.get("/categorias", response_model=Lista[CategoriaSaida])
-def listar_categorias(ativo: bool | None = None, db: Session = Depends(get_db)):
-    return {"items": [catalogo.montar_categoria(c) for c in catalogo_repository.listar_categorias(db, ativo)]}
+def listar_categorias(
+    ativo: bool | None = None,
+    marca: Marca | None = Query(default=None, description=FILTRO_MARCA_CATEGORIAS),
+    db: Session = Depends(get_db),
+):
+    categorias = catalogo_repository.listar_categorias(db, ativo, marca)
+    return {"items": [catalogo.montar_categoria(c) for c in categorias]}
 
 
 @router.post(
@@ -114,6 +126,7 @@ def listar_produtos(
     disponivel: bool | None = Query(
         default=None, description="true: só produtos com peça para vender online (nos tamanhos, se informados)"
     ),
+    marca: Marca | None = Query(default=None, description=FILTRO_MARCA_PRODUTOS),
     ordem: OrdemProdutos | None = Query(
         default=None,
         description="relevancia (padrão com busca), nome (padrão sem busca), novidades, menor_preco ou "
@@ -126,7 +139,8 @@ def listar_produtos(
 ):
     return catalogo.listar_produtos(
         db, limit, offset, publico=catalogo.visao_publica(db, usuario),
-        id_categoria=id_categoria, ativo=ativo, busca=busca, tamanhos=tamanho, disponivel=disponivel, ordem=ordem,
+        id_categoria=id_categoria, ativo=ativo, busca=busca, tamanhos=tamanho, disponivel=disponivel, marca=marca,
+        ordem=ordem,
     )
 
 
@@ -136,9 +150,10 @@ def listar_produtos(
 def tamanhos_a_venda(
     id_categoria: int | None = None,
     busca: str | None = Query(default=None, max_length=100, description="Parte do nome do produto"),
+    marca: Marca | None = Query(default=None, description="Só os tamanhos à venda nessa rede"),
     db: Session = Depends(get_db),
 ):
-    return {"items": catalogo.tamanhos_a_venda(db, id_categoria, busca)}
+    return {"items": catalogo.tamanhos_a_venda(db, id_categoria, busca, marca)}
 
 
 @router.get("/produtos/{id_produto}", response_model=ProdutoSaida, responses={404: ERROS_PRODUTO[404]})

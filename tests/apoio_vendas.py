@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from src.models.catalogo import Produto, Variante
+from src.utils.ean import ean_interno
 from src.models.vendas import EnderecoCliente, EnderecoEntrega, ItemPedido, Pagamento, Pedido
 from src.repositories import endereco_repository, estoque_repository, unidade_repository, usuario_repository
 from src.repositories import catalogo_repository, pedido_repository
@@ -65,15 +66,15 @@ class SessaoVendas(SessaoComTrigger):
 @pytest.fixture
 def banco(monkeypatch):
     produto = Produto(id_produto=1, id_categoria=1, nome="Camisa", descricao_tecnica="t", descricao_cliente="c",
-                      ativo=True)
+                      marca="lorenzi", ativo=True)
     estado = SimpleNamespace(
         variantes={
             CAMISA: (Variante(id_variante=CAMISA, id_produto=1, sku="CAM-M", cor="Azul", tamanho="M",
-                              preco=Decimal("100.00"), ativo=True), produto),
+                              ean=ean_interno(CAMISA), preco=Decimal("100.00"), ativo=True), produto),
             CALCA: (Variante(id_variante=CALCA, id_produto=1, sku="CAM-G", cor="Azul", tamanho="G",
-                             preco=Decimal("250.00"), ativo=True), produto),
+                             ean=ean_interno(CALCA), preco=Decimal("250.00"), ativo=True), produto),
             INATIVA: (Variante(id_variante=INATIVA, id_produto=1, sku="CAM-P", cor="Azul", tamanho="P",
-                               preco=Decimal("100.00"), ativo=False), produto),
+                               ean=ean_interno(INATIVA), preco=Decimal("100.00"), ativo=False), produto),
         },
         unidades={
             LOJA_SP: _unidade(LOJA_SP, "Loja Paulista", "loja", False, "São Paulo", "SP"),

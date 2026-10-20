@@ -22,9 +22,12 @@ def criar_unidade(db: Session, dados: dict) -> Unidade:
     return unidade
 
 
-# o tipo não muda; desativar = ativo false (unidade não é apagada)
+# o tipo não muda; desativar = ativo false (unidade não é apagada). A marca só se corrige antes do
+# primeiro movimento: depois disso, mudar levaria o histórico da unidade para a outra rede
 def alterar_unidade(db: Session, id_unidade: int, campos: dict) -> Unidade:
     unidade = buscar_unidade(db, id_unidade)
+    if campos.get("marca", unidade.marca) != unidade.marca and repo.tem_historico(db, id_unidade):
+        raise Conflito("A marca não muda depois que a unidade tem movimentação de estoque ou venda")
     nome = campos.get("nome")
     if nome is not None:
         outra = repo.unidade_por_nome(db, nome)

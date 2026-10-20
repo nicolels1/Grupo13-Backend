@@ -4,6 +4,7 @@ import pytest
 
 from src.dependencies.supabase import get_storage
 from src.models.catalogo import ImagemProduto, Produto, Variante
+from src.utils.ean import ean_interno
 from src.repositories import catalogo_repository
 from src.use_cases import arquivos, catalogo
 from src.use_cases.erros import RecursoNaoEncontrado, RegraDeNegocio, ServicoIndisponivel
@@ -15,8 +16,10 @@ from tests.apoio import PDF, PNG, SessaoFalsa, StorageFalso, api, funcionario  #
 
 @pytest.fixture
 def banco(monkeypatch):
-    produto = Produto(id_produto=5, id_categoria=1, nome="Camisa", descricao_tecnica="t", descricao_cliente="c", ativo=True)
-    variante = Variante(id_variante=50, id_produto=5, sku="CAM", cor="Azul", tamanho="M", preco=Decimal("10"), ativo=True)
+    produto = Produto(id_produto=5, id_categoria=1, nome="Camisa", descricao_tecnica="t", descricao_cliente="c",
+                      marca="lorenzi", ativo=True)
+    variante = Variante(id_variante=50, id_produto=5, sku="CAM", cor="Azul", tamanho="M", ean=ean_interno(50),
+                        preco=Decimal("10"), ativo=True)
     imagem = ImagemProduto(id_imagem=9, id_produto=5, cor=None, caminho_arquivo="produto-5/a.png", ordem=1)
     r = catalogo_repository
     monkeypatch.setattr(r, "buscar_produto", lambda db, i: produto if i == 5 else None)

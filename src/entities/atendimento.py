@@ -88,7 +88,8 @@ class ChamadoSaida(BaseModel):
     status: Status
     prioridade: Prioridade | None
     motivo_encerramento: MotivoConclusao | None
-    id_cliente: uuid.UUID
+    id_cliente: uuid.UUID | None
+    id_cliente_sem_conta: int | None = Field(description="Cliente do atendimento migrado que ainda não criou conta")
     cliente: str
     id_responsavel: uuid.UUID | None
     responsavel: str | None

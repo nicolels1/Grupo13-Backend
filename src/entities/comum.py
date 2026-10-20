@@ -1,7 +1,12 @@
+from typing import Literal
+
 from pydantic import BaseModel
 
 LIMITE_PADRAO = 50
 LIMITE_MAXIMO = 200
+
+# rede dona da unidade e do produto (P1); só se corrige antes de existir histórico
+Marca = Literal["lorenzi", "vulto"]
 
 
 # listagem grande sempre paginada: devolve uma página e o total, para o frontend montar a navegação

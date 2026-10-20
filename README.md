@@ -63,7 +63,7 @@ src/
 ├── config/         # settings.py (variáveis do .env) e logs.py (logs com id da requisição)
 ├── database/       # base.py (Base dos models) e session.py (engine, sessão e get_db)
 ├── entities/       # schemas Pydantic de entrada e saída de cada área
-├── models/         # tabelas SQLAlchemy (28 tabelas: as 27 do modelo de dados e os destaques do carrossel)
+├── models/         # tabelas SQLAlchemy (30 tabelas: as 27 do modelo de dados, os destaques do carrossel e as 2 da migração da Vulto)
 ├── repositories/   # única camada que consulta e grava no banco
 ├── use_cases/      # regras de negócio
 ├── routes/         # rotas FastAPI, uma por área
@@ -198,6 +198,19 @@ Rodam na raiz do repositório, com o venv ativo e o `.env` preenchido:
 
 A pasta [`migracao_vulto/`](migracao_vulto/) leva os dados da Vulto (banco SQLite e planilhas do vulto-legado-back) para o banco da Casa Lorenzi, em etapas: padronização automática, tratamento com as decisões de negócio e carga. Os dados de origem não ficam neste repositório (têm dados pessoais de clientes): o caminho vem de `VULTO_DATA_DIR`. Como rodar, o que cada etapa faz e o que falta estão no [README da migração](migracao_vulto/README.md); as decisões tomadas sobre os dados, no [registro de decisões](migracao_vulto/registro_decisoes.md).
 
+O que a plataforma ganhou para receber a Vulto (cada item cita a decisão do registro):
+
+- **marca** (`lorenzi` ou `vulto`) na unidade e no produto (P1); a vitrine filtra por marca, e a marca só se corrige enquanto não há movimentação nem venda;
+- **EAN** (código de barras) obrigatório na variante (C12): o de fábrica ou um código interno gerado pelo banco (prefixo 20); o caixa acha a peça pelo leitor;
+- **cliente sem conta** (P2, [ADR 0016](docs/adr/0016-cliente-sem-conta-da-migracao.md)): pedidos e chamados de quem nunca criou conta, que passam para a conta quando a pessoa se cadastra com o mesmo CPF ou e-mail;
+- **origem da migração** (P4): de onde veio cada registro migrado e o que a migração mudou nele, com a decisão aplicada.
+
+Próximos passos, fora da Entrega 3:
+
+- **mudança de rede com data:** hoje a marca é a atual. Se uma loja mudar de rede, um histórico de marca com data (como o de preço) mantém o passado na rede antiga; dá para criar depois sem refazer nada;
+- **notificações por e-mail e consentimento na conta:** a plataforma não manda e-mail da loja. O consentimento de mensagem dos clientes da Vulto está guardado (K9b); antes de qualquer campanha, a conta da Lorenzi também precisa perguntar o consentimento;
+- **EAN das 9 peças da Vulto cortado pelo Excel:** entram com o código interno; a loja corrige lendo a etiqueta (`PATCH /variantes/{id}`).
+
 ## Rotas
 
 A lista completa, com parâmetros e formatos, está em `/docs`. Resumo por área:
@@ -207,7 +220,7 @@ A lista completa, com parâmetros e formatos, está em `/docs`. Resumo por área
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
 | GET | `/health` | público | consulta o banco; 503 se ele não responder |
-| POST | `/clientes` | público | cadastro de cliente (nome, e-mail, CPF e senha); as compras da loja com esse CPF na nota passam para a conta (`compras_ligadas`) |
+| POST | `/clientes` | público | cadastro de cliente (nome, e-mail, CPF e senha); as compras da loja com esse CPF na nota e o histórico do cliente sem conta com esse CPF ou e-mail passam para a conta (`compras_ligadas`) |
 | POST | `/login/cpf` | público | login do cliente por CPF e senha; devolve a sessão do Supabase |
 | GET | `/me` | conta ativa | perfil, tipo de conta e permissões efetivas (monta a tela inicial) |
 | GET | `/visao-geral/resumo?id_unidade=` | conta interna | números e gráficos da Visão Geral; só as seções que a conta pode ver (as outras ficam ausentes) |
@@ -216,17 +229,17 @@ A lista completa, com parâmetros e formatos, está em `/docs`. Resumo por área
 
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
-| GET | `/categorias` | público | categorias, com `imagem_url` (foto do carrossel da página inicial; vazio sem foto) |
+| GET | `/categorias` | público | categorias, com `imagem_url` (foto do carrossel da página inicial; vazio sem foto); `?marca=` traz só as que têm produto ativo da rede |
 | POST, PATCH | `/categorias`, `/categorias/{id}` | `gerenciar_catalogo` | cria e altera categoria |
 | POST, DELETE | `/categorias/{id}/imagem` | `gerenciar_catalogo` | envia ou troca a foto da categoria (multipart: JPG, PNG ou WEBP de até 5 MB, no bucket `produtos`, pasta `categorias/`) ou tira a foto |
 | GET | `/destaques` | público | slides do carrossel do topo da página inicial, na ordem: a loja vê os ativos; quem gerencia o catálogo vê também os desativados |
 | POST, PATCH, DELETE | `/destaques`, `/destaques/{id}` | `gerenciar_catalogo` | cria, altera (texto, botão, link, ordem, ativo) e apaga slide. O link só aceita página da loja (começa com `/`) |
 | POST | `/destaques/{id}/imagem` | `gerenciar_catalogo` | envia ou troca a foto do slide (multipart: JPG, PNG ou WEBP de até 5 MB, no bucket `produtos`, pasta `destaques/`) |
-| GET | `/produtos/tamanhos` | público | tamanhos à venda na vitrine, na ordem da grade (filtra por `id_categoria` e `busca`) |
-| GET | `/produtos`, `/produtos/{id}` | público | vitrine: sem login, só produtos e variantes ativos; quem gerencia o catálogo vê tudo. Cada variante diz se tem peça para vender online (`disponivel`, sem a quantidade). A lista filtra por `tamanho` (repetível: `?tamanho=P&tamanho=M`) e `disponivel` e ordena por `relevancia` (padrão com busca), `nome`, `novidades`, `menor_preco` ou `maior_preco`. A `busca` ignora acentos e procura no nome, categoria, cores e descrição, pelo começo das palavras e por semelhança (erros de digitação, camisa e camiseta); sem resultado, a vitrine traz peças parecidas ou as novidades e avisa em `busca_alternativa` |
+| GET | `/produtos/tamanhos` | público | tamanhos à venda na vitrine, na ordem da grade (filtra por `id_categoria`, `busca` e `marca`) |
+| GET | `/produtos`, `/produtos/{id}` | público | vitrine: sem login, só produtos e variantes ativos; quem gerencia o catálogo vê tudo. Cada variante diz se tem peça para vender online (`disponivel`, sem a quantidade). A lista filtra por `tamanho` (repetível: `?tamanho=P&tamanho=M`) e `disponivel` e ordena por `relevancia` (padrão com busca), `nome`, `novidades`, `menor_preco` ou `maior_preco`. A `busca` ignora acentos e procura no nome, categoria, cores e descrição, pelo começo das palavras e por semelhança (erros de digitação, camisa e camiseta); sem resultado, a vitrine traz peças parecidas ou as novidades e avisa em `busca_alternativa`. `?marca=lorenzi` ou `vulto` mostra a vitrine de uma rede; as sugestões da busca vazia vêm das duas |
 | POST, PATCH | `/produtos`, `/produtos/{id}` | `gerenciar_catalogo` | cria e altera produto |
-| POST | `/produtos/{id}/variantes` | `gerenciar_catalogo` | cria variante (cor, tamanho, SKU e preço) |
-| PATCH | `/variantes/{id}` | `gerenciar_catalogo` | altera variante; mudar o preço grava o histórico |
+| POST | `/produtos/{id}/variantes` | `gerenciar_catalogo` | cria variante (cor, tamanho, SKU, EAN e preço); sem EAN, o banco gera um código interno |
+| PATCH | `/variantes/{id}` | `gerenciar_catalogo` | altera variante; mudar o preço grava o histórico; o EAN se troca, mas não fica vazio |
 | GET | `/variantes/{id}/historico-preco` | `gerenciar_catalogo` | histórico de preço |
 | POST | `/produtos/{id}/imagens` | `gerenciar_catalogo` | envia foto (multipart; sem cor, vale para todas) |
 | PATCH, DELETE | `/imagens/{id}` | `gerenciar_catalogo` | muda a cor ou a ordem da foto, ou apaga a foto (e o arquivo no Storage) |
@@ -259,6 +272,8 @@ As fotos aparecem em `imagens` de cada produto, com a URL pública.
 | POST | `/vendas/pedidos/{id}/cancelar` | `cancelar_pedido_equipe` | antes do envio, com justificativa; se já pago, estorna tudo e devolve as peças ao estoque |
 | GET | `/vendas/clientes?cpf=` | `registrar_venda_fisica` ou `corrigir_cadastro_cliente` | mostra no caixa se o CPF já tem conta |
 | PATCH | `/vendas/clientes/{id}` | `corrigir_cadastro_cliente` | corrige e-mail ou CPF; CPF que já tem conta junta os pedidos nela, e as compras com o CPF certo na nota vão para a conta |
+| GET | `/vendas/clientes-sem-conta?busca=`, `/vendas/clientes-sem-conta/{id}` | qualquer permissão de vendas ou `atender_chamado` | clientes da Vulto que ainda não criaram conta: CPF ou telefone (só números) ou parte do nome ou e-mail. Os pedidos e chamados deles saem em `/vendas/pedidos` e `/atendimento/chamados` com `?id_cliente_sem_conta=` |
+| GET | `/migracao/origem?tabela=&id_registro=` | quem vê pedido, chamado, peça ou estoque | de onde veio um registro migrado da Vulto e o que a migração mudou nele, com a decisão do registro |
 
 ### Estoque
 
@@ -431,7 +446,8 @@ A API é publicada no Render a cada merge na `main`.
 - balcão: troca e devolução na loja sem chamado, para pedidos com ou sem conta, busca do pedido por código, número ou CPF e consulta de peça só de leitura;
 - avaliações: nota, texto e fotos, edição por 7 dias, voto útil, denúncia e moderação;
 - Visão Geral: resumo com vendas por dia, mais vendidas, chamados, números da rede e linha por unidade, conforme as permissões da conta;
-- banco com 28 tabelas, triggers, RLS, usuário restrito e prazos automáticos pelo pg_cron; testes automatizados com CI.
+- migração da Vulto (plataforma): marca na unidade e no produto, EAN na variante, cliente sem conta e origem da migração;
+- banco com 30 tabelas, triggers, RLS, usuário restrito e prazos automáticos pelo pg_cron; testes automatizados com CI.
 
 **Fora do escopo desta entrega:** gateway de pagamento real (ADR 0011) e as evoluções da seção 9 do [case](docs/case/Casa_Lorenzi_Case_Completo.md).
 

@@ -1,5 +1,5 @@
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from types import SimpleNamespace
 
@@ -7,9 +7,9 @@ import pytest
 from pydantic import ValidationError
 
 from src.entities.vendas import VendaFisica
-from src.models.contas import Usuario
+from src.models.contas import ClienteSemConta, Usuario
 from src.models.estoque import MovimentacaoEstoque
-from src.repositories import permissao_repository, pedido_repository, usuario_repository
+from src.repositories import cliente_sem_conta_repository, permissao_repository, pedido_repository, usuario_repository
 from src.app import app
 from src.use_cases import clientes, pedidos, vendas
 from src.use_cases.erros import RegraDeNegocio
@@ -181,12 +181,17 @@ class AuthFalso:
 
 @pytest.fixture
 def contas(monkeypatch):
-    estado = SimpleNamespace(usuarios={}, transferidos=[], ligadas=[], compras_da_loja={CPF_CERTO: 2})
+    estado = SimpleNamespace(usuarios={}, transferidos=[], ligadas=[], compras_da_loja={CPF_CERTO: 2},
+                             migrados={}, passados=[])
     por_cpf = lambda db, cpf: next((u for u in estado.usuarios.values() if u.cpf == cpf), None)  # noqa: E731
 
     def ligar(db, cpf, id_cliente):
         estado.ligadas.append((cpf, id_cliente))
         return estado.compras_da_loja.get(cpf, 0)
+
+    def passar(db, id_usuario, cpf, email):
+        estado.passados.append((id_usuario, cpf, email))
+        return estado.migrados.get(cpf, 0) + estado.migrados.get(email, 0)
 
     m = monkeypatch.setattr
     m(usuario_repository, "email_em_uso", lambda db, e: any(u.email == e for u in estado.usuarios.values()))
@@ -195,6 +200,7 @@ def contas(monkeypatch):
     m(permissao_repository, "buscar_usuario", lambda db, i: estado.usuarios.get(i))
     m(pedido_repository, "transferir_pedidos", lambda db, de, para: estado.transferidos.append((de, para)))
     m(pedido_repository, "ligar_pedidos_pelo_cpf", ligar)
+    m(cliente_sem_conta_repository, "passar_para_conta", passar)
     return estado
 
 
@@ -235,6 +241,24 @@ def test_corrigir_email_nao_liga_compras(contas):
 
     assert usuario.email == "certo@x.com" and ("alterar_email", ID_CLIENTE, "certo@x.com") in auth.chamadas
     assert contas.ligadas == [] and resposta["compras_ligadas"] == 0
+
+
+# o e-mail certo pode ser o de um cliente sem conta da Vulto: o histórico dele vem para a conta (P2)
+def test_corrigir_email_traz_o_historico_do_cliente_sem_conta(contas):
+    conta(contas, ID_CLIENTE, CPF)
+    contas.migrados = {"certo@x.com": 4}
+
+    resposta = clientes.corrigir(SessaoFalsa(), AuthFalso(), ID_CLIENTE, {"email": "certo@x.com"})
+
+    assert contas.passados == [(ID_CLIENTE, CPF, "certo@x.com")] and resposta["compras_ligadas"] == 4
+
+
+def test_corrigir_sem_mudar_cpf_nem_email_nao_mexe_no_historico(contas):
+    conta(contas, ID_CLIENTE, CPF, email="ana@x.com")
+
+    clientes.corrigir(SessaoFalsa(), AuthFalso(), ID_CLIENTE, {"cpf": CPF, "email": "ana@x.com"})
+
+    assert contas.passados == []
 
 
 def test_corrigir_com_supabase_fora_do_ar(contas):
@@ -288,3 +312,47 @@ def test_caixa_nao_cria_conta_nem_ativa(api):
     resposta = api(SessaoFalsa(), usuario=funcionario()).post(
         "/vendas/clientes", json={"nome": "Ana", "cpf": CPF, "email": "a@x.com"})
     assert resposta.status_code == 405
+
+
+# ---------- cliente sem conta (migração da Vulto, ADR 0016) ----------
+
+def sem_conta(id_cliente_sem_conta=7, **campos):
+    dados = dict(id_cliente_sem_conta=id_cliente_sem_conta, nome="Ana Vulto", cpf=CPF, email="ana@x.com",
+                 telefone="11999998888", aceita_mensagem=None, origem="migracao_vulto", id_usuario=None,
+                 criado_em=datetime(2026, 10, 1, tzinfo=timezone.utc))
+    dados.update(campos)
+    return ClienteSemConta(**dados)
+
+
+def test_equipe_busca_cliente_sem_conta(api, monkeypatch):
+    pedidos_feitos = []
+    monkeypatch.setattr(cliente_sem_conta_repository, "listar",
+                        lambda db, limit, offset, busca: pedidos_feitos.append(busca) or ([sem_conta()], 1))
+
+    resposta = api(SessaoFalsa(), usuario=funcionario()).get("/vendas/clientes-sem-conta", params={"busca": "529.982"})
+
+    assert resposta.status_code == 200 and pedidos_feitos == ["529.982"]
+    assert resposta.json()["items"][0]["nome"] == "Ana Vulto" and resposta.json()["total"] == 1
+
+
+def test_cliente_sem_conta_inexistente(api, monkeypatch):
+    monkeypatch.setattr(cliente_sem_conta_repository, "buscar", lambda db, i: None)
+
+    assert api(SessaoFalsa(), usuario=funcionario()).get("/vendas/clientes-sem-conta/9").status_code == 404
+
+
+def test_cliente_sem_conta_exige_permissao(api):
+    resposta = api(SessaoFalsa(), usuario=funcionario(), permitido=False).get("/vendas/clientes-sem-conta")
+
+    assert resposta.status_code == 403
+
+
+# a lista de pedidos da equipe repassa o filtro para o histórico do cliente sem conta
+def test_pedidos_do_cliente_sem_conta(api, monkeypatch):
+    filtros = []
+    monkeypatch.setattr(pedido_repository, "listar_pedidos",
+                        lambda db, limit, offset, **f: filtros.append(f) or ([], 0))
+
+    api(SessaoFalsa(), usuario=funcionario()).get("/vendas/pedidos", params={"id_cliente_sem_conta": 7})
+
+    assert filtros[0]["id_cliente_sem_conta"] == 7

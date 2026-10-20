@@ -20,7 +20,7 @@ def banco(monkeypatch):
         2: CategoriaProduto(id_categoria=2, nome="Vestidos", ativo=True, caminho_imagem="categorias/categoria-2/antiga.png"),
     }
     monkeypatch.setattr(catalogo_repository, "buscar_categoria", lambda db, i: categorias.get(i))
-    monkeypatch.setattr(catalogo_repository, "listar_categorias", lambda db, ativo=None: list(categorias.values()))
+    monkeypatch.setattr(catalogo_repository, "listar_categorias", lambda db, ativo=None, marca=None: list(categorias.values()))
     return categorias
 
 

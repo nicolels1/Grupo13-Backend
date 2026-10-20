@@ -109,7 +109,7 @@ def primeira_resposta(db: Session, desde: datetime) -> tuple[float | None, int]:
     dos chamados abertos desde a data."""
     primeira = (
         select(func.min(Mensagem.criado_em))
-        .where(Mensagem.id_chamado == Chamado.id_chamado, Mensagem.id_autor != Chamado.id_cliente,
+        .where(Mensagem.id_chamado == Chamado.id_chamado, Mensagem.id_autor.is_distinct_from(Chamado.id_cliente),
                Mensagem.interna.is_(False))
         .correlate(Chamado)
         .scalar_subquery()
