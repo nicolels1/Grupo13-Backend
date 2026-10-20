@@ -1,0 +1,9 @@
+valor_vulto,situacao,status_lorenzi,decisao
+(vazio),pago,entregue,V2
+pago,pago,entregue,V13
+aprovado,pago,entregue,V13
+cancelado,cancelado,cancelado,V19
+cancelada,cancelado,cancelado,V19
+aguardando,aguardando,cancelado,V3
+estornado,estornado,entregue,V4
+chargeback,chargeback,entregue,V4

@@ -4,15 +4,27 @@
 import re
 import unicodedata
 from datetime import datetime
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pandas as pd
 
+# Tabelas de tradução da Vulto para a Lorenzi (de_para/*.csv). Cada linha traz a decisão que a justifica;
+# valor que não está na tabela não é traduzido no chute
+DE_PARA = Path(__file__).parent / "de_para"
+
+
+def de_para(nome: str) -> pd.DataFrame:
+    return pd.read_csv(DE_PARA / f"{nome}.csv", dtype=str, keep_default_na=False)
+
+
+_UNIDADES = de_para("unidade").set_index("loja_id")
+
 FUSO_BRASILIA = ZoneInfo("America/Sao_Paulo")
 INICIO, FIM = "2025-01", "2026-09"  # período do faturamento pedido pela Entrega 3
 
-LOJAS_FISICAS = {"1": "Vulto Pinheiros", "2": "Vulto Shopping Eldorado", "3": "Vulto Savassi", "4": "Vulto Batel"}
-CD = "CD Cajamar"  # site e app vendem do CD (V12)
+LOJAS_FISICAS = _UNIDADES.loc[_UNIDADES["tipo"] == "loja", "unidade"].to_dict()  # loja_id → nome (U1)
+CD = _UNIDADES.loc["7", "unidade"]  # site e app vendem do CD (V12)
 LOJA_BATEL = "4"
 
 # pedido do app em centavos: a mediana da razão preço do item / preço do catálogo passa disso (V1).
@@ -47,15 +59,15 @@ def precos_referencia(catalogo: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
 
 # Situação do pedido a partir das grafias do status (V13). Vazio só existe na loja física em
 # jan–fev/2025 e conta como pago (V2)
+_SITUACAO = dict(zip(de_para("status_venda")["valor_vulto"], de_para("status_venda")["situacao"]))
+
+
 def situacao(status) -> str:
     s = "" if pd.isna(status) else str(status).strip().lower()
-    if s in ("", "pago", "aprovado"):
-        return "pago"
-    if s.startswith("cancel"):
-        return "cancelado"
-    if s in ("aguardando", "estornado", "chargeback"):
-        return s
-    raise ValueError(f"status desconhecido: {status!r}")
+    s = s or "(vazio)"
+    if s in _SITUACAO:
+        return _SITUACAO[s]
+    raise ValueError(f"status desconhecido: {status!r} (falta em de_para/status_venda.csv)")
 
 
 # Venda de teste em produção (V8): obs "teste", e-mails internos, CPF de teste e os códigos 99xxx
@@ -220,7 +232,7 @@ RESGATE_MINIMO = 100               # regra do Vulto+; abaixo disso, "2.000" foi 
 DDDS = {11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 24, 27, 28, 31, 32, 33, 34, 35, 37, 38, 41, 42, 43, 44, 45, 46,
         47, 48, 49, 51, 53, 54, 55, 61, 62, 63, 64, 65, 66, 67, 68, 69, 71, 73, 74, 75, 77, 79, 81, 82, 83, 84, 85,
         86, 87, 88, 89, 91, 92, 93, 94, 95, 96, 97, 98, 99}
-LOJA_DO_RESGATE = {"Pinheiros": "1", "Eldorado": "2", "Savassi": "3", "Batel": "4"}
+LOJA_DO_RESGATE = {_UNIDADES.loc[i, "nome_curto"]: i for i in LOJAS_FISICAS}  # "Pinheiros" → "1"
 
 
 def so_digitos(valor) -> str | None:
@@ -453,19 +465,15 @@ INICIO_HISTORICO = "2025-01-01"
 DATA_CONTAGEM = {"Pinheiros": "2026-09-20", "Eldorado": "2026-09-20", "Savassi": "2026-09-20", "Batel": "2026-09-20"}
 DATA_ALTERNATIVA = {"Eldorado": ["2026-09-30"], "Savassi": ["2026-09-30"], "Batel": ["2026-09-13", "2026-09-30"]}
 DATA_WMS = "2026-09-28"      # posição do WMS do CD; os movimentos de 28/09 já estão nela
-UNIDADE_DA_CONTAGEM = {"Pinheiros": LOJAS_FISICAS["1"], "Eldorado": LOJAS_FISICAS["2"], "Savassi": LOJAS_FISICAS["3"],
-                       "Batel": LOJAS_FISICAS["4"], "CD Cajamar": CD}
-UNIDADE_PELO_NOME = {"pinheiros": LOJAS_FISICAS["1"], "eldorado": LOJAS_FISICAS["2"], "savassi": LOJAS_FISICAS["3"],
-                     "batel": LOJAS_FISICAS["4"]}
+UNIDADE_DA_CONTAGEM = {**{_UNIDADES.loc[i, "nome_curto"]: LOJAS_FISICAS[i] for i in LOJAS_FISICAS},
+                       _UNIDADES.loc["7", "nome_curto"]: CD}  # nome da aba da contagem → unidade
+UNIDADE_PELO_NOME = {_UNIDADES.loc[i, "nome_curto"].lower(): LOJAS_FISICAS[i] for i in LOJAS_FISICAS}  # "pinheiros"
 EM_TRANSITO_DESDE = "2026-09-21"  # envio do CD dos últimos 10 dias sem recebimento fica em trânsito (E13)
 DIAS_PAREAMENTO = 3               # saída do CD e recebimento da loja da mesma transferência (E4)
 
 # letra da cor no SKU curto (C7) e a cor escrita por extenso no SKU com espaço
-COR_DA_LETRA = {"B": "BRA", "G": "BEG", "O": "OFF", "C": "CIN", "Y": "AMA", "A": "AZM", "M": "MRR", "H": "VIN",
-                "P": "PRE", "V": "OLI", "L": "LIL", "J": "JCL", "E": "JES"}
-COR_DO_TEXTO = {"BEGE": "BEG", "OFF WHITE": "OFF", "OFF": "OFF", "VERDE OLIVA": "OLI", "VERDE": "OLI", "OLIVA": "OLI",
-                "MARROM": "MRR", "PRETO": "PRE", "BRANCO": "BRA", "LILAS": "LIL", "CINZA MESCLA": "CIN", "CINZA": "CIN",
-                "AZUL MARINHO": "AZM", "VINHO": "VIN", "AMARELO": "AMA", "JEANS CLARO": "JCL", "JEANS ESCURO": "JES"}
+COR_DA_LETRA = dict(zip(de_para("cor")["letra_curta"], de_para("cor")["codigo"]))
+COR_DO_TEXTO = dict(zip(de_para("cor_texto")["texto_vulto"], de_para("cor_texto")["codigo"]))
 CORES = set(COR_DA_LETRA.values())
 TAMANHOS = {"PP", "P", "M", "G", "GG", "U", "36", "38", "40", "42", "44", "46"}
 
