@@ -13,8 +13,8 @@ As decisões de plataforma (P) mudam o formato em que vendas e estoque entram, e
 | Bloco | Quem | Decisões |
 |---|---|---|
 | 1. Decidir juntos primeiro | Nicole e Matias | J1c, J1d, J2, J3, P2, P7, V2–V5 |
-| 2. Nicole | Nicole | P1, P3–P6, P8, P9, K1–K9, A1–A6, U1 |
-| 3. Matias | Matias | V18, E13, C18 |
+| 2. Nicole | Nicole | P1, P3–P6, P9, K1–K9, A1–A6 |
+| 3. Matias | Matias | — (todas decididas: ver registro) |
 
 O que cada decisão do bloco 1 destrava:
 
@@ -99,14 +99,6 @@ Decidida: ver P5 no [registro de decisões](registro_decisoes.md).
 
 - **Sugestão:** a). Separar as falas pelo `[Atendente]:` (1.105 conversas têm). O cliente opcional vale só para os migrados: chamado novo continua exigindo conta (A8).
 
-#### P8. Item sem variante (`DIVERSO`, Batel)
-| Opção | Ganho | Perda |
-|---|---|---|
-| a) Um produto e uma variante genéricos ("Item sem cadastro Vulto"), inativos e sem estoque | Nada muda no banco | Não baixa estoque desses itens |
-| b) `item_pedido.id_variante` opcional + descrição | Fiel ao original | Mexe numa regra central do pedido |
-
-- **Sugestão:** a). 266 itens `DIVERSO` + as 72 vendas da Batel.
-
 #### P9. Funcionários da Vulto como autores
 Decidida: ver P9 no [registro de decisões](registro_decisoes.md).
 
@@ -165,33 +157,8 @@ Decidida: ver A2 no [registro de decisões](registro_decisoes.md).
 - **Opções:** a) **migrar sem cliente, com o contato externo (P6)**; b) achar a venda pela loja, pela peça e pela data; c) não migrar.
 - **Sugestão:** a), e eles entram como margem de erro do atendimento. b) é chute (uma ligação errada é pior do que nenhuma); c) perde histórico de pós-venda. Os 50 de Vulto+ ("meus pontos sumiram", "ganhei 800 pontos numa compra de 300") servem de evidência para a K6.
 
-### Unidades
-
-#### U1. Endereço das unidades da Vulto (obrigatório, a Vulto não tem)
-- **Sugestão:** pedir à Vulto ou usar o endereço público de cada loja; sem isso, a carga das unidades não passa.
-
 ---
 
 ## Bloco 3. Matias
 
-### Vendas e faturamento
-
-#### V18. Desconto
-- **Problema:** a Lorenzi não tem campo de desconto no pedido.
-- **Evidência:** `01_vendas`: 2.898 vendas com desconto; em 2.655 o total já vem com o desconto aplicado; em 243 o desconto não bate com o total.
-- **Opções:** a) não migrar o valor do desconto (o total já está certo; perde-se só "quanto foi de desconto"); b) criar `pedido.valor_desconto` (guarda a informação; mais uma mudança na plataforma).
-- **A conferir antes de decidir:** as 243 vendas em que o desconto não bate.
-
-### Estoque
-
-#### E13. Transferência em trânsito em 01/10
-- **Problema:** peça que o CD enviou antes de 01/10 e a loja recebeu depois (ou nunca anotou) não está no WMS nem na contagem da loja.
-- **Opções:** a) migrar como transferência `enviada` (em trânsito), que a Lorenzi aceita; b) ignorar (as peças em trânsito somem do estoque).
-- **Depende da E4:** é juntando saída e entrada que aparecem as transferências sem entrada.
-
-### Catálogo
-
-#### C18. Categorias da Vulto: compartilhadas com a Lorenzi ou separadas
-- **Problema:** o catálogo da Vulto tem 57 grafias de categoria, e a Lorenzi já tem as suas (Camisetas, Calças...).
-- **Opções:** a) de-para para as categorias da Lorenzi, criando só as que faltarem (o relatório "quanto vendemos de calças no grupo" sai direto); b) categorias próprias da Vulto (separa as redes, mas duplica "Calças").
-- **Observação:** a divisão entre as redes no site vem da marca (P1), não da categoria: com categorias compartilhadas, o site pode ter uma vitrine com filtro de marca ou uma seção por marca. Como o site mostra isso é decisão de tela (Nicole).
+Nenhuma decisão em aberto.
