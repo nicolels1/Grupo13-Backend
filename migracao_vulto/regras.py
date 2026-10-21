@@ -313,6 +313,111 @@ def lancamentos_batel(batel: pd.DataFrame) -> pd.DataFrame:
     })
 
 
+# ---------- vendas: pedidos ----------
+
+# Código do pedido (V15): o do site e do app fica; a loja física, que não numerava, ganha VLT-<id>. A
+# venda da planilha da Batel (V9) ganha VLT-BATEL-<linha da planilha>
+def codigo_venda(pedido_externo, venda_id) -> str:
+    return pedido_externo if isinstance(pedido_externo, str) else f"VLT-{venda_id}"
+
+
+def codigo_batel(linha_origem: str) -> str:
+    return f"VLT-BATEL-{linha_origem.split('!')[1]}"
+
+
+# Conta do vendedor pela grafia anotada na loja (P9); a grafia que mudou de dono ("rafa") vale pela data.
+# None quando a grafia não está na tabela ou não tem conta (a gerente)
+_VENDEDOR = de_para("vendedor")
+
+
+def vendedor(loja_id, grafia, dia: str) -> str | None:
+    if pd.isna(grafia):
+        return None
+    v = _VENDEDOR[(_VENDEDOR["loja_id"] == str(loja_id)) & (_VENDEDOR["grafia"] == sem_acento(str(grafia).strip().lower()))]
+    v = v[((v["valido_desde"] == "") | (v["valido_desde"] <= dia)) & ((v["valido_ate"] == "") | (v["valido_ate"] >= dia))]
+    return v["conta"].iloc[0] or None if len(v) == 1 else None
+
+
+DIAS_DEVOLUCAO = 60  # a compra original de uma devolução ou troca sem referência: até 60 dias antes (V6)
+REF_PEDIDO = r"(?:ref\s*#|pedido|devolucao|dev)\s*#?\s*(\d+)"
+
+
+# Pedido original de cada devolução e troca (V6), nesta ordem: o número citado na obs ("ref #N",
+# "pedido N"); a última compra do mesmo cliente com a mesma peça até 60 dias antes; na troca, a última
+# compra do cliente em qualquer peça, porque a troca registra a peça nova. A original é uma venda que
+# conta no faturamento. Devolve {id da devolução ou troca: (id da original, regra)}
+def pedido_original(lancamentos: pd.DataFrame, itens: pd.DataFrame) -> dict:
+    l = lancamentos.assign(dia=lancamentos["criado_em"].map(dia_brasilia))
+    pecas = itens.assign(sku=itens["sku"].map(sku_oficial)).dropna(subset=["sku"]).groupby("venda_id")["sku"].agg(set)
+    originais = l[(l["tipo"] == "venda") & l["motivo"].isna()]
+    por_id = originais.set_index("id")
+    por_cliente = {c: g.sort_values("criado_em") for c, g in originais.dropna(subset=["identidade"]).groupby("identidade")}
+    achados = {}
+    for d in l[l["tipo"].isin(["devolucao", "troca"]) & l["motivo"].isin([None, "V6 troca"])].itertuples():
+        ref = re.search(REF_PEDIDO, sem_acento(str(d.obs or "")).lower())
+        if ref and ref[1] in por_id.index and por_id.loc[ref[1], "criado_em"] < d.criado_em:
+            achados[d.id] = (ref[1], "referência na obs")
+            continue
+        compras = por_cliente.get(d.identidade)
+        if compras is None:
+            continue
+        antes = compras[compras["criado_em"] < d.criado_em]
+        perto = antes[pd.to_datetime(antes["dia"]) >= pd.to_datetime(d.dia) - pd.Timedelta(days=DIAS_DEVOLUCAO)]
+        mesma = perto[[bool(pecas.get(i, set()) & pecas.get(d.id, set())) for i in perto["id"]]]
+        if len(mesma):
+            achados[d.id] = (mesma["id"].iloc[-1], "mesmo cliente e peça")
+        elif d.tipo == "troca" and len(antes):
+            achados[d.id] = (antes["id"].iloc[-1], "compra anterior do cliente")
+    return achados
+
+
+# Exceção da V6 para a devolução que a regra não liga: as compras da mesma peça na mesma loja antes dela,
+# na ordem em que servem. A única com o mesmo preço em até 60 dias é "única compra possível"; senão vem a
+# mais recente, primeiro com o mesmo preço e sem cliente (para não dar a devolução a uma pessoa sem
+# prova), em 60 dias e, sem nenhuma, em qualquer data antes: "presumida". Devolve [(id, regra)]
+def compras_possiveis(devolucao, vendidos: pd.DataFrame) -> list[tuple[str, str]]:
+    antes = vendidos[(vendidos["loja_id"] == devolucao.loja_id) & (vendidos["peca"] == devolucao.peca)
+                     & (vendidos["criado_em"] < devolucao.criado_em)]
+    perto = pd.to_datetime(antes["dia"]) >= pd.to_datetime(devolucao.dia) - pd.Timedelta(days=DIAS_DEVOLUCAO)
+    mesmo_preco = antes["preco"] == devolucao.preco
+    if (perto & mesmo_preco).sum() == 1:
+        return [(antes.loc[perto & mesmo_preco, "id"].iloc[0], "única compra possível")]
+    ordem = antes.assign(perto=perto, mesmo_preco=mesmo_preco, sem_cliente=antes["identidade"].isna()) \
+        .sort_values(["perto", "mesmo_preco", "sem_cliente", "criado_em"], ascending=False)
+    return [(i, "presumida") for i in ordem["id"].drop_duplicates()]
+
+
+# Venda da planilha que cada relançamento da gerente repete (V9): o mesmo cliente e valor; senão o mesmo
+# cliente; senão o mesmo valor, quando só uma venda da planilha serve. Cada venda da planilha vale para
+# um relançamento só. Devolve {id do relançamento: linha da planilha}
+def par_na_planilha(relancamentos: pd.DataFrame, planilha: pd.DataFrame) -> dict:
+    livres, pares = planilha.copy(), {}
+    criterios = [lambda p, x: (p["identidade"] == x.identidade) & ((p["valor"] - x.corrigido).abs() < 0.005),
+                 lambda p, x: p["identidade"] == x.identidade,
+                 lambda p, x: (p["valor"] - x.corrigido).abs() < 0.005]
+    for criterio in criterios:
+        for x in relancamentos[~relancamentos["id"].isin(pares)].itertuples():
+            achou = livres[criterio(livres, x)]
+            if len(achou) == 1:
+                pares[x.id] = achou["linha_origem"].iloc[0]
+                livres = livres.drop(achou.index)
+    return pares
+
+
+# Peças de uma venda da planilha da Batel (V9): "2x pochete nylon branco U + camisa linho leve lilás G".
+# Devolve [(quantidade, nome do produto, código da cor ou None, tamanho)]; o nome e a cor sem acento,
+# em maiúsculas, para comparar com o catálogo
+def pecas_batel(texto) -> list[tuple[int, str, str | None, str]]:
+    pecas = []
+    for parte in str(texto).split(" + "):
+        m = re.fullmatch(r"(?:(\d+)x\s+)?(.+)\s+(\S+)", parte.strip())
+        resto = nome_normalizado(m[2])
+        cor = next((c for c in sorted(COR_DO_TEXTO, key=len, reverse=True) if resto.endswith(" " + c)), None)
+        nome = resto[: -len(cor)].strip() if cor else resto
+        pecas.append((int(m[1] or 1), nome, COR_DO_TEXTO.get(cor), m[3].upper()))
+    return pecas
+
+
 # ---------- passivo de pontos ----------
 
 DATA_SALDO_INICIAL = "2025-01-01"  # a coluna Pontos da planilha foi congelada nesta data (K5a)

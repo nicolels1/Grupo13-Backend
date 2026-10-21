@@ -341,3 +341,58 @@ def test_separar_canal_da_pinheiros_sem_mudar_o_total():
     p = r.separar_canal(posicao, vendidos).groupby(["unidade", "canal"])["q"].sum()
     assert p[("Vulto Pinheiros", "online")] == 3 and ("Vulto Pinheiros", "loja_fisica") not in p.index
     assert p[("CD Cajamar", "online")] == 10
+
+
+# ---------- vendas: pedidos ----------
+
+def test_codigo_venda_mantem_o_do_site_e_numera_a_loja_fisica():
+    assert r.codigo_venda("S100234", "1") == "S100234"
+    assert r.codigo_venda(None, "17274") == "VLT-17274"
+    assert r.codigo_batel("MARÇO!5") == "VLT-BATEL-5"
+
+
+def test_vendedor_pela_grafia_sem_acento_e_pela_data():
+    assert r.vendedor("1", "Rafa ", "2025-06-01") == "rafael.lima"
+    assert r.vendedor("1", "rafa", "2026-01-10") == "rafaela.couto"
+    assert r.vendedor("1", "rafa", "2025-11-05") is None  # entre as duas validades, sem dono
+    assert r.vendedor("4", "gerente", "2026-03-25") is None
+
+
+def test_pecas_batel_separa_quantidade_nome_cor_e_tamanho():
+    assert r.pecas_batel("2x pochete nylon branco U + moletom zíper college azul marinho M") == [
+        (2, "POCHETE NYLON", "BRA", "U"), (1, "MOLETOM ZIPER COLLEGE", "AZM", "M")]
+
+
+def test_pedido_original_pela_referencia_e_pelo_cliente_e_peca():
+    lancamentos = pd.DataFrame({
+        "id": ["1", "2", "3", "4"], "tipo": ["venda", "venda", "devolucao", "devolucao"],
+        "motivo": [None, None, None, None], "identidade": ["111", "222", "222", "333"],
+        "criado_em": ["2026-01-01 12:00:00+00:00", "2026-01-05 12:00:00+00:00", "2026-02-01 12:00:00+00:00",
+                      "2026-02-01 12:00:00+00:00"],
+        "obs": [None, None, "devolucao ref #1", "dev"]})
+    itens = pd.DataFrame({"venda_id": ["1", "2", "3", "4"], "sku": ["CAM004BM"] * 4})
+    assert r.pedido_original(lancamentos, itens) == {"3": ("1", "referência na obs")}
+
+
+def test_ratear_fecha_o_valor_da_venda():
+    from migracao_vulto import tratar as t
+    pecas = [dict(referencia=100.0, quantidade=2), dict(referencia=50.0, quantidade=1)]
+    unitarios = t.ratear(200.0, pecas)
+    assert round(unitarios[0] * 2 + unitarios[1], 2) == 200.0
+
+
+def test_compras_possiveis_unica_no_mesmo_preco_e_depois_presumida_sem_cliente():
+    vendidos = pd.DataFrame({
+        "id": ["1", "2", "3"], "loja_id": ["1"] * 3, "peca": ["CAM"] * 3, "preco": [89.9, 99.9, 99.9],
+        "criado_em": ["2026-01-01", "2026-01-10", "2026-01-12"], "dia": ["2026-01-01", "2026-01-10", "2026-01-12"],
+        "identidade": [None, None, "111"]})
+    devolucao = pd.Series(dict(loja_id="1", peca="CAM", preco=89.9, criado_em="2026-02-01", dia="2026-02-01"))
+    assert r.compras_possiveis(devolucao, vendidos) == [("1", "única compra possível")]
+    devolucao["preco"] = 99.9
+    assert [i for i, _ in r.compras_possiveis(devolucao, vendidos)][:2] == ["2", "3"]
+
+
+def test_par_na_planilha_pelo_cliente_e_depois_pelo_valor():
+    relancamentos = pd.DataFrame({"id": ["10", "11"], "identidade": ["111", None], "corrigido": [100.0, 50.0]})
+    planilha = pd.DataFrame({"linha_origem": ["M!4", "M!5"], "identidade": ["111", None], "valor": [99.0, 50.0]})
+    assert r.par_na_planilha(relancamentos, planilha) == {"10": "M!4", "11": "M!5"}

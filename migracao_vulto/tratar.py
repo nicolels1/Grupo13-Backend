@@ -12,6 +12,8 @@
 # Uso, na raiz do repositório com o venv ativo:
 #   python -m migracao_vulto.tratar --origem staging_vulto --destino tratado_vulto
 import argparse
+import re
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -423,6 +425,287 @@ def tratar_clientes(origem: Path, saida: Saida) -> pd.Series:
     return pd.Series(de_onde).value_counts()
 
 
+# ---------- vendas ----------
+
+STATUS_LORENZI = dict(zip(de_para("status_venda")["situacao"], de_para("status_venda")["status_lorenzi"]))
+METODO = dict(zip(de_para("metodo_pagamento")["valor_vulto"], de_para("metodo_pagamento")["metodo"]))
+CONTA_MIGRACAO = de_para("conta_interna").set_index("conta").loc["migracao", "email"]
+EMAIL_DA_CONTA = de_para("conta_interna").set_index("conta")["email"]
+JUSTIFICATIVA = {"V14": "Cancelado no sistema da Vulto, motivo não registrado",
+                 "V3": "Aguardando pagamento no sistema da Vulto, sem pagamento registrado"}
+NAO_MIGRA = ("V8 teste", "V5 cópia do pedido", "V9 relançamento da Batel")
+
+
+# Identidade do comprador de cada venda do banco: a dos compradores (J1a, J1b, P2) e, no cliente_ref que
+# o staging não aceitou (nas pendências), o dono do celular sem DDD (J1d) ou do CPF digitado errado (K2)
+def identidade_das_vendas(origem: Path) -> tuple[pd.Series, pd.Series, r.Compradores]:
+    clientes = ler(origem, "clientes_clientes").replace("", None)
+    pendencias = ler(origem, "pendencias").replace("", None)
+    conhecidos = r.cpfs_conhecidos(clientes["cpf"], ler(origem, "banco_pontos_mov").replace("", None)["cpf"],
+                                   ler(origem, "clientes_resgates").replace("", None)["cliente_cpf"],
+                                   ler(origem, "clientes_antigos").replace("", None)["CPF/CNPJ"],
+                                   ler(origem, "banco_compras").replace("", None)["cliente_ref"],
+                                   ler(origem, "banco_vendas").replace("", None)["cliente_ref"])
+    ident = r.Identidades(clientes.copy(), pendencias, conhecidos)
+    clientes["cpf"], _ = r.cpf_do_cadastro(clientes, pendencias, conhecidos)
+    comp, identidade = compradores(origem, clientes)
+    digitado = pendencias[(pendencias["coluna"] == "cliente_ref") & pendencias["linha"].str.startswith("vendas#")]
+    regra = pd.Series(dtype=object)
+    for linha, valor in zip(digitado["linha"], digitado["valor"]):
+        d = r.so_digitos(valor)
+        dono, regra[linha] = ident.onze_digitos(d, "." in valor) if len(d) == 11 else ident.nove_digitos(d)
+        if dono and dono != r.CPF_TESTE:
+            identidade[linha.removeprefix("vendas#")] = dono
+    return identidade, regra, comp
+
+
+def em_utc(quando: str) -> str:
+    return datetime.fromisoformat(quando).astimezone(r.ZoneInfo("UTC")).strftime("%Y-%m-%d %H:%M:%S+00:00")
+
+
+# Rateia o valor da venda da Batel entre as peças pelo preço de referência de cada uma (a planilha só tem
+# o valor da venda). Os centavos que sobram do arredondamento vão para uma peça de quantidade 1
+def ratear(valor: float, pecas: list[dict]) -> list[float]:
+    soma = sum(p["referencia"] * p["quantidade"] for p in pecas)
+    unitarios = [round(valor * p["referencia"] / soma, 2) for p in pecas]
+    resto = round(valor - sum(u * p["quantidade"] for u, p in zip(unitarios, pecas)), 2)
+    uma = next((i for i, p in enumerate(pecas) if p["quantidade"] == 1), None)
+    if resto and uma is not None:
+        unitarios[uma] = round(unitarios[uma] + resto, 2)
+    return unitarios
+
+
+# V2–V19, P3, P7, V6, V9: um pedido por venda que migra (as canceladas e as aguardando como canceladas),
+# com os itens e o pagamento; o estorno do V4 e o da devolução (V6) apontam para o pagamento original.
+# A troca e a devolução não viram pedido; a devolução sem pedido original fica nas pendências (V6)
+def tratar_vendas(origem: Path, saida: Saida) -> dict:
+    vendas = ler(origem, "banco_vendas").replace("", None)
+    itens = ler(origem, "banco_itens_venda").replace("", None)
+    catalogo = ler(origem, "catalogo_produtos").replace("", None)
+    batel = ler(origem, "batel_vendas_manuais").replace("", None)
+    variantes = saida.tabelas["variante"].merge(saida.tabelas["produto"], left_on="produto", right_on="codigo")
+    skus = set(variantes["sku"])
+    reaproveitados = r.codigos_reaproveitados(catalogo)
+    clientes = set(saida.tabelas["cliente_sem_conta"]["cpf"].dropna()) | \
+        set(saida.tabelas["cliente_sem_conta"]["email"].dropna())
+
+    l = r.lancamentos_banco(vendas, itens, catalogo)
+    identidade, regra_dono, comp = identidade_das_vendas(origem)
+    l["identidade"] = l["id"].map(identidade)
+    l["dia"] = l["criado_em"].map(r.dia_brasilia)
+    pedidos, linhas_itens, pagamentos = [], [], []
+
+    def cliente(chave, tabela, fonte, linha):
+        if isinstance(chave, str) and chave not in clientes:
+            saida.pendente(tabela, fonte, linha, "cliente", chave, "comprador fora da tabela de clientes")
+            return None
+        return chave
+
+    def pagar(codigo, valor, quando, metodo, fonte, linha):
+        chave = f"{codigo}#pagamento"
+        pagamentos.append(dict(chave=chave, pedido=codigo, tipo="pagamento", pagamento_original=None, origem="migracao",
+                               metodo=metodo, valor=valor, status="aprovado", criado_em=quando))
+        saida.de_onde("pagamento", chave, fonte, linha, "P7")
+        return chave
+
+    def estornar(codigo, original, valor, quando, metodo, fonte, linha, decisao, n=1):
+        chave = f"{codigo}#estorno{n}"
+        pagamentos.append(dict(chave=chave, pedido=codigo, tipo="estorno", pagamento_original=original,
+                               origem="migracao", metodo=metodo, valor=valor, status="aprovado", criado_em=quando))
+        saida.de_onde("pagamento", chave, fonte, linha, decisao)
+
+    migra = l[(l["tipo"] == "venda") & ~l["motivo"].isin(NAO_MIGRA)]
+    itens_por_venda = itens.groupby("venda_id")
+    codigo_do_id = {}
+    for v in migra.itertuples():
+        codigo = r.codigo_venda(v.pedido_externo, v.id)
+        codigo_do_id[v.id] = codigo
+        status = STATUS_LORENZI[v.situacao]
+        cancelado = status == "cancelado"
+        loja = v.canal == "loja"
+        conta = r.vendedor(v.loja_id, v.vendedor, v.dia) if loja else None
+        if loja and isinstance(v.vendedor, str) and conta is None:
+            saida.pendente("pedido", FONTE_BANCO, v.linha_origem, "vendedor", v.vendedor, "grafia sem conta (P9)")
+        chave_cliente = cliente(v.identidade, "pedido", FONTE_BANCO, v.linha_origem)
+        if not loja and chave_cliente is None:
+            saida.pendente("pedido", FONTE_BANCO, v.linha_origem, "cliente", v.cliente_ref,
+                           "pedido online sem cliente (online_exige_cliente)")
+        escala = 0.01 if v.em_centavos else 1.0
+        pedidos.append(dict(
+            codigo_venda=codigo, cliente=chave_cliente, unidade=v.unidade,
+            registrado_por=EMAIL_DA_CONTA.get(conta), canal="loja_fisica" if loja else "online", canal_venda=v.canal,
+            modalidade=None if loja else "entrega", status=status, motivo_cancelamento="equipe" if cancelado else None,
+            cancelado_por=CONTA_MIGRACAO if cancelado else None,
+            justificativa_cancelamento=JUSTIFICATIVA["V3" if v.situacao == "aguardando" else "V14"] if cancelado else None,
+            devolucao="nenhuma", valor_frete=v.frete_venda, valor_desconto=round(v.desconto * escala, 2),
+            valor_total=v.corrigido, pago_em=None if cancelado else v.criado_em,
+            entregue_em=v.criado_em if loja and not cancelado else None, criado_em=v.criado_em))
+
+        onde = lambda decisao, campo=None, valor=None: saida.de_onde("pedido", codigo, FONTE_BANCO, v.linha_origem,
+                                                                     decisao, campo, valor)
+        onde("V13" if not cancelado else ("V3" if v.situacao == "aguardando" else "V14"))
+        if not isinstance(v.pedido_externo, str):
+            onde("V15", "codigo_venda", v.id)
+        if v.status != "pago":
+            onde({"pago": "V2" if pd.isna(v.status) else "V13", "aguardando": "V3", "cancelado": "V14",
+                  "estornado": "V4", "chargeback": "V4"}[v.situacao], "status", v.status)
+        if v.em_centavos:
+            onde("V1", "valor_total", v.total)
+        if v.canal == "app" and v.loja_id != "6":
+            onde("P3", "loja_id", v.loja_id)
+        if v.linha_origem in regra_dono.index:
+            onde("J1d" if regra_dono[v.linha_origem].startswith("J1d") else "K2", "cliente_ref", v.cliente_ref)
+        if v.cliente_tipo == "cnpj":
+            onde("P2", "cliente_ref", v.cliente_ref)
+
+        for i in itens_por_venda.get_group(v.id).itertuples() if v.id in itens_por_venda.groups else []:
+            variante = r.variante_vendida(r.sku_oficial(i.sku), i.descricao, reaproveitados)
+            if variante not in skus:
+                if variante is not None:
+                    saida.pendente("item_pedido", FONTE_BANCO, i.linha_origem, "sku", i.sku, "variante fora do catálogo")
+                variante = SKU_SEM_CADASTRO
+            linhas_itens.append(dict(item=i.linha_origem, pedido=codigo, variante=variante, quantidade=int(i.qtd),
+                                     preco_unitario=round(float(i.preco_unit) * escala, 2)))
+            if variante == SKU_SEM_CADASTRO:
+                saida.de_onde("item_pedido", i.linha_origem, FONTE_BANCO, i.linha_origem, "P8", "variante",
+                              f"{i.sku} | {i.descricao}")
+            if v.em_centavos:
+                saida.de_onde("item_pedido", i.linha_origem, FONTE_BANCO, i.linha_origem, "V1", "preco_unitario",
+                              i.preco_unit)
+
+        if not cancelado:
+            original = pagar(codigo, v.corrigido, v.criado_em, METODO["(vazio)"], FONTE_BANCO, v.linha_origem)
+            if v.situacao in ("estornado", "chargeback"):
+                estornar(codigo, original, v.corrigido, v.criado_em, METODO["(vazio)"], FONTE_BANCO, v.linha_origem, "V4")
+
+    # V5: a cópia do pedido fica na origem do pedido que migrou
+    for v in l[l["motivo"] == "V5 cópia do pedido"].itertuples():
+        saida.de_onde("pedido", v.pedido_externo, FONTE_BANCO, v.linha_origem, "V5")
+
+    p = pd.DataFrame(pedidos).set_index("codigo_venda")
+    vendidos_planilha = []  # peças da planilha da Batel, onde a devolução também procura a compra (V6)
+
+    # V9: a planilha da Batel em 02–22/03; a peça achada pelo texto, o resto na variante genérica (P8)
+    ref_variante = variantes.assign(nome_n=variantes["nome"].map(r.nome_normalizado),
+                                    cor_c=variantes["sku"].str[12:15])
+    ref_modelo = ref_variante.groupby("nome_n")["preco"].median()
+    for b in batel[batel["QTD"].notna()].itertuples():
+        codigo = r.codigo_batel(b.linha_origem)
+        dia = r.data_batel(b.DATA)
+        # sem hora: vale o dia
+        quando = datetime.fromisoformat(f"{dia}T{b.HORA or '00:00'}").replace(tzinfo=r.FUSO_BRASILIA).isoformat()
+        obs = (b.OBS or "").lower()
+        cancelado = "cancel" in obs
+        valor = float(b.VALOR)
+        pecas = []
+        for qtd, nome, cor, tam in r.pecas_batel(b.PEÇAS):
+            achou = ref_variante[(ref_variante["nome_n"] == nome) & (ref_variante["cor_c"] == cor)
+                                 & (ref_variante["tamanho"] == tam)]
+            variante = achou["sku"].iloc[0] if len(achou) == 1 else SKU_SEM_CADASTRO
+            referencia = achou["preco"].iloc[0] if len(achou) == 1 else ref_modelo.get(nome, 1.0)
+            pecas.append(dict(quantidade=qtd, variante=variante, referencia=float(referencia), texto=nome))
+        if sum(pc["quantidade"] for pc in pecas) != int(b.QTD):
+            saida.pendente("item_pedido", FONTE_BATEL, b.linha_origem, "QTD", b.QTD, "quantidade diferente das peças")
+        for n, (pc, unit) in enumerate(zip(pecas, ratear(valor, pecas)), 1):
+            item = f"{b.linha_origem}#{n}"
+            linhas_itens.append(dict(item=item, pedido=codigo, variante=pc["variante"], quantidade=pc["quantidade"],
+                                     preco_unitario=unit))
+            if not cancelado:
+                vendidos_planilha.append(dict(id=codigo, loja_id=r.LOJA_BATEL, dia=dia, peca=pc["variante"], preco=unit,
+                                              criado_em=em_utc(quando), identidade=comp.identidade("cpf", b.CPF)))
+            if pc["variante"] == SKU_SEM_CADASTRO:
+                saida.de_onde("item_pedido", item, FONTE_BATEL, b.linha_origem, "P8", "variante", pc["texto"])
+        chave_cliente = cliente(comp.identidade("cpf", b.CPF), "pedido", FONTE_BATEL, b.linha_origem)
+        conta = r.vendedor(r.LOJA_BATEL, b.VENDEDORA, dia)
+        p.loc[codigo] = pd.Series(dict(
+            cliente=chave_cliente, unidade=r.LOJAS_FISICAS[r.LOJA_BATEL], registrado_por=EMAIL_DA_CONTA.get(conta),
+            canal="loja_fisica", canal_venda="loja", modalidade=None, status="cancelado" if cancelado else "entregue",
+            motivo_cancelamento="equipe" if cancelado else None, cancelado_por=CONTA_MIGRACAO if cancelado else None,
+            justificativa_cancelamento=JUSTIFICATIVA["V14"] if cancelado else None, devolucao="nenhuma",
+            valor_frete=0.0, valor_desconto=0.0, valor_total=valor, pago_em=None if cancelado else quando,
+            entregue_em=None if cancelado else quando, criado_em=quando))
+        saida.de_onde("pedido", codigo, FONTE_BATEL, b.linha_origem, "V9")
+        if b.DATA.endswith("00:00:00") or len(b.DATA) == 5:  # o Excel trocou dia e mês ou não tem o ano
+            saida.de_onde("pedido", codigo, FONTE_BATEL, b.linha_origem, "V9", "criado_em", b.DATA)
+        if not cancelado:
+            metodo = METODO[b.PGTO.strip().lower()]
+            original = pagar(codigo, valor, quando, metodo, FONTE_BATEL, b.linha_origem)
+            if "estorn" in obs:
+                estornar(codigo, original, valor, quando, metodo, FONTE_BATEL, b.linha_origem, "V4")
+
+    # V6: a devolução vira estorno no pagamento do pedido original. Sem original pela regra, vale a exceção:
+    # o relançamento citado na obs ou a compra da mesma peça na mesma loja (r.compras_possiveis); o
+    # relançamento da gerente leva à venda da planilha que ele repete (V9)
+    relancamentos = l[l["motivo"] == "V9 relançamento da Batel"]
+    planilha = batel[batel["QTD"].notna()].assign(identidade=lambda b: b["CPF"].map(lambda c: comp.identidade("cpf", c)),
+                                                 valor=lambda b: pd.to_numeric(b["VALOR"]))
+    for relancamento, linha in r.par_na_planilha(relancamentos, planilha).items():
+        codigo_do_id[relancamento] = r.codigo_batel(linha)
+    codigo_do_id.update({v["id"]: v["id"] for v in vendidos_planilha})
+    pecas = itens.assign(peca=itens["sku"].map(r.sku_oficial).fillna(itens["sku"]),
+                         preco=pd.to_numeric(itens["preco_unit"]).abs())
+    vendidos = pecas.drop(columns="id").merge(l[l["id"].isin(codigo_do_id) & (l["tipo"] == "venda") & ~l["situacao"].isin(
+        ["cancelado", "aguardando"])][["id", "loja_id", "criado_em", "dia", "identidade"]], left_on="venda_id", right_on="id")
+    vendidos = pd.concat([vendidos, pd.DataFrame(vendidos_planilha)], ignore_index=True)
+    estornado = pd.DataFrame(pagamentos).query("tipo == 'estorno'").groupby("pedido")["valor"].sum()
+    estornado = estornado.reindex(p.index).fillna(0.0)
+    n_estornos = pd.Series(1, index=estornado[estornado > 0].index).reindex(p.index).fillna(0).astype(int)
+    originais = r.pedido_original(l, itens)
+    devolucoes = l[(l["tipo"] == "devolucao") & l["motivo"].isna()].sort_values("criado_em")
+    sem_original = 0.0
+    for d in devolucoes.itertuples():
+        valor = round(-d.corrigido, 2)
+        possiveis = [originais[d.id]] if d.id in originais else []
+        ref = re.search(r.REF_PEDIDO, r.sem_acento(str(d.obs or "")).lower())
+        devolvidas = pecas[pecas["venda_id"] == d.id]
+        if ref and ref[1] in relancamentos["id"].values:
+            # relançamento sem par na planilha: a venda da planilha de mesmo valor com a peça devolvida
+            valor_rel = relancamentos.loc[relancamentos["id"] == ref[1], "corrigido"].iloc[0]
+            mesma = vendidos[vendidos["id"].str.startswith("VLT-BATEL-") & vendidos["peca"].isin(devolvidas["peca"])]
+            mesma = mesma[mesma["id"].map(lambda c: abs(p.loc[c, "valor_total"] - valor_rel) < 0.005)]
+            possiveis += [(ref[1], "relançamento citado na obs")] +                 [(c, "relançamento citado na obs") for c in mesma["id"].drop_duplicates()]
+        for peca in devolvidas.itertuples():
+            devolvida = pd.Series(dict(loja_id=d.loja_id, criado_em=d.criado_em, dia=d.dia, peca=peca.peca,
+                                       preco=peca.preco))
+            possiveis += r.compras_possiveis(devolvida, vendidos)
+        codigo, regra = next(((codigo_do_id[i], regra) for i, regra in possiveis if i in codigo_do_id
+                              and estornado[codigo_do_id[i]] + valor <= p.loc[codigo_do_id[i], "valor_total"] + 0.005),
+                             (None, None))
+        if codigo is None:
+            sem_original += valor
+            saida.pendente("pagamento", FONTE_BANCO, d.linha_origem, "valor", valor,
+                           "devolução sem nenhuma compra possível (V6)")
+            continue
+        estornado[codigo] += valor
+        n_estornos[codigo] += 1
+        estornar(codigo, f"{codigo}#pagamento", valor, d.criado_em, METODO["(vazio)"], FONTE_BANCO, d.linha_origem,
+                 "V6", n_estornos[codigo])
+        saida.de_onde("pagamento", f"{codigo}#estorno{n_estornos[codigo]}", FONTE_BANCO, d.linha_origem, "V6",
+                      "pedido_original", regra)
+        itens_valor = p.loc[codigo, "valor_total"] - p.loc[codigo, "valor_frete"]
+        p.loc[codigo, "devolucao"] = "total" if estornado[codigo] >= itens_valor - 0.005 else "parcial"
+
+    saida.tabela("pedido", p.reset_index())
+    saida.tabela("item_pedido", pd.DataFrame(linhas_itens))
+    saida.tabela("pagamento", pd.DataFrame(pagamentos))
+    return dict(sem_original=round(sem_original, 2))
+
+
+# Faturamento que a plataforma vai calcular com os pedidos migrados: pagamentos menos estornos, sem o
+# frete dos pedidos que contam (V7), por mês de Brasília. Tem de fechar com o numeros.md
+def faturamento_tratado(saida: Saida) -> pd.Series:
+    pg = saida.tabelas["pagamento"].merge(saida.tabelas["pedido"][["codigo_venda", "valor_frete"]],
+                                         left_on="pedido", right_on="codigo_venda")
+    pg["mes"] = pg["criado_em"].map(r.mes_brasilia)
+    pg["valor_fat"] = pg["valor"].where(pg["tipo"] == "pagamento", -pg["valor"])
+    estornados_v4 = set(pg.loc[(pg["tipo"] == "estorno") & pg["chave"].str.endswith("#estorno1")
+                               & (pg["valor"] == pg["pedido"].map(pg[pg["tipo"] == "pagamento"]
+                                                                  .set_index("pedido")["valor"])), "pedido"])
+    frete = pg[(pg["tipo"] == "pagamento") & ~pg["pedido"].isin(estornados_v4)]
+    fat = pg.groupby("mes")["valor_fat"].sum().sub(frete.groupby("mes")["valor_frete"].sum(), fill_value=0)
+    return fat[(fat.index >= r.INICIO) & (fat.index <= r.FIM)].round(2)
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--origem", type=Path, default=Path("staging_vulto"))
@@ -434,9 +717,12 @@ def main():
     tratar_contas_internas(args.origem, saida)
     tratar_catalogo(args.origem, saida)
     por_origem = tratar_clientes(args.origem, saida)
+    vendas = tratar_vendas(args.origem, saida)
     saida.gravar(args.destino)
 
     print("clientes por origem:", por_origem.to_dict())
+    fat = faturamento_tratado(saida)
+    print(f"faturamento dos pedidos: {fat.sum():,.2f} | devoluções sem pedido original: {vendas['sem_original']:,.2f}")
 
     for nome, df in saida.tabelas.items():
         print(f"{nome}: {len(df)} linhas")
