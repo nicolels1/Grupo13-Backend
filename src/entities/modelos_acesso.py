@@ -25,6 +25,7 @@ CodigoPermissao = Literal[
     "corrigir_cadastro_cliente",
     "atender_chamado",
     "moderar_avaliacoes",
+    "gerenciar_fidelidade",
 ]
 
 

@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, Index, Numeric, String, Text, UniqueConstraint, Uuid, func, text
+from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, Index, Numeric, String, Text, Uuid, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database.base import Base
@@ -14,8 +14,9 @@ CATEGORIAS = "('bronze', 'prata', 'ouro')"
 
 
 # regras do programa de fidelidade de cada marca, com a data em que passam a valer (P5, K3, K4a, P10).
-# Regra nova é uma linha nova e vale da data dela em diante: o ponto ganho guarda o valor da época.
-# Nunca alterada (trigger bloqueia_alteracao)
+# Regra nova é uma linha nova, só para uma data futura (trigger regra_so_no_futuro), e vale da data dela em
+# diante: o ponto ganho guarda o valor da época. Para a mesma data vale a criada por último, assim uma regra
+# que ainda não começou se corrige com outra. Nunca alterada (trigger bloqueia_alteracao)
 class RegraFidelidade(Base):
     __tablename__ = "regra_fidelidade"
 
@@ -38,7 +39,6 @@ class RegraFidelidade(Base):
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
-        UniqueConstraint("marca", "valida_desde"),
         CheckConstraint(f"marca IN {MARCAS}", name="marca_valida"),
         CheckConstraint("valor_ponto > 0 AND pontos_por_real >= 0", name="valores_validos"),
         CheckConstraint("multiplicador_online >= 1 AND bonus_ouro >= 0", name="bonus_validos"),
@@ -49,6 +49,8 @@ class RegraFidelidade(Base):
         ),
         CheckConstraint("0 < limite_prata AND limite_prata < limite_ouro", name="limites_validos"),
         CheckConstraint("resgate_minimo > 0", name="resgate_minimo_positivo"),
+        # regra vigente de cada marca (regra_vigente)
+        Index("ix_regra_fidelidade_marca_valida_desde", "marca", "valida_desde"),
     )
 
 

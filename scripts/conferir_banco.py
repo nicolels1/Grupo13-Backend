@@ -209,6 +209,11 @@ def conferir_fidelidade(c: Conferencia, db: Session, sufixo: str) -> None:
     deve_recusar(c, db, "movimento de pontos não é editado",
                  "UPDATE movimento_pontos SET motivo = 'x' WHERE id_cliente_sem_conta = :c", dono)
     deve_recusar(c, db, "regra de fidelidade não é apagada", "DELETE FROM regra_fidelidade", {})
+    deve_recusar(c, db, "regra de fidelidade nova não vale para hoje nem para trás",
+                 "INSERT INTO regra_fidelidade (marca, valida_desde, valor_ponto, pontos_por_real, "
+                 "multiplicador_online, bonus_ouro, limite_prata, limite_ouro, resgate_minimo) "
+                 "VALUES ('lorenzi', (now() AT TIME ZONE 'America/Sao_Paulo')::date, "
+                 "0.05, 1, 2, 0, 2000, 5000, 100)", {})
     deve_recusar(c, db, "a plataforma não deixa o saldo de pontos negativo",
                  "INSERT INTO movimento_pontos (id_cliente_sem_conta, marca, tipo, pontos, origem, motivo) "
                  "VALUES (:c, 'vulto', 'ajuste', -99999, 'plataforma', 'teste')", dono)
