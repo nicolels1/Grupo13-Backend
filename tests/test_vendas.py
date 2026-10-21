@@ -407,3 +407,13 @@ def test_pedidos_do_cliente_sem_conta(api, monkeypatch):
     api(SessaoFalsa(), usuario=funcionario()).get("/vendas/pedidos", params={"id_cliente_sem_conta": 7})
 
     assert filtros[0]["id_cliente_sem_conta"] == 7
+
+
+def test_pedidos_do_cliente_com_conta(api, monkeypatch):
+    filtros = []
+    monkeypatch.setattr(pedido_repository, "listar_pedidos",
+                        lambda db, limit, offset, **f: filtros.append(f) or ([], 0))
+
+    api(SessaoFalsa(), usuario=funcionario()).get("/vendas/pedidos", params={"id_cliente": str(ID_CLIENTE)})
+
+    assert filtros[0]["id_cliente"] == ID_CLIENTE

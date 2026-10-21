@@ -276,6 +276,16 @@ def test_meus_chamados_filtra_pelo_responsavel(banco):
     assert banco.filtros == ("equipe", {"status": "em_andamento", "id_responsavel": eu.id_usuario})
 
 
+# a ficha do cliente com conta lista os chamados dele pela fila da equipe
+def test_fila_filtra_pelo_cliente_com_conta(api, banco):
+    id_cliente = uuid.UUID("44444444-4444-4444-4444-444444444444")
+
+    resposta = api(SessaoFalsa(), usuario=funcionario()).get("/atendimento/chamados", params={"id_cliente": str(id_cliente)})
+
+    assert resposta.status_code == 200
+    assert banco.filtros[1]["id_cliente"] == id_cliente
+
+
 # ---------- consultas ----------
 
 def sql(consulta):

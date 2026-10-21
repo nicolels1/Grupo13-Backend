@@ -42,6 +42,7 @@ def listar(
     modalidade: Modalidade | None = None,
     id_unidade: int | None = None,
     codigo_venda: str | None = Query(None, max_length=20),
+    id_cliente: uuid.UUID | None = Query(None, description="Pedidos de um cliente com conta"),
     id_cliente_sem_conta: int | None = Query(None, description="Pedidos de um cliente da Vulto sem conta"),
     pronto_ha_mais_de_dias: int | None = Query(
         None, ge=0, description="Retiradas prontas há mais de N dias (risco de vencer)",
@@ -55,7 +56,8 @@ def listar(
 ):
     return vendas.listar(
         db, limit, offset, pronto_ha_mais_de_dias, de, ate, status=status_pedido, canal=canal, modalidade=modalidade,
-        id_unidade=id_unidade, codigo_venda=codigo_venda, id_cliente_sem_conta=id_cliente_sem_conta,
+        id_unidade=id_unidade, codigo_venda=codigo_venda, id_cliente=id_cliente,
+        id_cliente_sem_conta=id_cliente_sem_conta,
     )
 
 
