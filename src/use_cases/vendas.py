@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from src.models.contas import Usuario
 from src.models.vendas import ItemPedido, Pagamento, Pedido
-from src.repositories import estoque_repository, unidade_repository, usuario_repository
+from src.repositories import cliente_sem_conta_repository, estoque_repository, unidade_repository, usuario_repository
 from src.repositories import pedido_repository as repo
 from src.use_cases import pagamentos
 from src.use_cases.erros import RecursoNaoEncontrado, RegraDeNegocio
@@ -45,13 +45,16 @@ def registrar_venda_fisica(db: Session, vendedor: Usuario, dados: dict) -> dict:
     if unidade.tipo != "loja":
         raise RegraDeNegocio("O CD não faz venda física")
 
-    # o caixa não cria conta (ADR 0014): CPF com conta liga o pedido a ela; sem conta, o CPF fica
+    # o caixa não cria conta (ADR 0014): CPF com conta liga o pedido a ela; o CPF de um cliente da Vulto que
+    # ainda não criou conta liga o pedido a ele (P2) e ele ganha os pontos; nos dois casos sem conta, o CPF fica
     # guardado e o pedido passa para a conta quando ela for criada pelo site
-    id_cliente, cpf_nota = None, dados.get("cpf_nota")
+    id_cliente, id_cliente_sem_conta, cpf_nota = None, None, dados.get("cpf_nota")
     if cpf_nota:
         cliente = usuario_repository.buscar_cliente_por_cpf(db, cpf_nota)
         if cliente is not None:
             id_cliente = cliente.id_usuario
+        elif (sem_conta := cliente_sem_conta_repository.buscar_por_cpf(db, cpf_nota)) is not None:
+            id_cliente_sem_conta = sem_conta.id_cliente_sem_conta
 
     resumo = itens_a_venda(db, dados["itens"])
     total = sum((i["subtotal"] for i in resumo), Decimal("0.00"))
@@ -66,9 +69,10 @@ def registrar_venda_fisica(db: Session, vendedor: Usuario, dados: dict) -> dict:
 
     momento = agora()
     pedido = Pedido(
-        codigo_venda=novo_codigo_venda(), id_cliente=id_cliente, id_unidade=unidade.id_unidade,
-        id_registrado_por=vendedor.id_usuario, cpf_nota=cpf_nota, canal="loja_fisica", canal_venda="loja", status="entregue",
-        valor_frete=Decimal("0.00"), valor_total=total, pago_em=momento, entregue_em=momento,
+        codigo_venda=novo_codigo_venda(), id_cliente=id_cliente, id_cliente_sem_conta=id_cliente_sem_conta,
+        id_unidade=unidade.id_unidade, id_registrado_por=vendedor.id_usuario, cpf_nota=cpf_nota, canal="loja_fisica",
+        canal_venda="loja", status="entregue", valor_frete=Decimal("0.00"), valor_total=total, pago_em=momento,
+        entregue_em=momento,
     )
     db.add(pedido)
     db.flush()

@@ -12,6 +12,11 @@ def buscar(db: Session, id_cliente_sem_conta: int) -> ClienteSemConta | None:
     return db.get(ClienteSemConta, id_cliente_sem_conta)
 
 
+# cliente da Vulto com esse CPF que ainda não criou conta (o caixa liga a venda a ele, P2)
+def buscar_por_cpf(db: Session, cpf: str) -> ClienteSemConta | None:
+    return db.scalar(select(ClienteSemConta).where(ClienteSemConta.cpf == cpf, ClienteSemConta.id_usuario.is_(None)))
+
+
 # consulta da equipe: só dígitos procura CPF ou telefone exatos; texto procura parte do nome ou do e-mail
 def listar(db: Session, limit: int, offset: int, busca: str | None = None) -> tuple[list[ClienteSemConta], int]:
     consulta = select(ClienteSemConta)

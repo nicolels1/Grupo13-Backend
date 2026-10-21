@@ -1,16 +1,19 @@
 from datetime import timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
+from sqlalchemy.dialects import postgresql
 
 from src.entities.vendas import Carrinho, Checkout
 from src.models.estoque import MovimentacaoEstoque
+from src.repositories import pedido_repository
 from src.use_cases import pedidos
 from src.use_cases.erros import Conflito, RecursoNaoEncontrado, RegraDeNegocio
 from tests.apoio import SessaoFalsa, api, funcionario  # noqa: F401
 from tests.apoio_vendas import (  # noqa: F401
-    CAMISA, CD, ID_OUTRO, INATIVA, LOJA_FECHADA, LOJA_RJ, LOJA_SP, SessaoVendas, banco, cliente, com_estoque,
+    CAMISA, CD, ID_CLIENTE, ID_OUTRO, INATIVA, LOJA_FECHADA, LOJA_RJ, LOJA_SP, SessaoVendas, banco, cliente, com_estoque,
     saldo,
 )
 
@@ -343,3 +346,17 @@ def test_checkout_so_para_cliente(api, banco):
 def test_codigo_de_venda_sem_letras_ambiguas():
     codigo = pedidos.novo_codigo_venda()
     assert len(codigo) == 10 and codigo.startswith("CL") and not set(codigo[2:]) & set("01IO")
+
+
+# a compra de um cliente da Vulto sem conta passa para a conta pelo passar_para_conta (P2): ligar pelo CPF
+# também a pegaria e o pedido ficaria com dois clientes
+def test_ligar_pelo_cpf_nao_pega_a_compra_de_cliente_sem_conta():
+    class SessaoQueGuarda:
+        def execute(self, comando):
+            self.sql = str(comando.compile(dialect=postgresql.dialect()))
+            return SimpleNamespace(rowcount=0)
+
+    db = SessaoQueGuarda()
+    pedido_repository.ligar_pedidos_pelo_cpf(db, "52998224725", ID_CLIENTE)
+
+    assert "pedido.id_cliente IS NULL AND pedido.id_cliente_sem_conta IS NULL" in db.sql

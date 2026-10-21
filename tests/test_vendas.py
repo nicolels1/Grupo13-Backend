@@ -69,6 +69,16 @@ def test_cpf_sem_conta_fica_na_nota_sem_criar_conta(banco):
     assert not [o for o in db.adicionados if isinstance(o, Usuario)]
 
 
+# cliente da Vulto que ainda não criou conta: a venda liga a ele pelo CPF e ele ganha os pontos (P2)
+def test_cpf_de_cliente_da_vulto_sem_conta_liga_a_venda_a_ele(banco):
+    com_estoque(banco, CAMISA, LOJA_SP, "loja_fisica", 5)
+    banco.sem_conta_por_cpf[CPF] = SimpleNamespace(id_cliente_sem_conta=7)
+
+    pedido = vendas.registrar_venda_fisica(SessaoVendas(banco), funcionario(), venda(cpf_nota=CPF))
+
+    assert (pedido["id_cliente"], pedido["id_cliente_sem_conta"], pedido["cpf_nota"]) == (None, 7, CPF)
+
+
 def test_pagamentos_precisam_fechar_o_total(banco):
     com_estoque(banco, CAMISA, LOJA_SP, "loja_fisica", 5)
     with pytest.raises(RegraDeNegocio, match="somam R\\$ 150.00"):

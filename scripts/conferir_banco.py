@@ -134,7 +134,7 @@ def conferir(db: Session) -> Conferencia:
     login = tentar(db, "SELECT login_por_email(:email)", {"email": f"ninguem-{sufixo}@casalorenzi.example"})
     c.registrar("a API consulta login pela função do banco", login is None, str(login))
     conferir_reserva_vencida(c, db, local, sufixo)
-    conferir_fidelidade(c, db, sufixo)
+    conferir_fidelidade(c, db, local, sufixo)
     divergencias = estoque_repository.listar_divergencias(db)
     c.registrar("depois do teste, o saldo continua batendo", not divergencias, f"{len(divergencias)} divergente(s)")
     return c
@@ -177,7 +177,7 @@ def conferir_reserva_vencida(c: Conferencia, db: Session, local: dict, sufixo: s
 
 # migration 3532b648a2ad: o saldo de pontos só muda pelo trigger, o resgate gasta primeiro o ponto mais
 # antigo (FIFO, K3), a devolução volta para os mesmos lotes e a plataforma nunca deixa o saldo negativo
-def conferir_fidelidade(c: Conferencia, db: Session, sufixo: str) -> None:
+def conferir_fidelidade(c: Conferencia, db: Session, local: dict, sufixo: str) -> None:
     dono = {"c": db.scalar(text(
         "INSERT INTO cliente_sem_conta (email, origem) VALUES (:email, 'migracao_vulto') RETURNING id_cliente_sem_conta"
     ), {"email": f"conferencia-{sufixo}@vulto.example"})}
@@ -218,6 +218,107 @@ def conferir_fidelidade(c: Conferencia, db: Session, sufixo: str) -> None:
                  "INSERT INTO movimento_pontos (id_cliente_sem_conta, marca, tipo, pontos, origem, motivo) "
                  "VALUES (:c, 'vulto', 'ajuste', -99999, 'plataforma', 'teste')", dono)
     deve_recusar(c, db, "a API não roda o job de vencimento", "SELECT vence_pontos()", {})
+    conferir_pontos_do_pagamento(c, db, local, dono, sufixo)
+
+
+# migration 62556fe492f4: o pedido ganha pontos quando os pagamentos aprovados cobrem o total, e o estorno de
+# dinheiro tira a parte proporcional; o pagamento migrado da Vulto não mexe nos pontos
+def conferir_pontos_do_pagamento(c: Conferencia, db: Session, local: dict, dono: dict, sufixo: str) -> None:
+    def pedido(codigo: str, canal: str, total: int, frete: int = 0) -> int:
+        return db.scalar(text("""
+            INSERT INTO pedido (codigo_venda, id_cliente_sem_conta, id_unidade, canal, canal_venda, modalidade,
+                                status, valor_frete, valor_total, pago_em)
+            VALUES (:codigo, :c, :u, :canal, :canal_venda, :modalidade, 'entregue', :frete, :total, now())
+            RETURNING id_pedido
+        """), {**dono, **local, "codigo": f"{codigo}{sufixo}".upper(), "canal": canal, "total": total, "frete": frete,
+               "canal_venda": "site" if canal == "online" else "loja",
+               "modalidade": "entrega" if canal == "online" else None})
+
+    def pagamento(id_pedido: int, valor: int, metodo: str = "pix", origem: str | None = None) -> int:
+        return db.scalar(text(
+            "INSERT INTO pagamento (id_pedido, tipo, metodo, valor, status, origem) "
+            "VALUES (:p, 'pagamento', :metodo, :valor, 'aprovado', :origem) RETURNING id_pagamento"
+        ), {"p": id_pedido, "valor": valor, "metodo": metodo, "origem": origem})
+
+    def estorno(id_pedido: int, original: int, valor: int) -> None:
+        db.execute(text(
+            "INSERT INTO pagamento (id_pedido, tipo, id_pagamento_original, metodo, valor, status, origem) "
+            "VALUES (:p, 'estorno', :original, 'pix', :valor, 'aprovado', 'cancelamento')"
+        ), {"p": id_pedido, "original": original, "valor": valor})
+
+    def pontos(id_pedido: int) -> int:
+        return db.scalar(text("SELECT coalesce(sum(pontos), 0) FROM movimento_pontos WHERE id_pedido = :p"),
+                         {"p": id_pedido})
+
+    loja = pedido("CFL", "loja_fisica", 200)
+    primeiro = pagamento(loja, 120)
+    sem_credito = pontos(loja)
+    pagamento(loja, 80)
+    c.registrar("o pedido ganha pontos só quando os pagamentos cobrem o total",
+                (sem_credito, pontos(loja)) == (0, 200), f"{sem_credito} e {pontos(loja)} pontos")
+    estorno(loja, primeiro, 100)
+    c.registrar("o estorno de metade do dinheiro tira metade dos pontos", pontos(loja) == 100, f"{pontos(loja)} pontos")
+    estorno(loja, primeiro, 20)
+    estorno(loja, primeiro, 80)
+    c.registrar("devolvido o total, não sobra ponto do pedido", pontos(loja) == 0, f"{pontos(loja)} pontos")
+
+    online = pedido("CFO", "online", 110, frete=10)
+    pagamento(online, 110)
+    c.registrar("o online ganha em dobro e o frete não conta", pontos(online) == 200, f"{pontos(online)} pontos")
+
+    # o cliente já gastou parte dos pontos do pedido: a devolução do dinheiro não trava e o saldo não fica negativo
+    gasto = pedido("CFG", "loja_fisica", 100)
+    pago = pagamento(gasto, 100)
+    db.execute(text("INSERT INTO movimento_pontos (id_cliente_sem_conta, marca, tipo, pontos, origem, motivo) "
+                    "VALUES (:c, 'lorenzi', 'ajuste', -250, 'plataforma', 'teste')"), dono)
+    erro = tentar_e_manter(db, "INSERT INTO pagamento (id_pedido, tipo, id_pagamento_original, metodo, valor, status, "
+                               "origem) VALUES (:p, 'estorno', :o, 'pix', 100, 'aprovado', 'cancelamento')",
+                           {"p": gasto, "o": pago})
+    saldo = db.scalar(text(
+        "SELECT saldo FROM saldo_pontos WHERE id_cliente_sem_conta = :c AND marca = 'lorenzi'"
+    ), dono)
+    c.registrar("o estorno dos pontos já gastos para no saldo, sem travar a devolução", erro is None and saldo == 0,
+                str(erro) if erro else f"saldo {saldo}")
+
+    conferir_compra_ligada(c, db, local, sufixo)
+
+    migrado = pedido("CFM", "loja_fisica", 50)
+    pagamento(migrado, 50, metodo="nao_informado", origem="migracao")
+    c.registrar("o pagamento migrado da Vulto não credita pontos", pontos(migrado) == 0, f"{pontos(migrado)} pontos")
+
+
+# migration 5806135c2561: a compra no caixa só com o CPF na nota ganha os pontos quando passa para a conta,
+# pela data da compra, se ainda não teriam vencido
+def conferir_compra_ligada(c: Conferencia, db: Session, local: dict, sufixo: str) -> None:
+    id_cliente = db.scalar(text("SELECT id_usuario FROM usuario WHERE tipo_conta = 'cliente' LIMIT 1"))
+    if id_cliente is None:
+        c.registrar("a compra do caixa ganha os pontos quando passa para a conta", False, "nenhum cliente no banco")
+        return
+
+    def compra(codigo: str, dias_atras: int) -> int:
+        id_pedido = db.scalar(text("""
+            INSERT INTO pedido (codigo_venda, id_unidade, cpf_nota, canal, canal_venda, status, valor_total, pago_em)
+            VALUES (:codigo, :u, '52998224725', 'loja_fisica', 'loja', 'entregue', 150,
+                    now() - make_interval(days => :dias))
+            RETURNING id_pedido
+        """), {**local, "codigo": f"{codigo}{sufixo}".upper(), "dias": dias_atras})
+        db.execute(text("INSERT INTO pagamento (id_pedido, tipo, metodo, valor, status) "
+                        "VALUES (:p, 'pagamento', 'dinheiro', 150, 'aprovado')"), {"p": id_pedido})
+        db.execute(text("UPDATE pedido SET id_cliente = :c WHERE id_pedido = :p"), {"c": id_cliente, "p": id_pedido})
+        return id_pedido
+
+    recente = compra("CFC", 10)
+    credito = db.execute(text("""
+        SELECT m.pontos, l.ganho_em = p.pago_em AS na_data_da_compra
+        FROM movimento_pontos m JOIN lote_pontos l USING (id_movimento) JOIN pedido p USING (id_pedido)
+        WHERE m.id_pedido = :p
+    """), {"p": recente}).first()
+    c.registrar("a compra do caixa ganha os pontos quando passa para a conta, pela data da compra",
+                credito is not None and tuple(credito) == (150, True), str(credito))
+    # a Casa Lorenzi só tem programa de fidelidade desde 01/10/2026
+    antiga = compra("CFA", 400)
+    pontos = db.scalar(text("SELECT count(*) FROM movimento_pontos WHERE id_pedido = :p"), {"p": antiga})
+    c.registrar("compra de antes do programa da marca não ganha pontos", pontos == 0, f"{pontos} movimento(s)")
 
 
 # executa dentro de um savepoint e mantém o resultado (desfeito junto com a transação no final)

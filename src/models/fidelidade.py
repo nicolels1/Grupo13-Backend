@@ -81,10 +81,14 @@ class MovimentoPontos(Base):
     )
     # a carga grava a data original; os movimentos entram em ordem de data (o FIFO segue a ordem)
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # crédito lançado depois da compra (compra no caixa antes do cadastro): o ponto vale, vence e entra no FIFO
+    # pela data da compra; vazio é a data do lançamento
+    ganho_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     __table_args__ = (
         CheckConstraint(UM_DONO, name="um_dono"),
         CheckConstraint(f"marca IN {MARCAS}", name="marca_valida"),
+        CheckConstraint("ganho_em IS NULL OR (tipo = 'credito' AND ganho_em <= criado_em)", name="ganho_em_valido"),
         CheckConstraint(
             "tipo IN ('saldo_inicial', 'credito', 'resgate', 'estorno', 'ajuste', 'vencimento')", name="tipo_valido"
         ),
