@@ -1,13 +1,13 @@
 from datetime import datetime
 
-from sqlalchemy import distinct, func, or_, select
+from sqlalchemy import and_, case, distinct, func, literal, or_, select, union_all
 from sqlalchemy.orm import Session
 
 from src.models.atendimento import Chamado, Mensagem
 from src.models.avaliacoes import Avaliacao, DenunciaAvaliacao
 from src.models.catalogo import Produto, Variante
 from src.models.estoque import Estoque, Transferencia, Unidade
-from src.models.vendas import ItemPedido, Pedido
+from src.models.vendas import ItemPedido, Pagamento, Pedido
 
 FUSO = "America/Sao_Paulo"
 
@@ -27,26 +27,55 @@ def _vendas(desde: datetime, ate: datetime | None = None, id_unidade: int | None
     return filtros
 
 
+# Faturamento, com a mesma regra dos três números da Vulto: o pedido pago entra no dia do pagamento sem o
+# frete, que é repasse para a transportadora (V7), e o estorno sai no dia em que foi feito (V4, V6, ADR 0003).
+# O pedido estornado inteiro devolveu o frete junto e dá zero. O cancelado fica de fora com os estornos dele
+def _lancamentos():
+    estorno = and_(Pagamento.tipo == "estorno", Pagamento.status == "aprovado")
+    devolvido = (select(func.coalesce(func.sum(Pagamento.valor), 0))
+                 .where(Pagamento.id_pedido == Pedido.id_pedido, estorno).scalar_subquery())
+    frete = case((devolvido >= Pedido.valor_total, 0), else_=Pedido.valor_frete)
+    vendas = (select(Pedido.pago_em.label("quando"), Pedido.canal, Pedido.id_unidade, literal(1).label("pedidos"),
+                     (Pedido.valor_total - frete).label("valor"))
+              .where(Pedido.pago_em.is_not(None), Pedido.status != "cancelado"))
+    estornos = (select(Pagamento.criado_em, Pedido.canal, Pedido.id_unidade, literal(0), -Pagamento.valor)
+                .join(Pedido, Pedido.id_pedido == Pagamento.id_pedido)
+                .where(estorno, Pedido.status != "cancelado"))
+    return union_all(vendas, estornos).subquery("lancamento")
+
+
+def _no_periodo(lancamento, desde: datetime, ate: datetime | None = None, id_unidade: int | None = None) -> list:
+    filtros = [lancamento.c.quando >= desde]
+    if ate is not None:
+        filtros.append(lancamento.c.quando < ate)
+    if id_unidade is not None:
+        filtros.append(lancamento.c.id_unidade == id_unidade)
+    return filtros
+
+
 # ---------- vendas ----------
 
 def vendas_por_dia(db: Session, desde: datetime, id_unidade: int | None) -> list:
     """(dia, canal, pedidos, valor) desde a data, por dia e canal."""
-    dia = _dia(Pedido.pago_em)
+    lancamento = _lancamentos()
+    dia = _dia(lancamento.c.quando)
     consulta = (
-        select(dia.label("dia"), Pedido.canal, func.count().label("pedidos"),
-               func.sum(Pedido.valor_total).label("valor"))
-        .where(*_vendas(desde, id_unidade=id_unidade))
-        .group_by(dia, Pedido.canal)
+        select(dia.label("dia"), lancamento.c.canal, func.sum(lancamento.c.pedidos).label("pedidos"),
+               func.sum(lancamento.c.valor).label("valor"))
+        .where(*_no_periodo(lancamento, desde, id_unidade=id_unidade))
+        .group_by(dia, lancamento.c.canal)
     )
     return list(db.execute(consulta).mappings().all())
 
 
 def vendas_por_canal(db: Session, desde: datetime, ate: datetime | None = None) -> list:
     """(canal, pedidos, valor) no período, na rede inteira."""
+    lancamento = _lancamentos()
     consulta = (
-        select(Pedido.canal, func.count().label("pedidos"), func.sum(Pedido.valor_total).label("valor"))
-        .where(*_vendas(desde, ate))
-        .group_by(Pedido.canal)
+        select(lancamento.c.canal, func.sum(lancamento.c.pedidos).label("pedidos"),
+               func.sum(lancamento.c.valor).label("valor"))
+        .where(*_no_periodo(lancamento, desde, ate))
+        .group_by(lancamento.c.canal)
     )
     return list(db.execute(consulta).mappings().all())
 
@@ -191,10 +220,11 @@ def unidades_ativas(db: Session) -> list[Unidade]:
 
 
 def vendas_por_unidade(db: Session, desde: datetime) -> dict[int, tuple[int, object]]:
+    lancamento = _lancamentos()
     consulta = (
-        select(Pedido.id_unidade, func.count(), func.sum(Pedido.valor_total))
-        .where(*_vendas(desde))
-        .group_by(Pedido.id_unidade)
+        select(lancamento.c.id_unidade, func.sum(lancamento.c.pedidos), func.sum(lancamento.c.valor))
+        .where(*_no_periodo(lancamento, desde))
+        .group_by(lancamento.c.id_unidade)
     )
     return {id_unidade: (pedidos, valor) for id_unidade, pedidos, valor in db.execute(consulta)}
 

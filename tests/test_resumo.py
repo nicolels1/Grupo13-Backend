@@ -3,7 +3,9 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
+from sqlalchemy import create_engine, text
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.orm import Session
 
 from src.models.catalogo import ImagemProduto
 from src.repositories import catalogo_repository, pedido_repository, permissao_repository, unidade_repository
@@ -204,3 +206,39 @@ def test_primeira_resposta_nao_conta_a_fala_sem_autor():
     for sql in consultas:
         assert "mensagem.id_autor IS NOT NULL AND mensagem.id_autor IS DISTINCT FROM chamado.id_cliente" in sql
         assert "mensagem.interna IS false" in sql
+
+
+
+
+# faturamento com a regra dos três números da Vulto, rodado num SQLite em memória (só as colunas usadas)
+def test_faturamento_sem_frete_e_menos_os_estornos():
+    banco = create_engine("sqlite://")
+    pago = "2026-10-02 12:00:00.000000"
+    with banco.begin() as c:
+        c.execute(text("CREATE TABLE pedido (id_pedido int, pago_em text, status text, canal text, id_unidade int, "
+                       "valor_total numeric, valor_frete numeric)"))
+        c.execute(text("CREATE TABLE pagamento (id_pagamento int, id_pedido int, tipo text, status text, "
+                       "valor numeric, criado_em text)"))
+        c.execute(text("INSERT INTO pedido VALUES (:id, :pago, :status, :canal, :unidade, :total, :frete)"), [
+            dict(id=1, pago=pago, status="entregue", canal="online", unidade=CD, total=100, frete=20),  # sem o frete
+            dict(id=2, pago=pago, status="entregue", canal="online", unidade=CD, total=50, frete=10),  # estornado (V4)
+            dict(id=3, pago=pago, status="entregue", canal="loja_fisica", unidade=LOJA, total=70, frete=0),  # V6
+            dict(id=4, pago=pago, status="cancelado", canal="loja_fisica", unidade=LOJA, total=40, frete=0),
+            dict(id=5, pago=None, status="aguardando_pagamento", canal="online", unidade=CD, total=90, frete=0),
+        ])
+        c.execute(text("INSERT INTO pagamento VALUES (:id, :pedido, 'estorno', :status, :valor, :quando)"), [
+            dict(id=1, pedido=2, status="aprovado", valor=50, quando="2026-10-03 12:00:00.000000"),
+            dict(id=2, pedido=3, status="aprovado", valor=30, quando="2026-10-05 12:00:00.000000"),
+            dict(id=3, pedido=3, status="recusado", valor=70, quando="2026-10-05 12:00:00.000000"),
+            dict(id=4, pedido=4, status="aprovado", valor=40, quando="2026-10-03 12:00:00.000000"),
+        ])
+
+    with Session(banco) as db:
+        canais = {l["canal"]: (l["pedidos"], l["valor"]) for l in repo.vendas_por_canal(db, datetime(2026, 10, 1))}
+        unidades = repo.vendas_por_unidade(db, datetime(2026, 10, 1))
+        so_a_venda = repo.vendas_por_canal(db, datetime(2026, 10, 1), datetime(2026, 10, 4))
+
+    assert canais == {"online": (2, 80), "loja_fisica": (1, 40)}
+    assert unidades == {CD: (2, 80), LOJA: (1, 40)}
+    # a devolução sai no dia em que aconteceu, fora do período que só tem a venda
+    assert {l["canal"]: l["valor"] for l in so_a_venda}["loja_fisica"] == 70
