@@ -8,7 +8,7 @@ from migracao_vulto.regras import de_para  # noqa: E402
 CHAVES = {
     "unidade": ["loja_id"], "cor": ["codigo"], "cor_texto": ["texto_vulto"], "status_venda": ["valor_vulto"],
     "conta_interna": ["conta"], "vendedor": ["loja_id", "grafia", "valido_desde"], "atendente": ["grafia"],
-    "metodo_pagamento": ["valor_vulto"], "categoria_cliente": ["valor_vulto"], "consentimento": ["valor_vulto"],
+    "metodo_pagamento": ["valor_vulto"], "consentimento": ["valor_vulto"],
     "loja_cadastro": ["valor_vulto"], "categoria": ["codigo_sku"], "canal_atendimento": ["valor_vulto"],
     "categoria_chamado": ["tag"], "status_chamado": ["valor_vulto"],
 }
