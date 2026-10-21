@@ -63,7 +63,7 @@ src/
 ├── config/         # settings.py (variáveis do .env) e logs.py (logs com id da requisição)
 ├── database/       # base.py (Base dos models) e session.py (engine, sessão e get_db)
 ├── entities/       # schemas Pydantic de entrada e saída de cada área
-├── models/         # tabelas SQLAlchemy (30 tabelas: as 27 do modelo de dados, os destaques do carrossel e as 2 da migração da Vulto)
+├── models/         # tabelas SQLAlchemy (35 tabelas: as 27 do modelo de dados, os destaques do carrossel, as 2 da migração da Vulto e as 5 da fidelidade)
 ├── repositories/   # única camada que consulta e grava no banco
 ├── use_cases/      # regras de negócio
 ├── routes/         # rotas FastAPI, uma por área
@@ -476,7 +476,7 @@ A API é publicada no Render a cada merge na `main`.
 - avaliações: nota, texto e fotos, edição por 7 dias, voto útil, denúncia e moderação;
 - Visão Geral: resumo com vendas por dia, mais vendidas, chamados, números da rede e linha por unidade, conforme as permissões da conta;
 - migração da Vulto (plataforma): marca na unidade e no produto, EAN na variante, cliente sem conta, origem da migração, canal de venda, desconto e pagamento migrado no pedido, atendimento externo e categoria pagamento no chamado;
-- banco com 30 tabelas, triggers, RLS, usuário restrito e prazos automáticos pelo pg_cron; testes automatizados com CI.
+- banco com 35 tabelas, triggers, RLS, usuário restrito e prazos automáticos pelo pg_cron; testes automatizados com CI.
 
 **Fora do escopo desta entrega:** gateway de pagamento real (ADR 0011) e as evoluções da seção 9 do [case](docs/case/Casa_Lorenzi_Case_Completo.md).
 
