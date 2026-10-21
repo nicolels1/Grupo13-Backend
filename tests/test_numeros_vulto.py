@@ -191,6 +191,19 @@ def test_valorar_fifo_gasta_primeiro_o_ponto_antigo():
     assert (saldo["antigo"], saldo["novo"], saldo["pontos"]) == (0, 200, 200)
 
 
+def test_valorar_fifo_entrada_cobre_primeiro_o_saldo_negativo():
+    # resgatou 800 com 500 no saldo; o crédito seguinte, ainda a R$ 0,10, só paga a dívida (como o trigger)
+    movimentos = pd.DataFrame({
+        "cpf": ["A"] * 4,
+        "mov": [500, -800, 290, 1000],
+        "quando": ["2025-01-01", "2025-02-25", "2025-02-26", "2025-07-01"],
+        "epoca": ["antigo", "antigo", "antigo", "novo"],
+        "fifo": [False, True, False, False],
+    })
+    saldo = r.valorar_fifo(movimentos).loc["A"]
+    assert (saldo["antigo"], saldo["novo"], saldo["pontos"]) == (0, 990, 990)
+
+
 def test_saldo_inicial_nao_soma_a_aba_antiga_de_quem_tem_o_cpf_corrigido():
     # o ATIVO da aba antiga está na aba nova com o CPF digitado errado: vale só o saldo da aba nova (K5c)
     clientes = pd.DataFrame({"linha_origem": ["Clientes!2"], "cpf": [None], "Pontos": ["108"]})

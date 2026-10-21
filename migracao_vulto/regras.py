@@ -616,25 +616,30 @@ def resgates_so_na_planilha(resgates: pd.DataFrame, pendencias: pd.DataFrame, p:
         return any(n == nome if " " in nome else n.split()[0] == nome for n in nomes.get(cpf, set()))
 
     sem = r[r["cliente_cpf"].isna()].copy()
-    achados = []
+    achados, confirmadas = [], []
     for nome, loja, desconto, dia in zip(sem["cliente_nome"].map(chave_busca), sem["loja"], sem["desconto"], sem["dia"]):
         candidatas = v[(v["loja_id"] == LOJA_DO_RESGATE.get(loja)) & ((v["dia"] - dia).dt.days.abs() <= 1)
                        & ((v["desconto"] - desconto).abs() < 0.01)]
-        cpfs = {c for c in candidatas["ref"].dropna() if confirma(nome, c)}
-        achados.append(next(iter(cpfs)) if len(cpfs) == 1 else None)
-    sem["cliente_cpf"] = achados
+        bate = candidatas[candidatas["ref"].map(lambda c: isinstance(c, str) and confirma(nome, c)).astype(bool)]
+        unico = bate["ref"].nunique() == 1
+        achados.append(bate["ref"].iloc[0] if unico else None)
+        confirmadas.append(bate["id"].iloc[-1] if unico else None)  # a venda que confirmou (P4)
+    sem["cliente_cpf"], sem["venda"] = achados, confirmadas
     return pd.concat([com_cpf.assign(regra="K7a com CPF"), sem.assign(regra="K7a sem CPF, pela venda")])
 
 
 # Valor em R$ do saldo de cada cliente pela K3, gastando primeiro os pontos mais antigos (FIFO).
-# Estorno e ajuste ligados a um crédito tiram da época desse crédito; o resgate segue o FIFO
+# Estorno e ajuste ligados a um crédito tiram da época desse crédito; o resgate segue o FIFO. Como no
+# trigger da plataforma, a entrada primeiro cobre o saldo negativo e só o resto fica com a época dela
 def valorar_fifo(movimentos: pd.DataFrame) -> pd.DataFrame:
     saldos = {}
     for cpf, d in movimentos.sort_values("quando", kind="stable").groupby("cpf"):
-        pote = {"antigo": 0.0, "novo": 0.0}
+        pote, divida = {"antigo": 0.0, "novo": 0.0}, 0.0
         for mov, epoca_mov, fifo in zip(d["mov"], d["epoca"], d["fifo"]):
             if mov >= 0:
-                pote[epoca_mov] += mov
+                cobre = min(mov, divida)
+                divida -= cobre
+                pote[epoca_mov] += mov - cobre
                 continue
             falta = -mov
             ordem = ["antigo", "novo"] if fifo else [epoca_mov] + [e for e in ("antigo", "novo") if e != epoca_mov]
@@ -642,7 +647,8 @@ def valorar_fifo(movimentos: pd.DataFrame) -> pd.DataFrame:
                 gasto = min(pote[qual], falta)
                 pote[qual] -= gasto
                 falta -= gasto
-            pote["novo"] -= falta  # o que sobrar deixa o saldo negativo (K5f trata depois)
+            divida += falta  # o que sobrar deixa o saldo negativo (K5f trata depois)
+        pote["novo"] -= divida
         saldos[cpf] = pote
     tabela = pd.DataFrame.from_dict(saldos, orient="index", columns=["antigo", "novo"])
     tabela["pontos"] = tabela["antigo"] + tabela["novo"]
