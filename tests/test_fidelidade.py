@@ -1,16 +1,19 @@
 from datetime import date, datetime, timezone
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
 from sqlalchemy.dialects import postgresql
 
 from src.entities.fidelidade import RegraCriar
-from src.models.fidelidade import RegraFidelidade
-from src.repositories import fidelidade_repository
+from src.models.fidelidade import MovimentoPontos, RegraFidelidade
+from src.models.vendas import Pedido
+from src.repositories import cliente_sem_conta_repository, fidelidade_repository, usuario_repository
 from src.use_cases import fidelidade
-from src.use_cases.erros import RegraDeNegocio
+from src.use_cases.erros import Conflito, RegraDeNegocio
 from tests.apoio import ID_FUNCIONARIO, SessaoFalsa, api, funcionario  # noqa: F401 (api é fixture)
+from tests.apoio_vendas import ID_CLIENTE
 
 
 def sql(consulta):
@@ -95,3 +98,71 @@ def test_regras_exigem_gerenciar_fidelidade(api, regras):
     assert api(SessaoFalsa(), usuario=funcionario(), permitido=False).get("/fidelidade/regras").status_code == 403
     resposta = api(SessaoFalsa(), usuario=funcionario()).get("/fidelidade/regras?marca=vulto")
     assert resposta.status_code == 200 and [r["id_regra"] for r in resposta.json()["items"]] == [3, 2, 1]
+
+
+# ---------- resgate ----------
+
+@pytest.fixture
+def pontos(monkeypatch, regras):
+    """Cliente com 1.000 pontos: 400 de antes de mar/2025 (R$ 0,10) e 600 depois (R$ 0,05)."""
+    lotes = [(400, Decimal("0.10")), (600, Decimal("0.05"))]
+
+    def valor(pontos_usados):
+        total, falta = Decimal("0"), pontos_usados
+        for restante, valor_ponto in lotes:  # FIFO, como o trigger
+            usado = min(restante, falta)
+            total, falta = total + usado * valor_ponto, falta - usado
+        return total
+
+    estado = SimpleNamespace(saldo=1000, gasto=None)
+    monkeypatch.setattr(fidelidade_repository, "regra_vigente", lambda db, marca, hoje: regra(9, marca, hoje))
+    monkeypatch.setattr(fidelidade_repository, "saldo", lambda db, c, s, marca: estado.saldo)
+    monkeypatch.setattr(fidelidade_repository, "valor_do_resgate", lambda db, c, s, marca, p: valor(p))
+    monkeypatch.setattr(fidelidade_repository, "valor_gasto",
+                        lambda db, id_movimento: estado.gasto if estado.gasto is not None else valor(estado.pedido))
+    return estado
+
+
+def test_resgate_vale_os_pontos_mais_antigos_primeiro(pontos):
+    simulado = fidelidade.simular_resgate(SessaoFalsa(), ID_CLIENTE, None, "vulto", 500)
+    assert (simulado["desconto"], simulado["saldo"]) == (Decimal("45.00"), 1000)  # 400 × 0,10 + 100 × 0,05
+
+
+@pytest.mark.parametrize("quantos, valor_itens, erro", [
+    (50, None, "mínimo é de 100"), (1500, None, "saldo é de 1000"), (1000, Decimal("70.00"), "menor que o valor"),
+])
+def test_resgate_recusado(pontos, quantos, valor_itens, erro):
+    with pytest.raises(RegraDeNegocio, match=erro):
+        fidelidade.simular_resgate(SessaoFalsa(), ID_CLIENTE, None, "vulto", quantos, valor_itens)
+
+
+def test_resgate_grava_o_desconto_e_baixa_o_total(pontos):
+    pedido = Pedido(id_pedido=1, id_cliente=ID_CLIENTE, valor_total=Decimal("219.90"), valor_desconto=Decimal("0"))
+    pontos.pedido = 500
+    db = SessaoFalsa()
+
+    desconto = fidelidade.resgatar(db, pedido, "vulto", 500, Decimal("200.00"))
+
+    [movimento] = [m for m in db.adicionados if isinstance(m, MovimentoPontos)]
+    assert (movimento.tipo, movimento.pontos, movimento.origem, movimento.id_pedido) == (
+        "resgate", -500, "plataforma", 1)
+    assert (desconto, pedido.valor_desconto, pedido.valor_total) == (
+        Decimal("45.00"), Decimal("45.00"), Decimal("174.90"))
+
+
+def test_resgate_recusa_se_o_saldo_mudou_no_meio(pontos):
+    pontos.pedido, pontos.gasto = 500, Decimal("30.00")
+    pedido = Pedido(id_pedido=1, id_cliente=ID_CLIENTE, valor_total=Decimal("200.00"), valor_desconto=Decimal("0"))
+    with pytest.raises(Conflito, match="saldo de pontos mudou"):
+        fidelidade.resgatar(SessaoFalsa(), pedido, "vulto", 500, Decimal("200.00"))
+
+
+def test_simulacao_no_caixa_acha_o_cliente_da_vulto_sem_conta(api, pontos, monkeypatch):
+    monkeypatch.setattr(usuario_repository, "buscar_cliente_por_cpf", lambda db, cpf: None)
+    monkeypatch.setattr(cliente_sem_conta_repository, "buscar_por_cpf",
+                        lambda db, cpf: SimpleNamespace(id_cliente_sem_conta=7))
+
+    resposta = api(SessaoFalsa(), usuario=funcionario()).get(
+        "/fidelidade/resgate/caixa?cpf=529.982.247-25&marca=vulto&pontos=500")
+
+    assert resposta.status_code == 200 and resposta.json()["desconto"] == "45.00"

@@ -10,7 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
-from src.repositories import estoque_repository
+from src.repositories import estoque_repository, fidelidade_repository
 
 PAPEL_DA_API = "api_casalorenzi"
 
@@ -218,7 +218,30 @@ def conferir_fidelidade(c: Conferencia, db: Session, local: dict, sufixo: str) -
                  "INSERT INTO movimento_pontos (id_cliente_sem_conta, marca, tipo, pontos, origem, motivo) "
                  "VALUES (:c, 'vulto', 'ajuste', -99999, 'plataforma', 'teste')", dono)
     deve_recusar(c, db, "a API não roda o job de vencimento", "SELECT vence_pontos()", {})
+    conferir_resgate(c, db, local, dono, sufixo)
     conferir_pontos_do_pagamento(c, db, local, dono, sufixo)
+
+
+# migration 380e5e8b5f0a: o resgate vale os pontos mais antigos primeiro, cada um pelo valor da época, e os pontos
+# voltam para os mesmos lotes quando o pedido é cancelado
+def conferir_resgate(c: Conferencia, db: Session, local: dict, dono: dict, sufixo: str) -> None:
+    previsto = fidelidade_repository.valor_do_resgate(db, None, dono["c"], "vulto", 1500)
+    id_pedido = db.scalar(text("""
+        INSERT INTO pedido (codigo_venda, id_cliente_sem_conta, id_unidade, canal, canal_venda, status, valor_total)
+        VALUES (:codigo, :c, :u, 'loja_fisica', 'loja', 'entregue', 300) RETURNING id_pedido
+    """), {**dono, **local, "codigo": f"CFR{sufixo}".upper()})
+    resgate = db.scalar(text(
+        "INSERT INTO movimento_pontos (id_cliente_sem_conta, marca, tipo, pontos, origem, id_pedido) "
+        "VALUES (:c, 'vulto', 'resgate', -1500, 'plataforma', :p) RETURNING id_movimento"
+    ), {**dono, "p": id_pedido})
+    gasto = fidelidade_repository.valor_gasto(db, resgate)
+    # 1.000 pontos de jan/2025 a R$ 0,10 e 500 de jun/2025 a R$ 0,05
+    c.registrar("o resgate vale os pontos mais antigos primeiro, pelo valor da época",
+                previsto == gasto == 125, f"previsto {previsto}, gasto {gasto}")
+    db.execute(text("UPDATE pedido SET status = 'cancelado', motivo_cancelamento = 'cliente' WHERE id_pedido = :p"),
+               {"p": id_pedido})
+    saldo = db.scalar(text("SELECT saldo FROM saldo_pontos WHERE id_cliente_sem_conta = :c AND marca = 'vulto'"), dono)
+    c.registrar("o pedido cancelado devolve os pontos do resgate", saldo == 4000, f"saldo {saldo}")
 
 
 # migration 62556fe492f4: o pedido ganha pontos quando os pagamentos aprovados cobrem o total, e o estorno de

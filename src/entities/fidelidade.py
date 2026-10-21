@@ -54,3 +54,11 @@ class RegraSaida(BaseModel):
     id_criado_por: uuid.UUID | None = Field(description="Vazio nas regras trazidas pela migração")
     criado_em: datetime
     vigente: bool = Field(description="É a regra que vale hoje para a marca")
+
+
+# quanto vale um resgate antes de fechar a compra (o caixa e o site mostram o desconto)
+class ResgateSimulado(BaseModel):
+    pontos: int
+    desconto: Decimal = Field(description="Em R$: os pontos mais antigos primeiro, cada um pelo valor da época")
+    saldo: int = Field(description="Saldo de pontos do cliente na marca")
+    resgate_minimo: int

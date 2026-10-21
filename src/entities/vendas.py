@@ -38,6 +38,9 @@ class Checkout(Carrinho):
     modalidade: Modalidade
     id_endereco: int | None = Field(default=None, description="Obrigatório na entrega")
     id_unidade_retirada: int | None = Field(default=None, description="Obrigatório na retirada")
+    pontos_resgate: int | None = Field(
+        default=None, gt=0, description="Pontos usados como desconto (GET /fidelidade/resgate mostra quanto valem)"
+    )
 
     @model_validator(mode="after")
     def destino_da_modalidade(self):
@@ -74,6 +77,10 @@ class VendaFisica(Carrinho):
     id_unidade: int
     cpf_nota: str | None = Field(default=None, description="CPF na nota, com ou sem máscara")
     pagamentos: list[PagamentoFisico] = Field(min_length=1, max_length=5)
+    pontos_resgate: int | None = Field(
+        default=None, gt=0,
+        description="Pontos do cliente do CPF usados como desconto; os pagamentos fecham com o total menos o desconto",
+    )
 
     @field_validator("cpf_nota")
     @classmethod

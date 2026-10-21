@@ -11,7 +11,7 @@ from src.models.contas import ClienteSemConta, Usuario
 from src.models.estoque import MovimentacaoEstoque
 from src.repositories import cliente_sem_conta_repository, permissao_repository, pedido_repository, usuario_repository
 from src.app import app
-from src.use_cases import clientes, pedidos, vendas
+from src.use_cases import clientes, fidelidade, pedidos, vendas
 from src.use_cases.erros import RegraDeNegocio
 from src.utils.supabase_admin import ErroSupabase
 from tests.apoio import ID_FUNCIONARIO, SessaoFalsa, api, funcionario  # noqa: F401
@@ -77,6 +77,46 @@ def test_cpf_de_cliente_da_vulto_sem_conta_liga_a_venda_a_ele(banco):
     pedido = vendas.registrar_venda_fisica(SessaoVendas(banco), funcionario(), venda(cpf_nota=CPF))
 
     assert (pedido["id_cliente"], pedido["id_cliente_sem_conta"], pedido["cpf_nota"]) == (None, 7, CPF)
+
+
+# pontos como desconto no caixa: os pagamentos fecham com o total menos o desconto, e o resgate é do cliente do CPF
+@pytest.fixture
+def resgate(monkeypatch):
+    chamadas = []
+
+    def resgatar(db, pedido, marca, pontos, valor_itens, id_registrado_por=None):
+        chamadas.append((pedido.id_cliente_sem_conta, marca, pontos, valor_itens, id_registrado_por))
+        pedido.valor_desconto, pedido.valor_total = Decimal("45.00"), pedido.valor_total - Decimal("45.00")
+        return Decimal("45.00")
+
+    monkeypatch.setattr(fidelidade, "simular_resgate",
+                        lambda db, c, s, marca, pontos, valor: {"desconto": Decimal("45.00")})
+    monkeypatch.setattr(fidelidade, "resgatar", resgatar)
+    return chamadas
+
+
+def test_venda_com_pontos_de_cliente_da_vulto(banco, resgate):
+    com_estoque(banco, CAMISA, LOJA_SP, "loja_fisica", 5)
+    banco.sem_conta_por_cpf[CPF] = SimpleNamespace(id_cliente_sem_conta=7)
+
+    pedido = vendas.registrar_venda_fisica(SessaoVendas(banco), funcionario(), venda(
+        cpf_nota=CPF, pontos_resgate=500, pagamentos=[{"metodo": "pix", "valor": "155.00"}]))
+
+    assert resgate == [(7, "lorenzi", 500, Decimal("200.00"), ID_FUNCIONARIO)]
+    assert (pedido["valor_desconto"], pedido["valor_total"]) == (Decimal("45.00"), Decimal("155.00"))
+
+
+def test_venda_com_pontos_fecha_com_o_total_menos_o_desconto(banco, resgate):
+    com_estoque(banco, CAMISA, LOJA_SP, "loja_fisica", 5)
+    banco.sem_conta_por_cpf[CPF] = SimpleNamespace(id_cliente_sem_conta=7)
+    with pytest.raises(RegraDeNegocio, match=r"o total é R\$ 155.00"):
+        vendas.registrar_venda_fisica(SessaoVendas(banco), funcionario(), venda(cpf_nota=CPF, pontos_resgate=500))
+
+
+def test_venda_com_pontos_exige_o_cpf_de_quem_tem_os_pontos(banco, resgate):
+    com_estoque(banco, CAMISA, LOJA_SP, "loja_fisica", 5)
+    with pytest.raises(RegraDeNegocio, match="informe o CPF"):
+        vendas.registrar_venda_fisica(SessaoVendas(banco), funcionario(), venda(pontos_resgate=500))
 
 
 def test_pagamentos_precisam_fechar_o_total(banco):

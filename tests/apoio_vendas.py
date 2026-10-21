@@ -24,7 +24,7 @@ def cliente(id_usuario=ID_CLIENTE):
 
 def _unidade(id_unidade, nome, tipo, despacha, cidade, uf, ativo=True):
     return SimpleNamespace(id_unidade=id_unidade, nome=nome, tipo=tipo, despacha_online=despacha, cidade=cidade,
-                           uf=uf, ativo=ativo)
+                           uf=uf, ativo=ativo, marca="lorenzi")
 
 
 # a linha que o repositório devolve para cada peça do pedido: o item com os dados da variante

@@ -7,7 +7,7 @@ from src.models.contas import Usuario
 from src.models.vendas import ItemPedido, Pagamento, Pedido
 from src.repositories import cliente_sem_conta_repository, estoque_repository, unidade_repository, usuario_repository
 from src.repositories import pedido_repository as repo
-from src.use_cases import pagamentos
+from src.use_cases import fidelidade, pagamentos
 from src.use_cases.erros import RecursoNaoEncontrado, RegraDeNegocio
 from src.use_cases.estoque import conferir_disponivel, interpretar_momento
 from src.use_cases.pedidos import (
@@ -58,9 +58,16 @@ def registrar_venda_fisica(db: Session, vendedor: Usuario, dados: dict) -> dict:
 
     resumo = itens_a_venda(db, dados["itens"])
     total = sum((i["subtotal"] for i in resumo), Decimal("0.00"))
+    # pontos como desconto: só do cliente do CPF, com conta ou da Vulto sem conta
+    pontos, desconto = dados.get("pontos_resgate"), Decimal("0.00")
+    if pontos:
+        if id_cliente is None and id_cliente_sem_conta is None:
+            raise RegraDeNegocio("Para usar pontos, informe o CPF de quem tem os pontos")
+        previsto = fidelidade.simular_resgate(db, id_cliente, id_cliente_sem_conta, unidade.marca, pontos, total)
+        desconto = previsto["desconto"]
     pago = sum((p["valor"] for p in dados["pagamentos"]), Decimal("0.00"))
-    if pago != total:
-        raise RegraDeNegocio(f"Os pagamentos somam R$ {pago}, mas o total é R$ {total}")
+    if pago != total - desconto:
+        raise RegraDeNegocio(f"Os pagamentos somam R$ {pago}, mas o total é R$ {total - desconto}")
 
     pedidas = quantidades(dados["itens"])
     for id_variante in sorted(pedidas):
@@ -76,6 +83,8 @@ def registrar_venda_fisica(db: Session, vendedor: Usuario, dados: dict) -> dict:
     )
     db.add(pedido)
     db.flush()
+    if pontos:
+        fidelidade.resgatar(db, pedido, unidade.marca, pontos, total, id_registrado_por=vendedor.id_usuario)
     db.add_all(ItemPedido(id_pedido=pedido.id_pedido, id_variante=i["id_variante"], quantidade=i["quantidade"],
                           preco_unitario=i["preco_unitario"]) for i in resumo)
     db.add_all(Pagamento(
