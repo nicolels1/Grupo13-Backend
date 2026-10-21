@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Select, and_, func, select, update
+from sqlalchemy import Select, and_, func, or_, select, update
 from sqlalchemy.orm import Session, aliased
 
 from src.models.atendimento import Chamado, HistoricoChamado, Mensagem
@@ -32,12 +32,18 @@ def buscar_item_pedido(db: Session, id_item: int) -> ItemPedido | None:
     return db.get(ItemPedido, id_item)
 
 
+# fala do cliente do chamado: sem autor (a do cliente no atendimento migrado da Vulto, P6) ou escrita pela
+# conta dele. IS NOT DISTINCT FROM: no chamado de cliente sem conta (id_cliente vazio), toda fala com autor é
+# da equipe, e a fala sem autor continua do cliente depois que ele cria a conta
+def _do_cliente(id_cliente):
+    return or_(Mensagem.id_autor.is_(None), Mensagem.id_autor.is_not_distinct_from(id_cliente))
+
+
 # mensagens do outro lado ainda não lidas: para a equipe, as do cliente; para o
 # cliente, as da equipe que não são internas
 def _nao_lidas_do_outro_lado(lado: str):
     m = Mensagem
-    # IS NOT DISTINCT FROM: no chamado de cliente sem conta, só a fala sem autor é do cliente
-    do_cliente = m.id_autor.is_not_distinct_from(Chamado.id_cliente)
+    do_cliente = _do_cliente(Chamado.id_cliente)
     condicao = do_cliente if lado == "equipe" else and_(~do_cliente, m.interna.is_(False))
     return (
         select(func.count())
@@ -94,13 +100,13 @@ def detalhar_chamado(db: Session, lado: str, id_chamado: int):
 def consulta_mensagens(id_chamado: int, incluir_internas: bool) -> Select:
     m = Mensagem
     consulta = (
-        # IS DISTINCT FROM: no chamado de cliente sem conta (id_cliente vazio), toda fala com autor é da equipe
+        # no atendimento migrado, o nome de quem falou: o cliente sem autor e o original nas falas da "Migração Vulto"
         select(
-            *m.__table__.columns, Usuario.nome.label("autor"),
-            m.id_autor.is_distinct_from(Chamado.id_cliente).label("da_equipe"),
+            *m.__table__.columns, func.coalesce(m.nome_autor_externo, Usuario.nome).label("autor"),
+            ~_do_cliente(Chamado.id_cliente).label("da_equipe"),
         )
         .join(Chamado, Chamado.id_chamado == m.id_chamado)
-        .join(Usuario, Usuario.id_usuario == m.id_autor)
+        .outerjoin(Usuario, Usuario.id_usuario == m.id_autor)
         .where(m.id_chamado == id_chamado)
         .order_by(m.criado_em, m.id_mensagem)
     )
@@ -112,9 +118,9 @@ def listar_mensagens(db: Session, id_chamado: int, incluir_internas: bool) -> li
 
 
 # quem abre as mensagens marca como lidas as do outro lado (a Visão Geral conta as não lidas)
-def comando_marcar_lidas(id_chamado: int, id_cliente: uuid.UUID, lado: str):
+def comando_marcar_lidas(id_chamado: int, id_cliente: uuid.UUID | None, lado: str):
     m = Mensagem
-    do_cliente = m.id_autor == id_cliente
+    do_cliente = _do_cliente(id_cliente)
     condicao = do_cliente if lado == "equipe" else and_(~do_cliente, m.interna.is_(False))
     return (
         update(m)
@@ -123,7 +129,7 @@ def comando_marcar_lidas(id_chamado: int, id_cliente: uuid.UUID, lado: str):
     )
 
 
-def marcar_lidas(db: Session, id_chamado: int, id_cliente: uuid.UUID, lado: str) -> None:
+def marcar_lidas(db: Session, id_chamado: int, id_cliente: uuid.UUID | None, lado: str) -> None:
     db.execute(comando_marcar_lidas(id_chamado, id_cliente, lado))
 
 

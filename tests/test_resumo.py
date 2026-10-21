@@ -1,8 +1,9 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
+from sqlalchemy.dialects import postgresql
 
 from src.models.catalogo import ImagemProduto
 from src.repositories import catalogo_repository, pedido_repository, permissao_repository, unidade_repository
@@ -184,3 +185,22 @@ def test_vendas_de_hoje_filtram_pelo_dia_inteiro_de_brasilia(monkeypatch):
     vendas.listar(SessaoFalsa(), 50, 0, de="2026-10-07", ate="2026-10-07")
     assert recebidos["criado_desde"].isoformat() == "2026-10-07T00:00:00-03:00"
     assert recebidos["criado_ate"].isoformat().startswith("2026-10-07T23:59:59")
+
+
+# ---------- consultas ----------
+
+# a primeira resposta é a primeira fala da equipe visível ao cliente; a fala sem autor do atendimento
+# migrado é do cliente (P6) e não conta como resposta
+def test_primeira_resposta_nao_conta_a_fala_sem_autor():
+    consultas = []
+
+    class SessaoQueGuarda:
+        def scalar(self, consulta):
+            consultas.append(str(consulta.compile(dialect=postgresql.dialect())))
+            return None
+
+    repo.primeira_resposta(SessaoQueGuarda(), datetime(2026, 10, 1, tzinfo=timezone.utc))
+
+    for sql in consultas:
+        assert "mensagem.id_autor IS NOT NULL AND mensagem.id_autor IS DISTINCT FROM chamado.id_cliente" in sql
+        assert "mensagem.interna IS false" in sql

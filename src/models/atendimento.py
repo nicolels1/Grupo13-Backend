@@ -36,6 +36,9 @@ class Chamado(Base):
     status: Mapped[str] = mapped_column(String(20), default="aberto", server_default="aberto")
     prioridade: Mapped[str | None] = mapped_column(String(10))  # definida por quem assume
     motivo_encerramento: Mapped[str | None] = mapped_column(String(20))
+    # atendimento migrado da Vulto (P6): por onde a pessoa escreveu e o contato que ela usou
+    canal_externo: Mapped[str | None] = mapped_column(String(10))
+    contato_externo: Mapped[str | None] = mapped_column(String(255))
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     atualizado_em: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -45,7 +48,7 @@ class Chamado(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "categoria IN ('entrega', 'troca_devolucao', 'estorno', 'duvida', 'outros')",
+            "categoria IN ('entrega', 'troca_devolucao', 'estorno', 'duvida', 'pagamento', 'outros')",
             name="categoria_valida",
         ),
         CheckConstraint("status IN ('aberto', 'em_andamento', 'concluido')", name="status_valido"),
@@ -58,6 +61,8 @@ class Chamado(Base):
             "(status = 'concluido') = (motivo_encerramento IS NOT NULL)", name="concluido_exige_motivo"
         ),
         CheckConstraint("num_nonnulls(id_cliente, id_cliente_sem_conta) = 1", name="um_cliente"),
+        CheckConstraint("canal_externo IN ('whatsapp', 'instagram', 'email')", name="canal_externo_valido"),
+        CheckConstraint("contato_externo IS NULL OR canal_externo IS NOT NULL", name="contato_externo_exige_canal"),
         # "meus chamados" do cliente
         Index("ix_chamado_id_cliente", "id_cliente"),
         # chamados que passam para a conta no cadastro
@@ -70,7 +75,10 @@ class Mensagem(Base):
 
     id_mensagem: Mapped[int] = mapped_column(primary_key=True)
     id_chamado: Mapped[int] = mapped_column(ForeignKey("chamado.id_chamado", ondelete="RESTRICT"))
-    id_autor: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("usuario.id_usuario", ondelete="RESTRICT"))
+    # sem autor: a fala do cliente do chamado migrado da Vulto, que não tem um usuário (P6); a API sempre grava o autor
+    id_autor: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("usuario.id_usuario", ondelete="RESTRICT"))
+    # nome de quem falou no atendimento migrado: o cliente e, nas falas da conta "Migração Vulto", o nome original
+    nome_autor_externo: Mapped[str | None] = mapped_column(String(150))
     conteudo: Mapped[str | None] = mapped_column(Text)
     anexo_caminho: Mapped[str | None] = mapped_column(String(500))  # Storage privado, não URL
     anexo_nome: Mapped[str | None] = mapped_column(String(255))
@@ -81,6 +89,7 @@ class Mensagem(Base):
 
     __table_args__ = (
         CheckConstraint("conteudo IS NOT NULL OR anexo_caminho IS NOT NULL", name="texto_ou_anexo"),
+        CheckConstraint("id_autor IS NOT NULL OR nome_autor_externo IS NOT NULL", name="autor_ou_nome_externo"),
         # conversa do chamado, mensagens não lidas e marcar como lidas
         Index("ix_mensagem_id_chamado", "id_chamado"),
     )

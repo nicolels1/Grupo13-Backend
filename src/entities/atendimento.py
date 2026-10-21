@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from src.entities.comum import sem_espacos
 
-Categoria = Literal["entrega", "troca_devolucao", "estorno", "duvida", "outros"]
+Categoria = Literal["entrega", "troca_devolucao", "estorno", "duvida", "pagamento", "outros"]
 Status = Literal["aberto", "em_andamento", "concluido"]
 Prioridade = Literal["baixa", "media", "alta"]
 MotivoConclusao = Literal["resolvido", "desistencia", "sem_resposta"]
@@ -102,14 +102,16 @@ class ChamadoSaida(BaseModel):
     atualizado_em: datetime
     assumido_em: datetime | None
     concluido_em: datetime | None
+    canal_externo: str | None = Field(description="Atendimento migrado da Vulto: whatsapp, instagram ou email")
+    contato_externo: str | None = Field(description="Atendimento migrado da Vulto: telefone, e-mail ou @ de quem escreveu")
     mensagens_nao_lidas: int = Field(description="Mensagens do outro lado (cliente ou equipe) ainda não lidas")
 
 
 class MensagemSaida(BaseModel):
     id_mensagem: int
     id_chamado: int
-    id_autor: uuid.UUID
-    autor: str
+    id_autor: uuid.UUID | None = Field(description="Vazio: fala do cliente no atendimento migrado da Vulto")
+    autor: str = Field(description="Nome de quem falou; no atendimento migrado, o nome original")
     da_equipe: bool
     conteudo: str | None
     interna: bool
