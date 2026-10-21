@@ -1,8 +1,8 @@
-loja_id,unidade,nome_curto,tipo,decisao
-1,Vulto Pinheiros,Pinheiros,loja,U1
-2,Vulto Shopping Eldorado,Eldorado,loja,U1
-3,Vulto Savassi,Savassi,loja,U1
-4,Vulto Batel,Batel,loja,U1
-5,CD Cajamar,Site,cd,V12
-6,CD Cajamar,App,cd,V12
-7,CD Cajamar,CD Cajamar,cd,E1
+loja_id,unidade,nome_curto,tipo,bairro,uf,despacha_online,decisao
+1,Vulto Pinheiros,Pinheiros,loja,Pinheiros,SP,sim,U1
+2,Vulto Shopping Eldorado,Eldorado,loja,A confirmar,SP,nao,U1
+3,Vulto Savassi,Savassi,loja,Savassi,MG,nao,U1
+4,Vulto Batel,Batel,loja,Batel,PR,nao,U1
+5,CD Cajamar,Site,cd,A confirmar,SP,sim,V12
+6,CD Cajamar,App,cd,A confirmar,SP,sim,V12
+7,CD Cajamar,CD Cajamar,cd,A confirmar,SP,sim,E1
