@@ -113,15 +113,15 @@ Por produto, a Savassi tem a maior margem: o total de cada modelo está certo, m
 
 ## 3. Passivo de pontos do Vulto+ em 01/10/2026
 
-**9.441.236 pontos ≈ R$ 653.123,10**, de 2.710 clientes com saldo.
+**9.436.136 pontos ≈ R$ 652.718,10**, de 2.710 clientes com saldo.
 
 | Parcela | Pontos | Valor do ponto | R$ |
 |---|---:|---:|---:|
-| Ganhos até fev/2025 | 3.621.226 | R$ 0,10 | 362.122,60 |
-| Ganhos desde mar/2025 | 5.820.010 | R$ 0,05 | 291.000,50 |
-| **Total** | **9.441.236** | | **653.123,10** |
+| Ganhos até fev/2025 | 3.618.226 | R$ 0,10 | 361.822,60 |
+| Ganhos desde mar/2025 | 5.817.910 | R$ 0,05 | 290.895,50 |
+| **Total** | **9.436.136** | | **652.718,10** |
 
-O valor do ponto é o da época em que ele foi ganho (K3), e o resgate gasta primeiro os pontos mais antigos (FIFO). O ponto que entra com o saldo negativo primeiro paga a dívida, como na plataforma (K5f). O sistema da Vulto vale tudo a R$ 0,10 (R$ 944.123,60); se tudo valesse a regra nova, R$ 0,05, seriam R$ 472.061,80.
+O valor do ponto é o da época em que ele foi ganho (K3), e o resgate gasta primeiro os pontos mais antigos (FIFO). O ponto que entra com o saldo negativo primeiro paga a dívida, como na plataforma (K5f). O sistema da Vulto vale tudo a R$ 0,10 (R$ 943.613,60); se tudo valesse a regra nova, R$ 0,05, seriam R$ 471.806,80.
 
 De onde vêm os pontos:
 
@@ -134,9 +134,9 @@ De onde vêm os pontos:
 | Ajustes do banco (AJ), quase todos a correção do bug do app | 61 | −1.119.176 |
 | Dobro do online que o sistema não deu (K4b) | 2.920 | +1.444.367 |
 | Pontos de venda que não vale e bug do app sem correção (K6) | 658 | −862.858 |
-| Resgates anotados só na planilha (K7a) | 84 | −78.300 |
+| Resgates anotados só na planilha (K7a, K7c) | 91 | −83.400 |
 | Saldos negativos zerados (K5f) | 4 | +2.050 |
-| **Passivo em 01/10/2026** | | **9.441.236** |
+| **Passivo em 01/10/2026** | | **9.436.136** |
 
 Os pontos creditados em telefone, celular sem DDD ou CPF digitado errado vão para o dono certo (J1c, J1d, K2); os 486 CPFs que só existem nos pontos entram como clientes sem conta (K8). O vencimento e o bônus Ouro valem só a partir de 01/10/2026 (K4a): se o vencimento de 12 meses tivesse sido aplicado, 4,86 milhões de pontos já teriam vencido.
 
@@ -145,7 +145,7 @@ Os pontos creditados em telefone, celular sem DDD ou CPF digitado errado vão pa
 | Motivo | Pontos | R$ |
 |---|---:|---:|
 | Pontos sem dono que podem ser dívida (1 cadastro sem CPF certo e o CPF `00000000000`, K2) | +165 | +16,50 |
-| Resgates da planilha sem cliente identificado, que podem reduzir a dívida (K7a) | −6.600 | −330,00 |
+| Resgates da planilha sem cliente identificado, que podem reduzir a dívida (K7a, K7c: João e Alice Nogueira) | −1.500 | −75,00 |
 | Saldos abreviados ("2,7k") da planilha, para mais ou para menos (K5b) | ±4.800 | ±480,00 |
 
 A margem é pequena perto do total. O que mais mexe no número é a regra, não o dado: o valor do ponto (K3) e o vencimento (K4a), acima.

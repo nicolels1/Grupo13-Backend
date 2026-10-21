@@ -643,8 +643,18 @@ def pontos_do_resgate(resgates: pd.DataFrame, pendencias: pd.DataFrame) -> pd.Se
     return pts.where(pts >= RESGATE_MINIMO, pts * 1000)
 
 
+PROMOCOES = (5, 10, 15, 20, 25, 30)  # % de promoção que a loja somava ao desconto do resgate (K7c)
+
+
+# O desconto da venda é o resgate mais uma promoção redonda sobre o subtotal (K7c)
+def resgate_com_promocao(desconto_venda, subtotal, resgate) -> bool:
+    resto = round(desconto_venda - resgate, 2)
+    return resto > 0 and any(abs(subtotal * p / 100 - resto) <= 0.011 for p in PROMOCOES)
+
+
 # Resgates anotados só na planilha desde 2025 (K7a): com CPF e fora do banco (mesmo CPF e quantidade,
-# até 3 dias); sem CPF, o cliente vem da venda com o mesmo desconto, loja e até 1 dia, confirmado pelo nome
+# até 3 dias); sem CPF, o cliente vem da venda com o mesmo desconto (ou o resgate mais uma promoção, K7c),
+# loja e até 1 dia, confirmado pelo nome
 def resgates_so_na_planilha(resgates: pd.DataFrame, pendencias: pd.DataFrame, p: pd.DataFrame,
                             vendas: pd.DataFrame, clientes: pd.DataFrame) -> pd.DataFrame:
     from migracao_vulto.normalizadores import chave_busca
@@ -668,9 +678,12 @@ def resgates_so_na_planilha(resgates: pd.DataFrame, pendencias: pd.DataFrame, p:
     sem = r[r["cliente_cpf"].isna()].copy()
     achados, confirmadas = [], []
     for nome, loja, desconto, dia in zip(sem["cliente_nome"].map(chave_busca), sem["loja"], sem["desconto"], sem["dia"]):
-        candidatas = v[(v["loja_id"] == LOJA_DO_RESGATE.get(loja)) & ((v["dia"] - dia).dt.days.abs() <= 1)
-                       & ((v["desconto"] - desconto).abs() < 0.01)]
-        bate = candidatas[candidatas["ref"].map(lambda c: isinstance(c, str) and confirma(nome, c)).astype(bool)]
+        perto = v[(v["loja_id"] == LOJA_DO_RESGATE.get(loja)) & ((v["dia"] - dia).dt.days.abs() <= 1)]
+        perto = perto[perto["ref"].map(lambda c: isinstance(c, str) and confirma(nome, c)).astype(bool)]
+        bate = perto[(perto["desconto"] - desconto).abs() < 0.01]
+        if bate.empty:  # o desconto da venda somou o resgate a uma promoção da loja
+            bate = perto[pd.Series([resgate_com_promocao(d, t + d, desconto) for d, t in
+                                    zip(perto["desconto"], perto["total"])], index=perto.index, dtype=bool)]
         unico = bate["ref"].nunique() == 1
         achados.append(bate["ref"].iloc[0] if unico else None)
         confirmadas.append(bate["id"].iloc[-1] if unico else None)  # a venda que confirmou (P4)

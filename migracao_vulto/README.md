@@ -109,7 +109,7 @@ O `tratado_vulto/` já passa nas regras do banco (CHECK, chaves e triggers). A c
 - **Inserir os movimentos de pontos na ordem da coluna `ordem`:** o trigger do saldo exige ordem de data.
 - **Contar com os pagamentos com `origem = migracao`:** os triggers não creditam nem estornam pontos por eles; os pontos vêm só do `movimento_pontos`.
 - **Gravar o `origem_migracao` por último**, com o id que o banco deu a cada registro no lugar da chave natural.
-- **Não carregar** o `pendencias.csv` nem o `lista_marina.csv` (peças para a Marina revisar o preço, C10 e C17): são listas para a equipe.
+- **Não carregar** o `pendencias.csv` nem o `lista_marina.csv` (peças para a Marina revisar o preço, C10 e C17): são listas para a equipe. O `pendencias.csv` não é trabalho por fazer: é o que ficou de fora por uma decisão do registro, linha a linha (19 movimentos de pontos do CPF de teste e do `00000000000`, V8 e K2; 2 resgates sem cliente, K7a e K7c).
 
 No fim, os três números calculados a partir do banco devem ser iguais aos do [`numeros.md`](numeros.md).
 
