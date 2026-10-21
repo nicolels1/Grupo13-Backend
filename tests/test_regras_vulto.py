@@ -158,6 +158,13 @@ def test_pontos_do_resgate_corrige_o_ponto_de_milhar():
     assert r.pontos_do_resgate(resgates, pendencias).tolist() == [2000, 1500, 500]
 
 
+def test_resgate_com_promocao_soma_um_percentual_redondo():
+    assert r.resgate_com_promocao(51.99, 269.90, 25)  # 10% de 269,90 + 25 (Davi, vendas#14227)
+    assert r.resgate_com_promocao(33.00, 159.90, 25)  # 5% arredondado (7,995) + 25
+    assert not r.resgate_com_promocao(25.00, 269.90, 25)  # desconto exato é a regra da K7a, não esta
+    assert not r.resgate_com_promocao(40.00, 269.90, 25)  # 15 não é percentual redondo de 269,90
+
+
 def _identidades():
     clientes = pd.DataFrame({"linha_origem": ["Clientes!2", "Clientes!3"], "cpf": ["52998224725", "11144477735"],
                              "Tel": ["+5511987654321", None]})
@@ -400,6 +407,8 @@ def test_vendedor_pela_grafia_sem_acento_e_pela_data():
     assert r.vendedor("1", "Rafa ", "2025-06-01") == "rafael.lima"
     assert r.vendedor("1", "rafa", "2026-01-10") == "rafaela.couto"
     assert r.vendedor("1", "rafa", "2025-11-05") is None  # entre as duas validades, sem dono
+    assert r.vendedor("1", "rafa.pin", "2025-10-31") == "rafael.lima"  # presumido: dia seguinte ao último dele
+    assert r.vendedor("1", "Rafa", "2025-11-10") == "rafaela.couto"  # presumido: véspera do primeiro dela
     assert r.vendedor("4", "gerente", "2026-03-25") is None
 
 
