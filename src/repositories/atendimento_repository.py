@@ -58,8 +58,9 @@ def consulta_chamados(
     prioridade=None, id_unidade=None, id_responsavel=None, sem_responsavel=None, com_mensagem_nova=None,
 ) -> Select:
     nao_lidas = _nao_lidas_do_outro_lado(lado)
-    # cliente com conta ou cliente sem conta da migração (P2); este sem nome aparece pelo e-mail
-    cliente = func.coalesce(Cliente.nome, ClienteSemConta.nome, ClienteSemConta.email)
+    # cliente com conta ou cliente sem conta da migração (P2); este sem nome aparece pelo e-mail. O migrado
+    # sem cliente (A5–A7) aparece pelo contato externo
+    cliente = func.coalesce(Cliente.nome, ClienteSemConta.nome, ClienteSemConta.email, Chamado.contato_externo)
     consulta = (
         select(
             *Chamado.__table__.columns, cliente.label("cliente"), Responsavel.nome.label("responsavel"),
