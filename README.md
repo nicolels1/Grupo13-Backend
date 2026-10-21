@@ -260,7 +260,7 @@ As fotos aparecem em `imagens` de cada produto, com a URL pública.
 | POST | `/carrinho` | público | preços do momento, frete da entrega (com o valor mínimo do frete grátis) e lojas com tudo para retirada; não reserva nada |
 | GET, POST | `/enderecos` | cliente | endereços salvos |
 | PATCH, DELETE | `/enderecos/{id}` | cliente | altera ou apaga (o pedido guarda a própria cópia) |
-| POST | `/pedidos` | cliente | checkout: escolhe a unidade, reserva as peças por 15 minutos e cria o pedido aguardando pagamento |
+| POST | `/pedidos` | cliente | checkout: escolhe a unidade, reserva as peças por 15 minutos e cria o pedido aguardando pagamento. `pontos_resgate` usa pontos como desconto: saem agora e voltam se a reserva vencer ou o pedido for cancelado |
 | GET | `/pedidos`, `/pedidos/{id}` | cliente | meus pedidos, com itens (cada um com a foto da cor comprada em `foto_url`), pagamentos e endereço de entrega |
 | POST | `/pedidos/{id}/pagamentos` | cliente | cria a cobrança do valor que falta (Pix, crédito ou débito) no gateway simulado |
 | POST | `/pagamentos/{id}/simular` | cliente | gateway simulado: `{"aprovado": true}` paga o pedido e baixa o estoque (ADR 0011) |
@@ -272,7 +272,7 @@ As fotos aparecem em `imagens` de cada produto, com a URL pública.
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
 | GET | `/vendas/pedidos`, `/vendas/pedidos/{id}` | qualquer permissão de vendas ou `atender_chamado` | pedidos, com filtros: status, canal, modalidade, unidade, código, `pronto_ha_mais_de_dias` e data de criação (`de`, `ate`; data sem hora vale o dia inteiro) |
-| POST | `/vendas/pedidos` | `registrar_venda_fisica` | venda na loja: nasce paga e entregue, baixa o estoque de loja física. CPF opcional (`cpf_nota`): com conta, liga o pedido; de um cliente da Vulto que ainda não criou conta, liga a ele (e ele ganha os pontos); sem nenhum dos dois, fica guardado no pedido |
+| POST | `/vendas/pedidos` | `registrar_venda_fisica` | venda na loja: nasce paga e entregue, baixa o estoque de loja física. CPF opcional (`cpf_nota`): com conta, liga o pedido; de um cliente da Vulto que ainda não criou conta, liga a ele (e ele ganha os pontos); sem nenhum dos dois, fica guardado no pedido. `pontos_resgate` usa os pontos desse cliente como desconto, e os pagamentos fecham com o total menos o desconto |
 | POST | `/vendas/pedidos/{id}/enviar` | `preparar_entregar_pedido` | entrega em casa paga → enviada |
 | POST | `/vendas/pedidos/{id}/pronto-retirada` | `preparar_entregar_pedido` | retirada paga → pronta (começa o prazo de 7 dias) |
 | POST | `/vendas/pedidos/{id}/entregar` | `preparar_entregar_pedido` | entrega o pedido enviado ou retirado (na retirada, confere o código) |
@@ -345,9 +345,13 @@ Cada marca tem o seu programa de pontos (P10). O saldo, a categoria e o vencimen
 
 Os pontos entram e saem sozinhos, pelo banco: o pedido de quem tem conta (ou é cliente sem conta da Vulto) ganha pontos quando os pagamentos aprovados cobrem o total, pela regra da marca da unidade, e cada estorno de dinheiro tira a mesma proporção dos pontos do pedido, sem deixar o saldo negativo se o cliente já os gastou. O pagamento migrado da Vulto não mexe nos pontos. A compra só com o CPF na nota ganha os pontos quando passa para a conta (no cadastro), pela data da compra: vale, vence e entra na fila de resgate como se tivesse sido creditada naquele dia, e não ganha nada se esses pontos já teriam vencido ou se a marca ainda não tinha programa de fidelidade.
 
+No resgate, os pontos viram desconto no pedido (`valor_desconto`): saem primeiro os mais antigos, cada um pelo valor da época, e o pedido ganha pontos só sobre o valor pago. Os pontos usados voltam para os mesmos lotes, com a validade deles, quando o pedido é cancelado (por qualquer caminho, inclusive o pg_cron) ou devolvido inteiro; na devolução parcial, o desconto fica na compra.
+
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
 | GET | `/fidelidade/regras?marca=` | `gerenciar_fidelidade` | regras de cada marca, da mais nova para a mais antiga; `vigente` marca a que vale hoje |
+| GET | `/fidelidade/resgate?marca=&pontos=` | cliente | quanto valem os pontos do cliente num resgate, antes do checkout: os mais antigos primeiro, cada um pelo valor da época (K3); confere o mínimo, o saldo e a regra da marca |
+| GET | `/fidelidade/resgate/caixa?cpf=&marca=&pontos=` | `registrar_venda_fisica` | o mesmo no caixa, para o cliente do CPF (com conta ou da Vulto sem conta) |
 | POST | `/fidelidade/regras` | `gerenciar_fidelidade` | regra nova a partir de amanhã ou de uma data futura: vale dali em diante e nunca muda um ponto já ganho; uma regra que ainda não começou se corrige com outra para a mesma data (vale a criada por último) |
 
 ### Avaliações
