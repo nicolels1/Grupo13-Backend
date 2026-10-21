@@ -94,7 +94,7 @@ rota (routes/) → token (dependencies/auth.py) → conta ativa e permissão (de
 - Toda conta tem tipo `interna` ou `cliente` e status `ativa`, `pendente_ativacao` ou `inativa`. Só conta ativa usa a API.
 - A conta interna está ligada a um **modelo de acesso** (Admin, Funcionário, Estoquista, Atendente…) e pode ter **exceções** que acrescentam ou retiram permissões.
 - O Admin tem todas as permissões. As permissões da Gestão (`gerenciar_contas`, `gerenciar_modelos_acesso`, `gerenciar_unidades`) são só dele, garantido por trigger (ADRs 0009 e 0010).
-- São 16 códigos de permissão; a lista e a tabela por modelo estão na seção 6 do [case](docs/case/Casa_Lorenzi_Case_Completo.md).
+- São 17 códigos de permissão; a lista e a tabela por modelo estão na seção 6 do [case](docs/case/Casa_Lorenzi_Case_Completo.md).
 
 Dependências prontas para proteger uma rota (`src/dependencies/permissoes.py`):
 
@@ -140,7 +140,7 @@ O histórico de estoque é calculado somando as movimentações até a data pedi
   - o que é criado fora antes da gravação (login no Auth, arquivo no Storage) é desfeito se a gravação falhar (`apagar_login`, `arquivos.desfazer_envio`);
   - o que muda algo fora depois da gravação (bloquear login, apagar arquivo antigo) vem depois do commit; se falhar, o banco volta ao valor anterior (`usuarios.alterar`) ou o problema fica registrado no log.
 
-O modelo de dados completo (27 tabelas e valores aceitos) está na seção 7 do [case](docs/case/Casa_Lorenzi_Case_Completo.md). Depois dele entrou a tabela `destaque` (slides do carrossel do topo da página inicial, migration `91a5ddfd1a16`), para a equipe trocar o carrossel pelo interno em vez de pelo código. Comandos do Alembic, passo a passo para mudar o banco e as regras das migrations estão no [ALEMBIC_GUIDE.md](ALEMBIC_GUIDE.md).
+O modelo de dados completo (27 tabelas e valores aceitos) está na seção 7 do [case](docs/case/Casa_Lorenzi_Case_Completo.md). Depois dele entraram a tabela `destaque` (slides do carrossel do topo da página inicial, migration `91a5ddfd1a16`), para a equipe trocar o carrossel pelo interno em vez de pelo código, e as 7 tabelas da Entrega 3: `cliente_sem_conta` e `origem_migracao` (migração da Vulto) e `regra_fidelidade`, `movimento_pontos`, `saldo_pontos`, `lote_pontos` e `consumo_pontos` (fidelidade). Comandos do Alembic, passo a passo para mudar o banco e as regras das migrations estão no [ALEMBIC_GUIDE.md](ALEMBIC_GUIDE.md).
 
 ## Como rodar localmente
 
