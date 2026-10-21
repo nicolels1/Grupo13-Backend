@@ -210,7 +210,7 @@ O que a plataforma ganhou para receber a Vulto (cada item cita a decisão do reg
 - **prazo de troca do pedido migrado** (V13): o pedido online da Vulto, sem data de entrega, conta os 30 dias do pagamento;
 - **atendimento externo** (P6): o chamado migrado guarda o canal (`whatsapp`, `instagram` ou `email`) e o contato de quem escreveu; a fala do cliente entra sem autor, com o nome de quem falou, e conta como do cliente nas mensagens, nas não lidas e na primeira resposta da Visão Geral;
 - **categoria `pagamento`** no chamado (A4a), também para os chamados novos;
-- **fidelidade** (P5, K3, K4a, K4c): regras por marca com data, extrato de pontos que nunca muda, saldo e categoria por cliente em cada marca e lotes com o valor da época e o vencimento; o trigger aplica o FIFO, sobe a categoria e vira o ano, e o pg_cron vence os pontos (todo dia) e vira o ano de quem não teve movimento (1º de janeiro). A Lorenzi começa com a mesma regra da Vulto, a partir de 01/10/2026.
+- **fidelidade** (P5, K3, K4a, K4c): regras por marca com data, extrato de pontos que nunca muda, saldo e categoria por cliente em cada marca e lotes com o valor da época e o vencimento; o trigger aplica o FIFO, sobe a categoria e vira o ano, e o pg_cron vence os pontos (todo dia) e vira o ano de quem não teve movimento (1º de janeiro). A Lorenzi começa com a mesma regra da Vulto, a partir de 01/10/2026, e quem tem a permissão nova `gerenciar_fidelidade` (no começo, só o Admin) cria as regras seguintes de cada marca.
 
 Próximos passos, fora da Entrega 3:
 
@@ -338,6 +338,15 @@ A leitura exige alguma permissão da área (movimentar estoque, definir mínimo 
 | GET | `/balcao/estoque` | `registrar_venda_fisica`, `registrar_troca_devolucao` ou `atender_chamado` | consultar peça: estoque das unidades, só leitura (o atendimento usa na troca pelo chamado) |
 
 Vale para qualquer pedido entregue há no máximo 30 dias, com ou sem conta, e só em loja (nunca no CD). O banco registra quem fez e em que loja (ADR 0015).
+
+### Fidelidade
+
+Cada marca tem o seu programa de pontos (P10). O saldo, a categoria e o vencimento ficam no banco (trigger e pg_cron).
+
+| Método | Rota | Acesso | Descrição |
+|---|---|---|---|
+| GET | `/fidelidade/regras?marca=` | `gerenciar_fidelidade` | regras de cada marca, da mais nova para a mais antiga; `vigente` marca a que vale hoje |
+| POST | `/fidelidade/regras` | `gerenciar_fidelidade` | regra nova a partir de amanhã ou de uma data futura: vale dali em diante e nunca muda um ponto já ganho; uma regra que ainda não começou se corrige com outra para a mesma data (vale a criada por último) |
 
 ### Avaliações
 
