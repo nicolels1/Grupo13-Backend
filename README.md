@@ -227,7 +227,7 @@ A lista completa, com parâmetros e formatos, está em `/docs`. Resumo por área
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
 | GET | `/health` | público | consulta o banco; 503 se ele não responder |
-| POST | `/clientes` | público | cadastro de cliente (nome, e-mail, CPF e senha); as compras da loja com esse CPF na nota e o histórico do cliente sem conta com esse CPF ou e-mail passam para a conta (`compras_ligadas`) |
+| POST | `/clientes` | público | cadastro de cliente (nome, e-mail, CPF e senha); as compras da loja com esse CPF na nota e o histórico do cliente sem conta com esse CPF ou e-mail passam para a conta (`compras_ligadas`), com o saldo de pontos dele |
 | POST | `/login/cpf` | público | login do cliente por CPF e senha; devolve a sessão do Supabase |
 | GET | `/me` | conta ativa | perfil, tipo de conta e permissões efetivas (monta a tela inicial) |
 | GET | `/visao-geral/resumo?id_unidade=` | conta interna | números e gráficos da Visão Geral; só as seções que a conta pode ver (as outras ficam ausentes) |
@@ -343,7 +343,7 @@ Vale para qualquer pedido entregue há no máximo 30 dias, com ou sem conta, e s
 
 Cada marca tem o seu programa de pontos (P10). O saldo, a categoria e o vencimento ficam no banco (trigger e pg_cron).
 
-Os pontos entram e saem sozinhos, pelo banco: o pedido de quem tem conta (ou é cliente sem conta da Vulto) ganha pontos quando os pagamentos aprovados cobrem o total, pela regra da marca da unidade, e cada estorno de dinheiro tira a mesma proporção dos pontos do pedido, sem deixar o saldo negativo se o cliente já os gastou. O pagamento migrado da Vulto não mexe nos pontos. A compra só com o CPF na nota ganha os pontos quando passa para a conta (no cadastro), pela data da compra: vale, vence e entra na fila de resgate como se tivesse sido creditada naquele dia, e não ganha nada se esses pontos já teriam vencido ou se a marca ainda não tinha programa de fidelidade.
+Os pontos entram e saem sozinhos, pelo banco: o pedido de quem tem conta (ou é cliente sem conta da Vulto) ganha pontos quando os pagamentos aprovados cobrem o total, pela regra da marca da unidade, e cada estorno de dinheiro tira a mesma proporção dos pontos do pedido, sem deixar o saldo negativo se o cliente já os gastou. Quando o cliente sem conta cria a conta, o saldo e os lotes passam para ela (somando ao que ela já tinha na marca, com a categoria mais alta). O pagamento migrado da Vulto não mexe nos pontos. A compra só com o CPF na nota ganha os pontos quando passa para a conta (no cadastro), pela data da compra: vale, vence e entra na fila de resgate como se tivesse sido creditada naquele dia, e não ganha nada se esses pontos já teriam vencido ou se a marca ainda não tinha programa de fidelidade.
 
 No resgate, os pontos viram desconto no pedido (`valor_desconto`): saem primeiro os mais antigos, cada um pelo valor da época, e o pedido ganha pontos só sobre o valor pago. Os pontos usados voltam para os mesmos lotes, com a validade deles, quando o pedido é cancelado (por qualquer caminho, inclusive o pg_cron) ou devolvido inteiro; na devolução parcial, o desconto fica na compra.
 

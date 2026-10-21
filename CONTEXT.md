@@ -220,7 +220,7 @@ Pessoa com conta do tipo cliente, identificada por CPF.
 _Evite_: consumidor, comprador
 
 **Cliente sem conta**:
-Cliente trazido pela migração da Vulto que nunca criou conta, identificado pelo CPF ou, sem ele, pelo e-mail. Não entra na plataforma; seus pedidos e chamados passam para a conta quando ele se cadastra com o mesmo CPF ou e-mail (ADR 0016).
+Cliente trazido pela migração da Vulto que nunca criou conta, identificado pelo CPF ou, sem ele, pelo e-mail. Não entra na plataforma; seus pedidos, chamados e pontos passam para a conta quando ele se cadastra com o mesmo CPF ou e-mail (ADR 0016); o extrato de pontos mostra o histórico de antes da conta.
 _Evite_: cliente inativo, conta pendente
 
 **Funcionário**:
