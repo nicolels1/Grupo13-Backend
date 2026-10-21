@@ -343,6 +343,38 @@ def test_separar_canal_da_pinheiros_sem_mudar_o_total():
     assert p[("CD Cajamar", "online")] == 10
 
 
+def test_codigo_com_dois_candidatos_fica_com_o_que_a_loja_tem_no_sistema_e_nao_contou():
+    variantes = {"VLT-BER-007-AZM-40", "VLT-BER-007-AZM-42", "VLT-BER-007-AZM-44"}
+    contagem = pd.DataFrame({"unidade": "Pinheiros", "nivel": "sku", "linha_origem": ["a", "b", "c"],
+                             "observacao": None, "codigo": ["VLT-BER-007-AZM-40", "VLT-BER-007-AZM-44",
+                                                            "VLT-BE-R007-AZM-42"], "quantidade": ["4", "1", "4"]})
+    estoque = pd.DataFrame({"loja_id": "1", "sku": sorted(variantes), "qtd": ["4", "3", "3"]})
+    itens = pd.DataFrame(columns=["unidade", "sku", "q"])
+    c = r.posicao_contada(contagem, estoque, itens, variantes).set_index("linha_origem")
+    assert c.loc["c", "sku"] == "VLT-BER-007-AZM-42"
+    sem_sistema = r.posicao_contada(contagem, estoque[estoque["sku"] != "VLT-BER-007-AZM-42"], itens, variantes)
+    assert sem_sistema.set_index("linha_origem").loc["c", "leitura"] == "ilegível"
+
+
+def test_saldo_inicial_mais_movimentos_e_ajustes_da_a_posicao(monkeypatch):
+    monkeypatch.setattr(r, "INICIO_HISTORICO", "2026-09-01")
+    contada = pd.DataFrame({"unidade": ["L"], "sku": ["A"], "q": [2]})
+    movimentos = _movimentos([("L", "A", "2026-09-10", -3), ("L", "A", "2026-09-05", 6), ("L", "A", "2026-09-03", -2)])
+    posicao = r.posicao_na_data_base(contada, movimentos, {"L": "2026-09-20"})
+    _, ajustes = r.reconstruir_historico(contada, movimentos, {"L": "2026-09-20"})
+    inicial = r.saldo_inicial_estoque(posicao, movimentos, ajustes)
+    assert inicial[("L", "A")] == 2  # o saldo de 02/09 no teste do histórico
+    assert inicial[("L", "A")] + movimentos["q"].sum() - ajustes["q"].sum() == posicao["q"].sum()
+
+
+def test_minimo_do_cd_e_a_saida_do_mes_com_piso():
+    cd = r.CD
+    movimentos = _movimentos([(cd, "A", "2026-09-10", -5), (cd, "A", "2026-09-20", -4), (cd, "A", "2026-08-31", -9),
+                              (cd, "B", "2026-09-15", -1), (cd, "C", "2026-09-15", 3), ("Loja", "D", "2026-09-15", -6)])
+    minimo = r.estoque_minimo_cd(movimentos)
+    assert minimo.to_dict() == {"A": 9, "B": 2}  # agosto não conta; entrada e loja não têm mínimo
+
+
 # ---------- vendas: pedidos ----------
 
 def test_codigo_venda_mantem_o_do_site_e_numera_a_loja_fisica():
