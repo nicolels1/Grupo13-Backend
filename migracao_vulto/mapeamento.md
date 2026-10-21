@@ -189,7 +189,7 @@ Evidência: `notebooks/05_atendimentos.ipynb` (seção 5: cliente × pedido). De
 | `pedido_codigo` | `chamado.id_pedido` | ✅ 928 acham a venda pelas regras da J3 (J3, A2) |
 | `mensagem` (primeira fala) | `chamado.id_pedido` | ✅ o pedido citado só no texto também liga (J3) |
 | `contato` (telefone, e-mail, @Instagram) | `chamado.contato_externo` e cliente (P2) | ✅ o telefone e o e-mail acham o CPF (J1a); o @ fica como contato externo (A1, P6); sem cliente, entra sem cliente (A6, A7) |
-| dono do pedido (`vendas.cliente_ref` da venda citada) | `chamado.id_cliente` | ✅ vem antes do contato; 1.109 dos 1.625 com cliente (J1a, A1) |
+| dono do pedido (`vendas.cliente_ref` da venda citada) | `chamado.id_cliente` | ✅ vem antes do contato; 1.110 dos 1.625 com cliente (J1a, A1); o e-mail de família, de mais de um CPF, não escolhe o cliente (P2) |
 | `nome_contato` | `mensagem.nome_autor_externo` | ✅ não liga ao cliente; vira o nome de quem falou (A5, P6) |
 | `mensagem` (conversa inteira num campo) | `chamado.descricao` + `mensagem` (uma por fala) | ✅ a primeira fala vira a descrição e as outras viram mensagens (P6) |
 | `canal` (WhatsApp, Instagram, e-mail) | `chamado.canal_externo` | ✅ coluna nova (P6) |
@@ -209,7 +209,7 @@ Evidência: `notebooks/05_atendimentos.ipynb` (seção 5: cliente × pedido). De
 
 ## O que a plataforma precisa ganhar
 
-Lista final da etapa 5, tirada do [registro de decisões](registro_decisoes.md). O detalhe e o porquê de cada item estão na linha da decisão.
+Lista final, tirada do [registro de decisões](registro_decisoes.md). O detalhe e o porquê de cada item estão na linha da decisão.
 
 ### Mudanças no banco e no código
 

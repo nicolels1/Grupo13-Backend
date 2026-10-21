@@ -1,4 +1,4 @@
-# Migração da Vulto: padronização dos dados
+# Migração da Vulto
 
 Scripts que preparam os dados da Vulto (banco SQLite e planilhas do `vulto-legado-back`) antes de levá-los ao banco da Casa Lorenzi. A migração acontece uma vez só; o que está aqui é reprodutível: roda de novo a partir dos arquivos originais e chega no mesmo resultado.
 
@@ -8,15 +8,19 @@ Scripts que preparam os dados da Vulto (banco SQLite e planilhas do `vulto-legad
 |---|---|---|---|
 | 0. Original | `vulto-backend/data/` | Cópia congelada dos dados da Vulto. Nunca é alterada (o SQLite é aberto só para leitura). | — |
 | 1. Padronização automática | `staging_vulto/` | Formato de data, número, CPF, e-mail, telefone, texto, encoding e cabeçalho de planilha. Nenhuma regra de negócio. | **Feita** (`padronizar.py`) |
-| 2. Tratamento | `tratado_vulto/` | Padrões assumidos (de-para) e decisões de negócio, com log de cada valor alterado. | Feito (`tratar.py`: unidades, contas internas, catálogo, clientes, vendas, estoque, fidelidade e atendimento) |
+| 2. Tratamento | `tratado_vulto/` | Padrões assumidos (de-para) e decisões de negócio: um CSV por tabela da plataforma, mais a origem de cada registro e cada valor alterado. | **Feito** (`tratar.py`: unidades, contas internas, catálogo, clientes, vendas, estoque, fidelidade e atendimento) |
 | 3. Carga | banco da Lorenzi | Insere os dados tratados, guardando a origem de cada registro. | A fazer |
 | Os três números | `numeros_vulto/` | Faturamento, estoque e passivo de pontos, calculados do staging com as decisões do registro. Só agregados. | **Feito** (`numeros.py`, resultado em [`numeros.md`](numeros.md)) |
 
-Cada etapa lê a pasta da anterior e regrava a sua do zero; regra nova entra no script e tudo roda de novo (não se cria um CSV por alteração). Os de-para da etapa 2 ficarão em CSVs pequenos em `de_para/`, versionados no git, e cada valor alterado vai para um único `alteracoes.csv` com a regra (número da decisão) que o mudou.
+Cada etapa lê a pasta da anterior e regrava a sua do zero; regra nova entra no script e tudo roda de novo (não se cria um CSV por alteração). Os de-para da etapa 2 ficam em CSVs pequenos em `de_para/`, versionados no git, e cada valor alterado vai para um único `origem_migracao.csv`, com a decisão que o mudou.
 
 ## Como rodar
 
-Os dados da Vulto não ficam neste repositório (têm CPF, e-mail e telefone de clientes). Clone o [vulto-legado-back](https://github.com/nadertaha06/vulto-legado-back) ao lado deste repositório e aponte para a pasta `data/` dele no `.env`:
+Os dados da Vulto não ficam neste repositório (têm CPF, e-mail e telefone de clientes). Clone o [vulto-legado-back](https://github.com/nadertaha06/vulto-legado-back) ao lado deste repositório, na pasta `vulto-backend`, e aponte para a pasta `data/` dele no `.env`:
+
+```bash
+git clone https://github.com/nadertaha06/vulto-legado-back ../vulto-backend
+```
 
 ```
 VULTO_DATA_DIR=../vulto-backend/data
@@ -27,8 +31,11 @@ Depois, na raiz do repositório, com o venv ativo:
 ```bash
 pip install -r migracao_vulto/requirements.txt
 python -m migracao_vulto.padronizar --destino staging_vulto
+python -m migracao_vulto.tratar --origem staging_vulto --destino tratado_vulto
 python -m migracao_vulto.numeros --origem staging_vulto --destino numeros_vulto
 ```
+
+O `tratar.py` imprime no fim os três números calculados a partir das tabelas tratadas; eles devem ser iguais aos do [`numeros.md`](numeros.md).
 
 Sem `VULTO_DATA_DIR`, informe a pasta no comando: `--origem ../vulto-backend/data`.
 
@@ -38,13 +45,13 @@ Sem `VULTO_DATA_DIR`, informe a pasta no comando: `--origem ../vulto-backend/dat
 
 - `normalizadores.py`: funções puras de padronização (uma por tipo de dado). Valor que não segue formato conhecido levanta `ValorInvalido` e vira pendência; nada é corrigido no chute.
 - `padronizar.py`: lê cada fonte, aplica os normalizadores e grava um CSV por tabela/aba, mais `pendencias.csv`.
-- `regras.py`: as regras das decisões do registro (SKU, situação e canal da venda, centavos do app, Batel, dono dos pontos, saldo inicial, estornos, FIFO, posição contada e histórico do estoque). Usadas pelo `numeros.py` e pelo tratamento, para que os números e a carga sigam a mesma regra.
+- `regras.py`: as regras das decisões do registro (SKU, situação e canal da venda, centavos do app, Batel, dono dos pontos, saldo inicial, estornos, FIFO, posição contada e histórico do estoque). Usadas pelo `numeros.py` e pelo `tratar.py`, para que os números e a carga sigam a mesma regra. Os testes estão em `tests/test_regras_vulto.py`.
+- `tratar.py`: a etapa 2. Monta cada tabela da plataforma a partir do staging, com as regras do `regras.py` e as traduções do `de_para/`, e grava também `origem_migracao.csv` e `pendencias.csv`.
 - `de_para/`: as tabelas de tradução da Vulto para a Lorenzi, em CSV, cada linha com a decisão que a justifica. Unidades, cores e status da venda (lidas pelo `regras.py`); contas internas, vendedor e atendente (P9); método de pagamento da Batel; consentimento e loja de cadastro do Vulto+ (a categoria não tem de-para: sai da regra, K4c); categoria do catálogo; canal, categoria e status do atendimento. Valor que não está na tabela não é traduzido no chute. O teste `tests/test_de_para_vulto.py` confere a estrutura.
-- `numeros.py`: calcula os três números da Entrega 3 (faturamento com a comparação com o relatório da Vulto, estoque em 01/10/2026 com o histórico desde jan/2025, passivo de pontos) a partir do staging, com as regras do `regras.py`. Os testes estão em `tests/test_numeros_vulto.py`.
+- `numeros.py`: calcula os três números da Entrega 3 (faturamento com a comparação com o relatório da Vulto, estoque em 01/10/2026 com o histórico desde jan/2025, passivo de pontos) a partir do staging, com as regras do `regras.py`.
 - [`numeros.md`](numeros.md): os três números, como chegamos neles e a margem de erro de cada um.
 - `notebooks/`: análise exploratória (entender as fontes e testar regras antes de irem para os scripts). Ver o [README da pasta](notebooks/README.md).
 - [`mapeamento.md`](mapeamento.md): onde cada dado da Vulto entra no banco da Casa Lorenzi e o que a plataforma precisa ganhar.
-- [`decisoes_em_aberto.md`](decisoes_em_aberto.md): as opções que foram discutidas em cada decisão; todas estão decididas e apontam para o registro.
 - [`registro_decisoes.md`](registro_decisoes.md): cada problema encontrado nos dados ou nas regras, a decisão tomada e o impacto no número final.
 - Toda linha de saída tem `linha_origem` (`vendas#272`, `Clientes!15`, `csv!40`), que deve atravessar todas as etapas até o banco da Lorenzi.
 
@@ -92,11 +99,25 @@ Pendências por motivo (o que não dá para padronizar sem decidir ou que não d
 | atendimento | `contato` | telefone sem DDD | 124 |
 | catálogo | `descontinuado` | só a célula do SKU em vermelho, resto da linha normal | 93 |
 
-## O que ainda falta no código
+## O que a carga (etapa 3) precisa respeitar
 
-Todas as decisões estão tomadas: ver o [registro de decisões](registro_decisoes.md). O que falta é levá-las para os scripts.
+O `tratado_vulto/` já passa nas regras do banco (CHECK, chaves e triggers). A carga só precisa:
 
-### Ajustes na etapa 1 (`padronizar.py`), feitos
+- **Trocar a chave natural pelo id**, na ordem das ligações: unidade, usuário, catálogo, cliente sem conta, pedido, pagamento, transferência, movimentação de estoque, movimento de pontos, chamado e mensagem. O cliente é achado pelo CPF ou, de quem não tem CPF, pelo e-mail.
+- **Deixar fora do INSERT a coluna vazia que o banco preenche:** `cliente_sem_conta.criado_em` (120 clientes só da aba antiga) e `variante.ean` (49 peças, o trigger gera o código).
+- **Não gravar o saldo do estoque direto:** o banco recusa ([ADR 0005](../docs/adr/0005-saldo-atualizado-por-trigger.md)). O saldo nasce das movimentações, inseridas na ordem da coluna `ordem`; o `estoque.csv` serve para conferir o saldo e para gravar só o `estoque_minimo` depois.
+- **Inserir os movimentos de pontos na ordem da coluna `ordem`:** o trigger do saldo exige ordem de data.
+- **Contar com os pagamentos com `origem = migracao`:** os triggers não creditam nem estornam pontos por eles; os pontos vêm só do `movimento_pontos`.
+- **Gravar o `origem_migracao` por último**, com o id que o banco deu a cada registro no lugar da chave natural.
+- **Não carregar** o `pendencias.csv` nem o `lista_marina.csv` (peças para a Marina revisar o preço, C10 e C17): são listas para a equipe.
+
+No fim, os três números calculados a partir do banco devem ser iguais aos do [`numeros.md`](numeros.md).
+
+## Onde cada decisão entra no código
+
+Todas as decisões estão tomadas e estão no [registro de decisões](registro_decisoes.md).
+
+### Ajustes na etapa 1 (`padronizar.py`)
 
 | Decisão | Ajuste |
 |---|---|
@@ -107,8 +128,6 @@ Todas as decisões estão tomadas: ver o [registro de decisões](registro_deciso
 Os três números não mudam com esses ajustes (`numeros.py` gera os mesmos CSVs).
 
 ### Etapa 2 (`tratar.py`): de onde vem cada regra
-
-Os padrões assumidos e as decisões de negócio que esta seção listava como pendentes estão decididos:
 
 | Assunto | Decisões |
 |---|---|
@@ -125,7 +144,7 @@ Os padrões assumidos e as decisões de negócio que esta seção listava como p
 | Atendimento | J3, A1 a A8, P6 |
 | Autores (vendedor, SAC, transferência) | P9 |
 
-Os três números já aplicam essas regras sobre o staging (`numeros.py`); a etapa 2 aplica as mesmas regras linha a linha, para a carga.
+O `numeros.py` aplica essas regras sobre o staging para chegar nos três números; o `tratar.py` aplica as mesmas regras linha a linha, para a carga.
 
 ## Problema: celular que passa por CPF válido
 
