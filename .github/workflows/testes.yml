@@ -24,5 +24,8 @@ jobs:
 
       - run: pip install -r requirements.txt
 
+      # a migração da Vulto tem requirements próprios (pandas); sem eles, os testes dela são pulados
+      - run: pip install -r migracao_vulto/requirements.txt
+
       # não precisa de .env: o conftest.py usa valores fictícios e nenhum teste conecta no banco
       - run: pytest -v
