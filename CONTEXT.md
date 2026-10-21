@@ -153,6 +153,10 @@ _Evite_: venda de balcão, PDV
 **Venda online**:
 Pedido feito pelo cliente na plataforma, com pagamento online e modalidade entrega em casa ou retirada.
 
+**Canal de venda**:
+Onde a venda foi feita: **loja**, **site** ou **app**. Separa o faturamento por canal sem mexer no canal do estoque: site e app vendem do mesmo estoque online. A Lorenzi vende na loja e no site; o app só aparece no histórico da Vulto.
+_Evite_: canal (sozinho, é o do estoque)
+
 **Modalidade**:
 Forma de receber uma venda online: **entrega em casa** ou **retirada**.
 
@@ -165,8 +169,11 @@ Modalidade em que o cliente busca o pedido numa loja escolhida, em até 7 dias.
 **Frete**:
 Valor de envio somado aos itens; zero na retirada e na venda física.
 
+**Desconto**:
+Valor tirado dos itens antes do total (total = itens − desconto + frete). A Lorenzi não dá desconto; só o pedido migrado da Vulto tem.
+
 **Pagamento**:
-Valor pago por um método (Pix, crédito, débito ou dinheiro) para um pedido; um pedido pode ter vários.
+Valor pago por um método (Pix, crédito, débito ou dinheiro) para um pedido; um pedido pode ter vários. O pagamento migrado da Vulto, que nunca guardou o método, fica com o método "não informado".
 
 **Cobrança**:
 Pagamento online que ainda aguarda a resposta do gateway; vence junto com a reserva.
