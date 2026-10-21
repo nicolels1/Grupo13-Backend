@@ -38,3 +38,10 @@ from src.models.avaliacoes import (  # noqa: F401
     VotoUtil,
 )
 from src.models.migracao import OrigemMigracao  # noqa: F401
+from src.models.fidelidade import (  # noqa: F401
+    ConsumoPontos,
+    LotePontos,
+    MovimentoPontos,
+    RegraFidelidade,
+    SaldoPontos,
+)

@@ -10,7 +10,7 @@ from src.models.contas import Usuario
 from src.models.vendas import EnderecoEntrega, ItemPedido, Pagamento, Pedido
 from src.repositories import catalogo_repository, estoque_repository, unidade_repository
 from src.repositories import pedido_repository as repo
-from src.use_cases import enderecos, pagamentos
+from src.use_cases import enderecos, fidelidade, pagamentos
 from src.use_cases.catalogo import foto_principal
 from src.use_cases.erros import Conflito, RecursoNaoEncontrado, RegraDeNegocio
 from src.use_cases.estoque import conferir_disponivel
@@ -246,11 +246,15 @@ def checkout(db: Session, cliente: Usuario, dados: dict) -> dict:
     frete = calcular_frete(valor_itens, dados["modalidade"])
     pedido = Pedido(
         codigo_venda=novo_codigo_venda(), id_cliente=cliente.id_usuario, id_unidade=unidade["id_unidade"],
-        canal="online", canal_venda="site", modalidade=dados["modalidade"], status="aguardando_pagamento", valor_frete=frete,
-        valor_total=valor_itens + frete, reserva_expira_em=agora() + RESERVA,
+        canal="online", canal_venda="site", modalidade=dados["modalidade"], status="aguardando_pagamento",
+        valor_frete=frete, valor_total=valor_itens + frete, reserva_expira_em=agora() + RESERVA,
     )
     db.add(pedido)
     db.flush()
+    # pontos como desconto: separados agora, voltam se a reserva vencer ou o pedido for cancelado (trigger)
+    if dados.get("pontos_resgate"):
+        marca = unidade_repository.buscar_unidade(db, unidade["id_unidade"]).marca
+        fidelidade.resgatar(db, pedido, marca, dados["pontos_resgate"], valor_itens)
     db.add_all(ItemPedido(id_pedido=pedido.id_pedido, id_variante=i["id_variante"], quantidade=i["quantidade"],
                           preco_unitario=i["preco_unitario"]) for i in resumo)
     if endereco is not None:

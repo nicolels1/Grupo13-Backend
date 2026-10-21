@@ -212,6 +212,7 @@ Lista final da etapa 5, tirada do [registro de decisões](registro_decisoes.md).
 | P4 | Tabela **`origem_migracao`**: registro na plataforma, fonte e linha de origem, campo, valor original e a decisão que o mudou | tabela nova |
 | P5 | **Fidelidade**: movimentos de pontos (crédito, resgate, estorno, ajuste e vencimento) com o saldo por trigger, como o estoque; tabela de regras com a data em que valem (valor do ponto da K3) | tabelas novas |
 | K4a | A tabela de regras da P5 ganha a **marca**, o vencimento, o bônus por categoria e o multiplicador por canal | regras de fidelidade |
+| P10 | **Um programa por marca**, saldos separados; a Lorenzi começa com a regra da Vulto; permissão `gerenciar_fidelidade` para criar regras com data futura; crédito e estorno pelo pagamento, resgate no caixa e no checkout, saldo, extrato e passivo pela API; pontos da compra no caixa antes do cadastro; o saldo do cliente sem conta passa para a conta | fidelidade, `pedido`, caixa, cadastro |
 | P6 | **Atendimento externo**: `chamado.canal_externo` e `chamado.contato_externo`, `mensagem.nome_autor_externo`; autor da mensagem opcional; ajuste em `consulta_mensagens` e nas não lidas | `chamado`, `mensagem` |
 | A4a | Categoria **`pagamento`** no chamado (regra do banco, modelo e front), também para os chamados novos | `chamado` |
 | P7 | Valor **`nao_informado`** em `pagamento.metodo` e **`migracao`** em `pagamento.origem`, aceitos só em pedido migrado | `pagamento` |

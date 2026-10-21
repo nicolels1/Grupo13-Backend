@@ -209,13 +209,17 @@ O que a plataforma ganhou para receber a Vulto (cada item cita a decisão do reg
 - **pagamento migrado** (P7): método `nao_informado` e origem `migracao`, aceitos só no pagamento e no estorno migrados; o estorno de um pagamento sem método sai pelo mesmo método, sem gateway;
 - **prazo de troca do pedido migrado** (V13): o pedido online da Vulto, sem data de entrega, conta os 30 dias do pagamento;
 - **atendimento externo** (P6): o chamado migrado guarda o canal (`whatsapp`, `instagram` ou `email`) e o contato de quem escreveu; a fala do cliente entra sem autor, com o nome de quem falou, e conta como do cliente nas mensagens, nas não lidas e na primeira resposta da Visão Geral;
-- **categoria `pagamento`** no chamado (A4a), também para os chamados novos.
+- **categoria `pagamento`** no chamado (A4a), também para os chamados novos;
+- **fidelidade** (P5, K3, K4a, K4c): regras por marca com data, extrato de pontos que nunca muda, saldo e categoria por cliente em cada marca e lotes com o valor da época e o vencimento; o trigger aplica o FIFO, sobe a categoria e vira o ano, e o pg_cron vence os pontos (todo dia) e vira o ano de quem não teve movimento (1º de janeiro). A Lorenzi começa com a mesma regra da Vulto, a partir de 01/10/2026, e quem tem a permissão nova `gerenciar_fidelidade` (no começo, só o Admin) cria as regras seguintes de cada marca.
 
 Próximos passos, fora da Entrega 3:
 
 - **mudança de rede com data:** hoje a marca é a atual. Se uma loja mudar de rede, um histórico de marca com data (como o de preço) mantém o passado na rede antiga; dá para criar depois sem refazer nada;
 - **notificações por e-mail e consentimento na conta:** a plataforma não manda e-mail da loja. O consentimento de mensagem dos clientes da Vulto está guardado (K9b); antes de qualquer campanha, a conta da Lorenzi também precisa perguntar o consentimento;
-- **EAN das 9 peças da Vulto cortado pelo Excel:** entram com o código interno; a loja corrige lendo a etiqueta (`PATCH /variantes/{id}`).
+- **EAN das 9 peças da Vulto cortado pelo Excel:** entram com o código interno; a loja corrige lendo a etiqueta (`PATCH /variantes/{id}`);
+- **programa de pontos único da rede:** hoje cada marca tem o seu saldo (P10); se a diretoria quiser unificar, basta uma regra que valha para a rede, sem refazer o histórico;
+- **pontos na junção de contas:** quando a correção de CPF junta duas contas, os pedidos passam para a conta certa, mas os pontos da conta errada não; levar os pontos exige registrar qual conta foi juntada a qual;
+- **telas da fidelidade no front:** regras (`gerenciar_fidelidade`), "meus pontos" e extrato, consulta da equipe, passivo e o campo `pontos_resgate` no caixa e no checkout; o `tiposApi.ts` precisa ser gerado de novo (permissão nova, categoria `pagamento` e `id_autor` vazio na mensagem).
 
 ## Rotas
 
@@ -226,7 +230,7 @@ A lista completa, com parâmetros e formatos, está em `/docs`. Resumo por área
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
 | GET | `/health` | público | consulta o banco; 503 se ele não responder |
-| POST | `/clientes` | público | cadastro de cliente (nome, e-mail, CPF e senha); as compras da loja com esse CPF na nota e o histórico do cliente sem conta com esse CPF ou e-mail passam para a conta (`compras_ligadas`) |
+| POST | `/clientes` | público | cadastro de cliente (nome, e-mail, CPF e senha); as compras da loja com esse CPF na nota e o histórico do cliente sem conta com esse CPF ou e-mail passam para a conta (`compras_ligadas`), com o saldo de pontos dele |
 | POST | `/login/cpf` | público | login do cliente por CPF e senha; devolve a sessão do Supabase |
 | GET | `/me` | conta ativa | perfil, tipo de conta e permissões efetivas (monta a tela inicial) |
 | GET | `/visao-geral/resumo?id_unidade=` | conta interna | números e gráficos da Visão Geral; só as seções que a conta pode ver (as outras ficam ausentes) |
@@ -259,7 +263,7 @@ As fotos aparecem em `imagens` de cada produto, com a URL pública.
 | POST | `/carrinho` | público | preços do momento, frete da entrega (com o valor mínimo do frete grátis) e lojas com tudo para retirada; não reserva nada |
 | GET, POST | `/enderecos` | cliente | endereços salvos |
 | PATCH, DELETE | `/enderecos/{id}` | cliente | altera ou apaga (o pedido guarda a própria cópia) |
-| POST | `/pedidos` | cliente | checkout: escolhe a unidade, reserva as peças por 15 minutos e cria o pedido aguardando pagamento |
+| POST | `/pedidos` | cliente | checkout: escolhe a unidade, reserva as peças por 15 minutos e cria o pedido aguardando pagamento. `pontos_resgate` usa pontos como desconto: saem agora e voltam se a reserva vencer ou o pedido for cancelado |
 | GET | `/pedidos`, `/pedidos/{id}` | cliente | meus pedidos, com itens (cada um com a foto da cor comprada em `foto_url`), pagamentos e endereço de entrega |
 | POST | `/pedidos/{id}/pagamentos` | cliente | cria a cobrança do valor que falta (Pix, crédito ou débito) no gateway simulado |
 | POST | `/pagamentos/{id}/simular` | cliente | gateway simulado: `{"aprovado": true}` paga o pedido e baixa o estoque (ADR 0011) |
@@ -271,7 +275,7 @@ As fotos aparecem em `imagens` de cada produto, com a URL pública.
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
 | GET | `/vendas/pedidos`, `/vendas/pedidos/{id}` | qualquer permissão de vendas ou `atender_chamado` | pedidos, com filtros: status, canal, modalidade, unidade, código, `pronto_ha_mais_de_dias` e data de criação (`de`, `ate`; data sem hora vale o dia inteiro) |
-| POST | `/vendas/pedidos` | `registrar_venda_fisica` | venda na loja: nasce paga e entregue, baixa o estoque de loja física. CPF opcional (`cpf_nota`): com conta, liga o pedido; sem conta, fica guardado no pedido |
+| POST | `/vendas/pedidos` | `registrar_venda_fisica` | venda na loja: nasce paga e entregue, baixa o estoque de loja física. CPF opcional (`cpf_nota`): com conta, liga o pedido; de um cliente da Vulto que ainda não criou conta, liga a ele (e ele ganha os pontos); sem nenhum dos dois, fica guardado no pedido. `pontos_resgate` usa os pontos desse cliente como desconto, e os pagamentos fecham com o total menos o desconto |
 | POST | `/vendas/pedidos/{id}/enviar` | `preparar_entregar_pedido` | entrega em casa paga → enviada |
 | POST | `/vendas/pedidos/{id}/pronto-retirada` | `preparar_entregar_pedido` | retirada paga → pronta (começa o prazo de 7 dias) |
 | POST | `/vendas/pedidos/{id}/entregar` | `preparar_entregar_pedido` | entrega o pedido enviado ou retirado (na retirada, confere o código) |
@@ -337,6 +341,25 @@ A leitura exige alguma permissão da área (movimentar estoque, definir mínimo 
 | GET | `/balcao/estoque` | `registrar_venda_fisica`, `registrar_troca_devolucao` ou `atender_chamado` | consultar peça: estoque das unidades, só leitura (o atendimento usa na troca pelo chamado) |
 
 Vale para qualquer pedido entregue há no máximo 30 dias, com ou sem conta, e só em loja (nunca no CD). O banco registra quem fez e em que loja (ADR 0015).
+
+### Fidelidade
+
+Cada marca tem o seu programa de pontos (P10). O saldo, a categoria e o vencimento ficam no banco (trigger e pg_cron).
+
+Os pontos entram e saem sozinhos, pelo banco: o pedido de quem tem conta (ou é cliente sem conta da Vulto) ganha pontos quando os pagamentos aprovados cobrem o total, pela regra da marca da unidade, e cada estorno de dinheiro tira a mesma proporção dos pontos do pedido, sem deixar o saldo negativo se o cliente já os gastou. Quando o cliente sem conta cria a conta, o saldo e os lotes passam para ela (somando ao que ela já tinha na marca, com a categoria mais alta). O pagamento migrado da Vulto não mexe nos pontos. A compra só com o CPF na nota ganha os pontos quando passa para a conta (no cadastro), pela data da compra: vale, vence e entra na fila de resgate como se tivesse sido creditada naquele dia, e não ganha nada se esses pontos já teriam vencido ou se a marca ainda não tinha programa de fidelidade.
+
+No resgate, os pontos viram desconto no pedido (`valor_desconto`): saem primeiro os mais antigos, cada um pelo valor da época, e o pedido ganha pontos só sobre o valor pago. Os pontos usados voltam para os mesmos lotes, com a validade deles, quando o pedido é cancelado (por qualquer caminho, inclusive o pg_cron) ou devolvido inteiro; na devolução parcial, o desconto fica na compra.
+
+| Método | Rota | Acesso | Descrição |
+|---|---|---|---|
+| GET | `/fidelidade/regras?marca=` | `gerenciar_fidelidade` | regras de cada marca, da mais nova para a mais antiga; `vigente` marca a que vale hoje |
+| GET | `/fidelidade/meus-pontos` | cliente | saldo em cada marca, com o valor em R$ (cada ponto pela época), a categoria, os pontos ganhos no ano e o próximo vencimento |
+| GET | `/fidelidade/meus-pontos/extrato?marca=` | cliente | extrato paginado, do mais novo para o mais antigo, com o histórico de quando era cliente sem conta; nas entradas, o que sobra e quando vence |
+| GET | `/fidelidade/clientes/pontos?id_cliente=` ou `?id_cliente_sem_conta=`, `/fidelidade/clientes/pontos/extrato` | `atender_chamado`, `registrar_venda_fisica` ou `gerenciar_fidelidade` | o mesmo, de um cliente, para o atendimento ("meus pontos sumiram"), o caixa e quem cuida do programa |
+| GET | `/fidelidade/passivo` | `gerenciar_fidelidade` | quanto cada marca deve em pontos, separado pelo valor do ponto na época em que foi ganho (o passivo da Entrega 3) |
+| GET | `/fidelidade/resgate?marca=&pontos=` | cliente | quanto valem os pontos do cliente num resgate, antes do checkout: os mais antigos primeiro, cada um pelo valor da época (K3); confere o mínimo, o saldo e a regra da marca |
+| GET | `/fidelidade/resgate/caixa?cpf=&marca=&pontos=` | `registrar_venda_fisica` | o mesmo no caixa, para o cliente do CPF (com conta ou da Vulto sem conta) |
+| POST | `/fidelidade/regras` | `gerenciar_fidelidade` | regra nova a partir de amanhã ou de uma data futura: vale dali em diante e nunca muda um ponto já ganho; uma regra que ainda não começou se corrige com outra para a mesma data (vale a criada por último) |
 
 ### Avaliações
 

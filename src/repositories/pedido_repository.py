@@ -165,10 +165,12 @@ def trocas_e_devolucoes(db: Session, id_pedido: int) -> list:
 
 
 # compras da loja com o CPF na nota e ainda sem conta passam para a conta desse CPF (ADR 0014);
-# devolve quantas foram ligadas
+# devolve quantas foram ligadas. A compra de um cliente da Vulto sem conta passa pelo passar_para_conta (P2)
 def ligar_pedidos_pelo_cpf(db: Session, cpf: str, id_cliente) -> int:
     resultado = db.execute(
-        update(Pedido).where(Pedido.cpf_nota == cpf, Pedido.id_cliente.is_(None)).values(id_cliente=id_cliente)
+        update(Pedido)
+        .where(Pedido.cpf_nota == cpf, Pedido.id_cliente.is_(None), Pedido.id_cliente_sem_conta.is_(None))
+        .values(id_cliente=id_cliente)
     )
     return resultado.rowcount
 

@@ -220,7 +220,7 @@ Pessoa com conta do tipo cliente, identificada por CPF.
 _Evite_: consumidor, comprador
 
 **Cliente sem conta**:
-Cliente trazido pela migração da Vulto que nunca criou conta, identificado pelo CPF ou, sem ele, pelo e-mail. Não entra na plataforma; seus pedidos e chamados passam para a conta quando ele se cadastra com o mesmo CPF ou e-mail (ADR 0016).
+Cliente trazido pela migração da Vulto que nunca criou conta, identificado pelo CPF ou, sem ele, pelo e-mail. Não entra na plataforma; seus pedidos, chamados e pontos passam para a conta quando ele se cadastra com o mesmo CPF ou e-mail (ADR 0016); o extrato de pontos mostra o histórico de antes da conta.
 _Evite_: cliente inativo, conta pendente
 
 **Funcionário**:
@@ -289,6 +289,28 @@ Sinalização de uma avaliação inadequada feita por outro cliente; uma por cli
 **Ocultação**:
 Retirada de uma avaliação do ar pela equipe, sempre com motivo.
 _Evite_: exclusão, remoção
+
+## Fidelidade
+
+**Programa de fidelidade**:
+Pontos que o cliente ganha ao comprar e troca por desconto. Cada marca tem o seu: o Vulto+ da Vulto e o da Casa Lorenzi, com saldos separados (os pontos de uma rede não se gastam na outra).
+_Evite_: plano, assinatura (não há mensalidade)
+
+**Regra de fidelidade**:
+Valor do ponto, pontos por real, dobro no online, bônus da categoria Ouro, validade e limites das categorias de uma marca, a partir de uma data. Regra nova vale da data dela em diante e nunca muda o ponto já ganho.
+
+**Movimento de pontos**:
+Lançamento do extrato do cliente: saldo inicial, crédito, resgate, estorno, ajuste ou vencimento. O saldo só muda por movimento, e o movimento nunca é alterado.
+_Evite_: transação, lançamento de pontos
+
+**Lote de pontos**:
+O que sobra de cada entrada de pontos, com o valor do ponto na data em que foi ganho e a data em que vence. O resgate gasta primeiro o lote mais antigo (FIFO), e o vencimento leva só o que sobrou no lote.
+
+**Categoria**:
+Bronze, Prata ou Ouro, pelos pontos ganhos no ano. Sobe na hora em que o cliente passa do limite e só cai na virada do ano, pelos pontos do ano que fechou.
+
+**Passivo de pontos**:
+Quanto a marca deve aos clientes em pontos: o que sobra nos lotes, cada ponto pelo valor da época em que foi ganho.
 
 ## Migração da Vulto
 
