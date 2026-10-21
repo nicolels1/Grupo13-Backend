@@ -638,6 +638,23 @@ def posicao_na_data_base(contada: pd.DataFrame, movimentos: pd.DataFrame, datas:
     return p
 
 
+# Estoque na data base (E2, E4, E5, E10, E13): baixas das vendas, entradas e transferências, a posição
+# contada e a posição de cada peça no fim de 30/09. Usado pelos números (soma) e pelo tratamento (a peça
+# descontinuada com estoque fica à venda, C3). Devolve as peças que baixam, os movimentos com SKU (e quantos
+# ficaram sem), a posição contada, a posição em 30/09, o que está em trânsito e a data da contagem de cada unidade
+def estoque_na_data_base(vendas_classificadas: pd.DataFrame, itens: pd.DataFrame, entradas: pd.DataFrame,
+                         contagem: pd.DataFrame, estoque: pd.DataFrame) -> dict:
+    vendidos = itens_que_baixam(vendas_classificadas, itens)
+    entrou, transito = movimentos_de_entrada(entradas)
+    movimentos = pd.concat([vendidos, entrou], ignore_index=True)
+    sem_sku = int(movimentos["sku"].isna().sum())
+    movimentos = movimentos[movimentos["sku"].notna()]
+    contada = posicao_contada(contagem, estoque, vendidos.assign(q=vendidos["q"].abs()))
+    datas = {**{UNIDADE_DA_CONTAGEM[k]: v for k, v in DATA_CONTAGEM.items()}, CD: DATA_WMS}
+    return dict(vendidos=vendidos, movimentos=movimentos, sem_sku=sem_sku, contada=contada, transito=transito,
+                datas=datas, posicao=posicao_na_data_base(contada, movimentos, datas))
+
+
 # Histórico de trás para frente (E2): parte da contagem e desfaz os movimentos dia a dia até jan/2025.
 # Quando o saldo ficaria negativo, entrou mais do que ficou: faltou registrar uma saída (venda sem baixa,
 # perda, transferência não anotada) e entra um ajuste de saída desse tamanho naquele dia. A entrada que
