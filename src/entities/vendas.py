@@ -114,7 +114,9 @@ class PagamentoSaida(BaseModel):
     tipo: str
     id_pagamento_original: int | None
     id_chamado: int | None
-    origem: str | None = Field(description="Estorno: cancelamento, atendimento ou balcao")
+    origem: str | None = Field(
+        description="Estorno: cancelamento, atendimento ou balcao; pagamento e estorno migrados da Vulto: migracao"
+    )
     id_registrado_por: uuid.UUID | None = Field(description="Estorno no balcão: quem registrou")
     id_unidade: int | None = Field(description="Estorno no balcão: a loja")
     metodo: str
@@ -146,7 +148,8 @@ class PedidoSaida(BaseModel):
     unidade: str
     id_registrado_por: uuid.UUID | None
     cpf_nota: str | None = Field(description="CPF informado na venda física")
-    canal: str
+    canal: str = Field(description="Canal do estoque: loja_fisica ou online")
+    canal_venda: str = Field(description="Onde a venda foi feita: loja, site ou app (app só no histórico da Vulto)")
     modalidade: str | None
     status: StatusPedido
     motivo_cancelamento: str | None
@@ -155,6 +158,7 @@ class PedidoSaida(BaseModel):
     devolucao: str
     valor_itens: Valor
     valor_frete: Valor
+    valor_desconto: Valor = Field(description="Desconto já tirado do total; só em pedido migrado da Vulto")
     valor_total: Valor
     valor_pago: Valor = Field(description="Pagamentos aprovados menos estornos aprovados")
     reserva_expira_em: datetime | None

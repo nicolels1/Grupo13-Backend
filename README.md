@@ -203,7 +203,11 @@ O que a plataforma ganhou para receber a Vulto (cada item cita a decisão do reg
 - **marca** (`lorenzi` ou `vulto`) na unidade e no produto (P1); a vitrine filtra por marca, e a marca só se corrige enquanto não há movimentação nem venda;
 - **EAN** (código de barras) obrigatório na variante (C12): o de fábrica ou um código interno gerado pelo banco (prefixo 20); o caixa acha a peça pelo leitor;
 - **cliente sem conta** (P2, [ADR 0016](docs/adr/0016-cliente-sem-conta-da-migracao.md)): pedidos e chamados de quem nunca criou conta, que passam para a conta quando a pessoa se cadastra com o mesmo CPF ou e-mail;
-- **origem da migração** (P4): de onde veio cada registro migrado e o que a migração mudou nele, com a decisão aplicada.
+- **origem da migração** (P4): de onde veio cada registro migrado e o que a migração mudou nele, com a decisão aplicada;
+- **canal de venda** (`loja`, `site` ou `app`) no pedido (P3), para o faturamento por canal sem mexer no canal do estoque; os pedidos que já existiam ficaram com `loja` ou `site`;
+- **desconto** no pedido (V18): total = itens − desconto + frete; zero nos pedidos da Lorenzi;
+- **pagamento migrado** (P7): método `nao_informado` e origem `migracao`, aceitos só no pagamento e no estorno migrados; o estorno de um pagamento sem método sai pelo mesmo método, sem gateway;
+- **prazo de troca do pedido migrado** (V13): o pedido online da Vulto, sem data de entrega, conta os 30 dias do pagamento.
 
 Próximos passos, fora da Entrega 3:
 
@@ -446,7 +450,7 @@ A API é publicada no Render a cada merge na `main`.
 - balcão: troca e devolução na loja sem chamado, para pedidos com ou sem conta, busca do pedido por código, número ou CPF e consulta de peça só de leitura;
 - avaliações: nota, texto e fotos, edição por 7 dias, voto útil, denúncia e moderação;
 - Visão Geral: resumo com vendas por dia, mais vendidas, chamados, números da rede e linha por unidade, conforme as permissões da conta;
-- migração da Vulto (plataforma): marca na unidade e no produto, EAN na variante, cliente sem conta e origem da migração;
+- migração da Vulto (plataforma): marca na unidade e no produto, EAN na variante, cliente sem conta, origem da migração, canal de venda, desconto e pagamento migrado no pedido;
 - banco com 30 tabelas, triggers, RLS, usuário restrito e prazos automáticos pelo pg_cron; testes automatizados com CI.
 
 **Fora do escopo desta entrega:** gateway de pagamento real (ADR 0011) e as evoluções da seção 9 do [case](docs/case/Casa_Lorenzi_Case_Completo.md).

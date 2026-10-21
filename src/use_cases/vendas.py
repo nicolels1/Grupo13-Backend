@@ -67,7 +67,7 @@ def registrar_venda_fisica(db: Session, vendedor: Usuario, dados: dict) -> dict:
     momento = agora()
     pedido = Pedido(
         codigo_venda=novo_codigo_venda(), id_cliente=id_cliente, id_unidade=unidade.id_unidade,
-        id_registrado_por=vendedor.id_usuario, cpf_nota=cpf_nota, canal="loja_fisica", status="entregue",
+        id_registrado_por=vendedor.id_usuario, cpf_nota=cpf_nota, canal="loja_fisica", canal_venda="loja", status="entregue",
         valor_frete=Decimal("0.00"), valor_total=total, pago_em=momento, entregue_em=momento,
     )
     db.add(pedido)
