@@ -109,8 +109,12 @@ def extrato_de_um_cliente(
 
 @router.get("/passivo", response_model=Lista[PassivoSaida],
             description="Quanto cada marca deve em pontos, separado pelo valor do ponto na época em que foi ganho.")
-def passivo(db: Session = Depends(get_db), usuario: Usuario = Depends(GERENCIAR)):
-    return {"items": fidelidade.passivo(db)}
+def passivo(
+    em: str | None = Query(None, description="AAAA-MM-DD (fim do dia) ou AAAA-MM-DDTHH:MM, no horário de Brasília. "
+                                             "Ex.: 2026-09-30 para a posição em 01/10. Padrão: agora"),
+    db: Session = Depends(get_db), usuario: Usuario = Depends(GERENCIAR),
+):
+    return {"items": fidelidade.passivo(db, em)}
 
 
 def _um_cliente(id_cliente, id_cliente_sem_conta) -> None:

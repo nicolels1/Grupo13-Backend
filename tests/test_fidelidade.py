@@ -4,7 +4,9 @@ from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
+from sqlalchemy import create_engine, text
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.orm import Session
 
 from src.entities.fidelidade import RegraCriar
 from src.models.fidelidade import MovimentoPontos, RegraFidelidade
@@ -171,7 +173,7 @@ def test_simulacao_no_caixa_acha_o_cliente_da_vulto_sem_conta(api, pontos, monke
 # ---------- saldo, extrato e passivo ----------
 
 def test_passivo_soma_cada_epoca_pelo_valor_dela(monkeypatch):
-    monkeypatch.setattr(fidelidade_repository, "passivo_por_valor", lambda db: [
+    monkeypatch.setattr(fidelidade_repository, "passivo_por_valor", lambda db, em=None: [
         {"marca": "vulto", "valor_ponto": Decimal("0.10"), "pontos": 1000},
         {"marca": "vulto", "valor_ponto": Decimal("0.05"), "pontos": 3000},
     ])
@@ -179,6 +181,36 @@ def test_passivo_soma_cada_epoca_pelo_valor_dela(monkeypatch):
     [vulto] = fidelidade.passivo(SessaoFalsa())
 
     assert (vulto["pontos"], vulto["reais"], len(vulto["por_valor"])) == (4000, Decimal("250.00"), 2)
+
+
+# o passivo num momento passado, rodado num SQLite em memória (só as colunas usadas): os lotes lançados até ali,
+# menos o que saiu deles até ali; a devolução de um resgate volta para o lote
+def test_passivo_num_momento_passado():
+    banco = create_engine("sqlite://")
+    with banco.begin() as c:
+        c.execute(text("CREATE TABLE movimento_pontos (id_movimento int, criado_em text)"))
+        c.execute(text("CREATE TABLE lote_pontos (id_movimento int, marca text, valor_ponto numeric, pontos int, "
+                       "restante int)"))
+        c.execute(text("CREATE TABLE consumo_pontos (id_consumo int, id_movimento int, id_lote int, pontos int)"))
+        c.execute(text("INSERT INTO movimento_pontos VALUES (:id, :quando)"), [
+            dict(id=1, quando="2026-08-30 12:00:00.000000"),  # crédito
+            dict(id=2, quando="2026-09-15 12:00:00.000000"),  # resgate de 300
+            dict(id=3, quando="2026-09-20 12:00:00.000000"),  # devolução de 100 do resgate
+            dict(id=4, quando="2026-10-05 12:00:00.000000"),  # resgate de 200, depois do momento
+            dict(id=5, quando="2026-10-03 12:00:00.000000"),  # crédito depois do momento
+        ])
+        c.execute(text("INSERT INTO lote_pontos VALUES (:id, 'vulto', :valor, :pontos, :restante)"), [
+            dict(id=1, valor=0.10, pontos=1000, restante=600), dict(id=5, valor=0.05, pontos=500, restante=500)])
+        c.execute(text("INSERT INTO consumo_pontos VALUES (:id, :movimento, 1, :pontos)"), [
+            dict(id=1, movimento=2, pontos=300), dict(id=2, movimento=3, pontos=-100),
+            dict(id=3, movimento=4, pontos=200)])
+
+    with Session(banco) as db:
+        agora = fidelidade_repository.passivo_por_valor(db)
+        em_30_09 = fidelidade_repository.passivo_por_valor(db, datetime(2026, 9, 30, 23, 59))
+
+    assert [(l["valor_ponto"], l["pontos"]) for l in agora] == [(Decimal("0.10"), 600), (Decimal("0.05"), 500)]
+    assert [(l["valor_ponto"], l["pontos"]) for l in em_30_09] == [(Decimal("0.10"), 800)]
 
 
 # o extrato da conta traz também o histórico de quando a pessoa era cliente sem conta (P2)

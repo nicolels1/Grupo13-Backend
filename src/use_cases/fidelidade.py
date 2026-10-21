@@ -9,7 +9,7 @@ from src.models.vendas import Pedido
 from src.repositories import cliente_sem_conta_repository, usuario_repository
 from src.repositories import fidelidade_repository as repo
 from src.use_cases.erros import Conflito, RecursoNaoEncontrado, RegraDeNegocio
-from src.use_cases.estoque import BRASILIA
+from src.use_cases.estoque import BRASILIA, interpretar_momento
 
 CENTAVO = Decimal("0.01")
 
@@ -108,10 +108,11 @@ def extrato(db: Session, limit: int, offset: int, marca: str | None = None, id_c
     return {"items": itens, "total": total, "limit": limit, "offset": offset}
 
 
-# o quanto cada marca deve em pontos (Entrega 3): o que sobra nos lotes, cada ponto pelo valor da época
-def passivo(db: Session) -> list[dict]:
+# o quanto cada marca deve em pontos (Entrega 3): o que sobra nos lotes, cada ponto pelo valor da época.
+# em: o mesmo formato do histórico do estoque (AAAA-MM-DD vale o fim do dia); vazio é agora
+def passivo(db: Session, em: str | None = None) -> list[dict]:
     marcas = {}
-    for linha in repo.passivo_por_valor(db):
+    for linha in repo.passivo_por_valor(db, interpretar_momento(em) if em else None):
         reais = linha["pontos"] * linha["valor_ponto"]
         marca = marcas.setdefault(linha["marca"], {"marca": linha["marca"], "pontos": 0, "reais": Decimal("0"),
                                                    "por_valor": []})

@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import Select, and_, func, or_, select
@@ -130,11 +131,24 @@ def extrato(db: Session, id_cliente, id_cliente_sem_conta, marca: str | None, li
     return list(linhas), total
 
 
-# passivo de cada marca separado pela época do ponto (o valor que ele tinha quando foi ganho, K3)
-def passivo_por_valor(db: Session) -> list:
+# passivo de cada marca separado pela época do ponto (o valor que ele tinha quando foi ganho, K3). Num momento
+# passado: os lotes lançados até ali, menos o que saiu deles até ali (resgate, vencimento e devolução de resgate)
+def passivo_por_valor(db: Session, em: datetime | None = None) -> list:
+    restante, filtros = LotePontos.restante, [LotePontos.restante > 0]
+    if em is not None:
+        saiu = (select(func.coalesce(func.sum(ConsumoPontos.pontos), 0))
+                .join(MovimentoPontos, MovimentoPontos.id_movimento == ConsumoPontos.id_movimento)
+                .where(ConsumoPontos.id_lote == LotePontos.id_movimento, MovimentoPontos.criado_em <= em)
+                .correlate(LotePontos)
+                .scalar_subquery())
+        restante = LotePontos.pontos - saiu
+        filtros = [LotePontos.id_movimento.in_(
+            select(MovimentoPontos.id_movimento).where(MovimentoPontos.criado_em <= em))]
+    pontos = func.sum(restante)
     return list(db.execute(
-        select(LotePontos.marca, LotePontos.valor_ponto, func.sum(LotePontos.restante).label("pontos"))
-        .where(LotePontos.restante > 0)
+        select(LotePontos.marca, LotePontos.valor_ponto, pontos.label("pontos"))
+        .where(*filtros)
         .group_by(LotePontos.marca, LotePontos.valor_ponto)
+        .having(pontos > 0)
         .order_by(LotePontos.marca, LotePontos.valor_ponto.desc())
     ).mappings().all())
