@@ -62,3 +62,47 @@ class ResgateSimulado(BaseModel):
     desconto: Decimal = Field(description="Em R$: os pontos mais antigos primeiro, cada um pelo valor da época")
     saldo: int = Field(description="Saldo de pontos do cliente na marca")
     resgate_minimo: int
+
+
+class SaldoPontosSaida(BaseModel):
+    marca: str
+    saldo: int
+    valor_em_reais: Decimal = Field(description="O que os pontos valem, cada um pelo valor da época em que foi ganho")
+    categoria: str = Field(description="bronze, prata ou ouro")
+    categoria_desde: datetime
+    ganhos_no_ano: int = Field(description="Pontos ganhos no ano: decidem a categoria")
+    proximo_vencimento: datetime | None
+    pontos_no_proximo_vencimento: int
+
+
+class MovimentoPontosSaida(BaseModel):
+    id_movimento: int
+    marca: str
+    tipo: str = Field(description="saldo_inicial, credito, resgate, estorno, ajuste ou vencimento")
+    pontos: int = Field(description="Positivo entra, negativo sai")
+    origem: str = Field(description="migracao (histórico da Vulto) ou plataforma")
+    id_pedido: int | None
+    codigo_venda: str | None
+    id_movimento_original: int | None
+    motivo: str | None
+    criado_em: datetime
+    ganho_em: datetime | None = Field(description="Crédito de uma compra de antes do cadastro: a data da compra")
+    restante: int | None = Field(description="Entradas: quantos pontos dela ainda sobram")
+    vence_em: datetime | None = Field(description="Entradas: quando o que sobra vence")
+
+
+class PontosDoCliente(BaseModel):
+    saldos: list[SaldoPontosSaida]
+
+
+class PassivoPorValor(BaseModel):
+    valor_ponto: Decimal
+    pontos: int
+    reais: Decimal
+
+
+class PassivoSaida(BaseModel):
+    marca: str
+    pontos: int
+    reais: Decimal = Field(description="Cada ponto pelo valor da época em que foi ganho (K3)")
+    por_valor: list[PassivoPorValor]

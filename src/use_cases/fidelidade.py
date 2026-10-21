@@ -94,3 +94,28 @@ def resgatar(db: Session, pedido: Pedido, marca: str, pontos: int, valor_itens: 
     pedido.valor_total -= desconto
     db.flush()
     return desconto
+
+
+# ---------- saldo, extrato e passivo ----------
+
+def pontos_do_cliente(db: Session, id_cliente=None, id_cliente_sem_conta=None) -> dict:
+    return {"saldos": repo.resumo(db, id_cliente, id_cliente_sem_conta)}
+
+
+def extrato(db: Session, limit: int, offset: int, marca: str | None = None, id_cliente=None,
+            id_cliente_sem_conta=None) -> dict:
+    itens, total = repo.extrato(db, id_cliente, id_cliente_sem_conta, marca, limit, offset)
+    return {"items": itens, "total": total, "limit": limit, "offset": offset}
+
+
+# o quanto cada marca deve em pontos (Entrega 3): o que sobra nos lotes, cada ponto pelo valor da época
+def passivo(db: Session) -> list[dict]:
+    marcas = {}
+    for linha in repo.passivo_por_valor(db):
+        reais = linha["pontos"] * linha["valor_ponto"]
+        marca = marcas.setdefault(linha["marca"], {"marca": linha["marca"], "pontos": 0, "reais": Decimal("0"),
+                                                   "por_valor": []})
+        marca["pontos"] += linha["pontos"]
+        marca["reais"] += reais
+        marca["por_valor"].append({"valor_ponto": linha["valor_ponto"], "pontos": linha["pontos"], "reais": reais})
+    return list(marcas.values())

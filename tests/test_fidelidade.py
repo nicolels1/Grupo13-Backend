@@ -166,3 +166,37 @@ def test_simulacao_no_caixa_acha_o_cliente_da_vulto_sem_conta(api, pontos, monke
         "/fidelidade/resgate/caixa?cpf=529.982.247-25&marca=vulto&pontos=500")
 
     assert resposta.status_code == 200 and resposta.json()["desconto"] == "45.00"
+
+
+# ---------- saldo, extrato e passivo ----------
+
+def test_passivo_soma_cada_epoca_pelo_valor_dela(monkeypatch):
+    monkeypatch.setattr(fidelidade_repository, "passivo_por_valor", lambda db: [
+        {"marca": "vulto", "valor_ponto": Decimal("0.10"), "pontos": 1000},
+        {"marca": "vulto", "valor_ponto": Decimal("0.05"), "pontos": 3000},
+    ])
+
+    [vulto] = fidelidade.passivo(SessaoFalsa())
+
+    assert (vulto["pontos"], vulto["reais"], len(vulto["por_valor"])) == (4000, Decimal("250.00"), 2)
+
+
+# o extrato da conta traz também o histórico de quando a pessoa era cliente sem conta (P2)
+def test_extrato_da_conta_inclui_o_historico_de_antes_da_conta():
+    filtro = sql(fidelidade_repository._movimentos_do_dono(ID_CLIENTE, None))
+    assert "movimento_pontos.id_cliente_sem_conta IN (SELECT cliente_sem_conta.id_cliente_sem_conta" in filtro
+    assert "cliente_sem_conta.id_usuario =" in filtro
+
+
+def test_consulta_da_equipe_exige_um_cliente(api, monkeypatch):
+    monkeypatch.setattr(fidelidade_repository, "resumo", lambda db, c, s: [])
+    cliente = api(SessaoFalsa(), usuario=funcionario())
+
+    assert cliente.get("/fidelidade/clientes/pontos").status_code == 422
+    assert cliente.get("/fidelidade/clientes/pontos?id_cliente_sem_conta=7").json() == {"saldos": []}
+
+
+def test_pontos_da_equipe_exigem_permissao(api):
+    sem_permissao = api(SessaoFalsa(), usuario=funcionario(), permitido=False)
+    assert sem_permissao.get("/fidelidade/clientes/pontos?id_cliente_sem_conta=7").status_code == 403
+    assert sem_permissao.get("/fidelidade/passivo").status_code == 403

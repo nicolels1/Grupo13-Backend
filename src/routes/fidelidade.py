@@ -1,10 +1,14 @@
+import uuid
+
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
 from src.dependencies.permissoes import exige_cliente, exige_permissao
-from src.entities.comum import Lista, Marca
-from src.entities.fidelidade import RegraCriar, RegraSaida, ResgateSimulado
+from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Lista, Marca, Pagina
+from src.entities.fidelidade import (
+    MovimentoPontosSaida, PassivoSaida, PontosDoCliente, RegraCriar, RegraSaida, ResgateSimulado,
+)
 from src.models.contas import Usuario
 from src.use_cases import fidelidade
 from src.use_cases.erros import RegraDeNegocio
@@ -59,3 +63,56 @@ def simular_resgate_no_caixa(
         raise RegraDeNegocio("CPF inválido")
     id_cliente, id_cliente_sem_conta = fidelidade.dono_pelo_cpf(db, cpf)
     return fidelidade.simular_resgate(db, id_cliente, id_cliente_sem_conta, marca, pontos)
+
+
+# ---------- saldo e extrato ----------
+
+# quem consulta os pontos de um cliente: o atendimento ("meus pontos sumiram"), o caixa e quem cuida do programa
+CONSULTAR = exige_permissao("atender_chamado", "registrar_venda_fisica", "gerenciar_fidelidade")
+
+
+@router.get("/meus-pontos", response_model=PontosDoCliente,
+            description="Saldo do cliente logado em cada marca, com a categoria e o próximo vencimento.")
+def meus_pontos(cliente: Usuario = Depends(exige_cliente), db: Session = Depends(get_db)):
+    return fidelidade.pontos_do_cliente(db, id_cliente=cliente.id_usuario)
+
+
+@router.get("/meus-pontos/extrato", response_model=Pagina[MovimentoPontosSaida],
+            description="Extrato do cliente logado, do mais novo para o mais antigo, com o histórico anterior à conta.")
+def meu_extrato(
+    marca: Marca | None = Query(None), limit: int = Query(LIMITE_PADRAO, ge=1, le=LIMITE_MAXIMO),
+    offset: int = Query(0, ge=0), cliente: Usuario = Depends(exige_cliente), db: Session = Depends(get_db),
+):
+    return fidelidade.extrato(db, limit, offset, marca, id_cliente=cliente.id_usuario)
+
+
+@router.get("/clientes/pontos", response_model=PontosDoCliente,
+            description="Saldo de um cliente com conta (`id_cliente`) ou da Vulto sem conta (`id_cliente_sem_conta`).")
+def pontos_de_um_cliente(
+    id_cliente: uuid.UUID | None = Query(None), id_cliente_sem_conta: int | None = Query(None),
+    db: Session = Depends(get_db), usuario: Usuario = Depends(CONSULTAR),
+):
+    _um_cliente(id_cliente, id_cliente_sem_conta)
+    return fidelidade.pontos_do_cliente(db, id_cliente, id_cliente_sem_conta)
+
+
+@router.get("/clientes/pontos/extrato", response_model=Pagina[MovimentoPontosSaida],
+            description="Extrato de um cliente, como o cliente vê.")
+def extrato_de_um_cliente(
+    id_cliente: uuid.UUID | None = Query(None), id_cliente_sem_conta: int | None = Query(None),
+    marca: Marca | None = Query(None), limit: int = Query(LIMITE_PADRAO, ge=1, le=LIMITE_MAXIMO),
+    offset: int = Query(0, ge=0), db: Session = Depends(get_db), usuario: Usuario = Depends(CONSULTAR),
+):
+    _um_cliente(id_cliente, id_cliente_sem_conta)
+    return fidelidade.extrato(db, limit, offset, marca, id_cliente, id_cliente_sem_conta)
+
+
+@router.get("/passivo", response_model=Lista[PassivoSaida],
+            description="Quanto cada marca deve em pontos, separado pelo valor do ponto na época em que foi ganho.")
+def passivo(db: Session = Depends(get_db), usuario: Usuario = Depends(GERENCIAR)):
+    return {"items": fidelidade.passivo(db)}
+
+
+def _um_cliente(id_cliente, id_cliente_sem_conta) -> None:
+    if (id_cliente is None) == (id_cliente_sem_conta is None):
+        raise RegraDeNegocio("Informe id_cliente ou id_cliente_sem_conta")

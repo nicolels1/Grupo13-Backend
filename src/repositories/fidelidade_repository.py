@@ -1,9 +1,11 @@
 from decimal import Decimal
 
-from sqlalchemy import Select, and_, func, select
+from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.orm import Session
 
-from src.models.fidelidade import ConsumoPontos, LotePontos, RegraFidelidade, SaldoPontos
+from src.models.contas import ClienteSemConta
+from src.models.fidelidade import ConsumoPontos, LotePontos, MovimentoPontos, RegraFidelidade, SaldoPontos
+from src.models.vendas import Pedido
 
 
 # regras de uma marca (ou de todas), da mais nova para a mais antiga; na mesma data, a criada por último primeiro
@@ -76,3 +78,63 @@ def valor_gasto(db: Session, id_movimento: int) -> Decimal:
         .join(LotePontos, LotePontos.id_movimento == ConsumoPontos.id_lote)
         .where(ConsumoPontos.id_movimento == id_movimento)
     )
+
+
+# ---------- saldo e extrato ----------
+
+# dono dos movimentos: a conta e os clientes sem conta que passaram para ela (o extrato guarda o dono original)
+def _movimentos_do_dono(id_cliente, id_cliente_sem_conta):
+    if id_cliente is None:
+        return MovimentoPontos.id_cliente_sem_conta == id_cliente_sem_conta
+    passaram = select(ClienteSemConta.id_cliente_sem_conta).where(ClienteSemConta.id_usuario == id_cliente)
+    return or_(MovimentoPontos.id_cliente == id_cliente, MovimentoPontos.id_cliente_sem_conta.in_(passaram))
+
+
+# saldo de cada marca do cliente, com quanto valem os pontos (K3) e o próximo vencimento
+def resumo(db: Session, id_cliente, id_cliente_sem_conta) -> list:
+    do_dono = SaldoPontos.id_cliente == id_cliente if id_cliente is not None \
+        else SaldoPontos.id_cliente_sem_conta == id_cliente_sem_conta
+    lotes = select(LotePontos).where(
+        LotePontos.marca == SaldoPontos.marca, LotePontos.restante > 0,
+        LotePontos.id_cliente.is_not_distinct_from(SaldoPontos.id_cliente),
+        LotePontos.id_cliente_sem_conta.is_not_distinct_from(SaldoPontos.id_cliente_sem_conta),
+    ).correlate(SaldoPontos).subquery()
+    reais = select(func.coalesce(func.sum(lotes.c.restante * lotes.c.valor_ponto), 0)).scalar_subquery()
+    proximo = select(func.min(lotes.c.vence_em)).scalar_subquery()
+    a_vencer = select(func.coalesce(func.sum(lotes.c.restante), 0)).where(
+        lotes.c.vence_em == select(func.min(lotes.c.vence_em)).scalar_subquery()
+    ).scalar_subquery()
+    consulta = (
+        select(*SaldoPontos.__table__.columns, reais.label("valor_em_reais"), proximo.label("proximo_vencimento"),
+               a_vencer.label("pontos_no_proximo_vencimento"))
+        .where(do_dono)
+        .order_by(SaldoPontos.marca)
+    )
+    return list(db.execute(consulta).mappings().all())
+
+
+# extrato do mais novo para o mais antigo; nas entradas, o que sobra e quando vence
+def extrato(db: Session, id_cliente, id_cliente_sem_conta, marca: str | None, limit: int, offset: int):
+    filtros = [_movimentos_do_dono(id_cliente, id_cliente_sem_conta)]
+    if marca is not None:
+        filtros.append(MovimentoPontos.marca == marca)
+    consulta = (
+        select(*MovimentoPontos.__table__.columns, Pedido.codigo_venda, LotePontos.restante, LotePontos.vence_em)
+        .outerjoin(Pedido, Pedido.id_pedido == MovimentoPontos.id_pedido)
+        .outerjoin(LotePontos, LotePontos.id_movimento == MovimentoPontos.id_movimento)
+        .where(*filtros)
+    )
+    total = db.scalar(select(func.count()).select_from(consulta.subquery()))
+    ordem = (MovimentoPontos.criado_em.desc(), MovimentoPontos.id_movimento.desc())
+    linhas = db.execute(consulta.order_by(*ordem).limit(limit).offset(offset)).mappings().all()
+    return list(linhas), total
+
+
+# passivo de cada marca separado pela época do ponto (o valor que ele tinha quando foi ganho, K3)
+def passivo_por_valor(db: Session) -> list:
+    return list(db.execute(
+        select(LotePontos.marca, LotePontos.valor_ponto, func.sum(LotePontos.restante).label("pontos"))
+        .where(LotePontos.restante > 0)
+        .group_by(LotePontos.marca, LotePontos.valor_ponto)
+        .order_by(LotePontos.marca, LotePontos.valor_ponto.desc())
+    ).mappings().all())

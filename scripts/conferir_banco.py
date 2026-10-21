@@ -243,6 +243,14 @@ def conferir_resgate(c: Conferencia, db: Session, local: dict, dono: dict, sufix
     saldo = db.scalar(text("SELECT saldo FROM saldo_pontos WHERE id_cliente_sem_conta = :c AND marca = 'vulto'"), dono)
     c.registrar("o pedido cancelado devolve os pontos do resgate", saldo == 4000, f"saldo {saldo}")
 
+    # o que o cliente vê: 1.000 pontos a R$ 0,10 e 3.000 a R$ 0,05; o extrato tem os 6 movimentos da Vulto
+    [vulto] = fidelidade_repository.resumo(db, None, dono["c"])
+    _, movimentos = fidelidade_repository.extrato(db, None, dono["c"], "vulto", 50, 0)
+    c.registrar("o saldo mostra quanto os pontos valem pela época",
+                (vulto["saldo"], vulto["valor_em_reais"]) == (4000, 250),
+                f"{vulto['saldo']} pontos, R$ {vulto['valor_em_reais']}")
+    c.registrar("o extrato traz todos os movimentos do cliente", movimentos == 6, f"{movimentos} movimentos")
+
 
 # migration 62556fe492f4: o pedido ganha pontos quando os pagamentos aprovados cobrem o total, e o estorno de
 # dinheiro tira a parte proporcional; o pagamento migrado da Vulto não mexe nos pontos
