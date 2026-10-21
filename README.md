@@ -451,7 +451,7 @@ A API é publicada no Render a cada merge na `main`.
 - **Login:** o frontend faz login no Supabase Auth (ou por CPF, em `POST /login/cpf`) e envia o token em toda rota protegida, no header `Authorization: Bearer <access_token>`. A API não usa cookies.
 - **Tela inicial:** depois do login, `GET /me` diz o tipo de conta (decide entre plataforma interna e do cliente) e as permissões efetivas (decide quais blocos e abas aparecem).
 - **Visão Geral:** os números e gráficos vêm de `GET /visao-geral/resumo`, que só devolve as seções que a conta pode ver:
-  - `vendas_por_dia` (14 dias, pelo dia do pagamento, sem cancelados) e `mais_vendidas` (top 5 em 7 dias): permissões de venda ou Admin;
+  - `vendas_por_dia` (14 dias, pelo dia do pagamento, sem cancelados e sem o frete, menos os estornos no dia em que saíram: a mesma regra do faturamento da Vulto) e `mais_vendidas` (top 5 em 7 dias): permissões de venda ou Admin;
   - `chamados` (abertos, em andamento, concluídos em 7 dias e por dia): `atender_chamado` ou Admin;
   - `rede_agora` (cobertura em dias, ruptura online, vendas de 14 dias com variação, ticket médio, mediana da primeira resposta, avaliações e retiradas perto de vencer) e `por_unidade`: só Admin. `rede_agora` é sempre a rede inteira.
 
