@@ -156,8 +156,8 @@ def tratar_catalogo(origem: Path, saida: Saida):
     # maior sem esse par (14112.00 num preço de 299.90) é custo sem a vírgula: o preço fica, e o custo não
     # migra (C11)
     precos_do_modelo = c.groupby("produto")["preco_n"].agg(lambda p: set(p.round(2)))
-    trocado = (c["custo_n"] > c["preco_n"]) & [round(custo, 2) in precos_do_modelo[p] for custo, p
-                                               in zip(c["custo_n"].fillna(-1), c["produto"])]
+    trocado = (c["custo_n"] > c["preco_n"]) & pd.Series(
+        [round(custo, 2) in precos_do_modelo[p] for custo, p in zip(c["custo_n"].fillna(-1), c["produto"])], index=c.index)
     c.loc[trocado, ["preco_n", "custo_n"]] = c.loc[trocado, ["custo_n", "preco_n"]].values
     c = c.sort_values(["data", "linha_origem"])
 
@@ -286,6 +286,143 @@ def tratar_catalogo(origem: Path, saida: Saida):
     saida.tabela("lista_marina", pd.DataFrame(para_marina))
 
 
+# ---------- clientes ----------
+
+FONTE_CLIENTES = "clientes_fidelidade_FINAL_v3 (1).xlsx"
+FONTE_BATEL = "vendas_batel_MANUAL_marco.xlsx"
+ORIGEM_CLIENTE = "migracao_vulto"
+
+
+# Identidade do comprador de cada venda do banco (J1a, J1b, P2), já com a ponte e-mail → CPF do
+# atendimento. Devolve as regras (para a Batel e as outras etapas) e a identidade por id da venda
+def compradores(origem: Path, clientes: pd.DataFrame) -> tuple[r.Compradores, pd.Series]:
+    vendas = ler(origem, "banco_vendas").replace("", None)
+    atendimentos = ler(origem, "atendimentos").replace("", None)
+    c = r.Compradores(clientes)
+
+    def identidades():
+        return pd.Series([c.identidade(t, v) for t, v in zip(vendas["cliente_tipo"], vendas["cliente_valor"])],
+                         index=vendas["id"], dtype=object)
+
+    sem_ponte = identidades()
+    c.ponte = r.ponte_pelo_atendimento(atendimentos, r.venda_do_atendimento(atendimentos, vendas)["id_venda"],
+                                       sem_ponte, c)
+    return c, identidades()
+
+
+# Telefone do cadastro só com os dígitos, sem o +55. O anotado sem DDD (vazio no staging, valor nas
+# pendências) ganha o DDD achado em outra fonte ou fica com os 9 dígitos, incompleto (K9a)
+def telefones(origem: Path, clientes: pd.DataFrame, pendencias: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
+    ddd = r.ddd_dos_sem_ddd(clientes, ler(origem, "atendimentos").replace("", None),
+                            ler(origem, "banco_vendas").replace("", None), ler(origem, "banco_compras").replace("", None))
+    sem_ddd = pendencias[(pendencias["coluna"] == "Tel") & pendencias["motivo"].str.contains("DDD")] \
+        .set_index("linha")["valor"]
+    original = clientes["linha_origem"].map(sem_ddd)
+    nove = original.map(r.so_digitos).str[-9:]
+    completado = nove.map(lambda n: ddd.get(n, "") + n if isinstance(n, str) else None)
+    return clientes["Tel"].map(r.so_digitos).str[2:].fillna(completado), original
+
+
+# P2: todo cliente da Vulto vira cliente sem conta, um por CPF (sem CPF, um por e-mail). Entram o cadastro
+# do Vulto+ (os cadastros do mesmo CPF juntos, K1), os só da aba antiga (K5d), os CPFs só nos pontos (K8)
+# e os compradores com CPF ou e-mail fora do Vulto+ (J1a). Devolve a quantidade por origem
+def tratar_clientes(origem: Path, saida: Saida) -> pd.Series:
+    clientes = ler(origem, "clientes_clientes").replace("", None)
+    antigos = ler(origem, "clientes_antigos").replace("", None)
+    pendencias = ler(origem, "pendencias").replace("", None)
+    pontos = ler(origem, "banco_pontos_mov").replace("", None)
+    compras = ler(origem, "banco_compras").replace("", None)
+    resgates = ler(origem, "clientes_resgates").replace("", None)
+    vendas = ler(origem, "banco_vendas").replace("", None)
+    batel = ler(origem, "batel_vendas_manuais").replace("", None)
+
+    conhecidos = r.cpfs_conhecidos(clientes["cpf"], pontos["cpf"], resgates["cliente_cpf"], antigos["CPF/CNPJ"],
+                                   compras["cliente_ref"], vendas["cliente_ref"])
+    # o dono dos pontos sai do cadastro como o numeros.py o lê, para o passivo da carga ser o mesmo
+    ident = r.Identidades(clientes.copy(), pendencias, conhecidos)
+    clientes["cpf"], cpf_digitado = r.cpf_do_cadastro(clientes, pendencias, conhecidos)
+    clientes["telefone"], tel_original = telefones(origem, clientes, pendencias)
+    clientes["resposta"] = [r.consentimento(a, o) for a, o in zip(clientes["aceita_msg"], clientes["Obs"])]
+    clientes["chave"] = clientes["cpf"].fillna(clientes["E-mail"].str.lower())
+
+    linhas, de_onde = {}, {}  # chave → cliente; chave → origem principal (para a contagem)
+    cad = clientes.rename(columns={"Nome": "nome", "E-mail": "email", "Data Cadastro": "data_cadastro"})
+    for l in cad[cad["chave"].isna()].itertuples():
+        saida.pendente("cliente_sem_conta", FONTE_CLIENTES, l.linha_origem, "cpf", cpf_digitado[l.Index],
+                       "cadastro sem CPF válido e sem e-mail (K2, P2)")
+    for chave, grupo in cad.dropna(subset=["chave"]).sort_values(["data_cadastro", "linha_origem"]).groupby(
+            "chave", sort=False):
+        # K1: contato do cadastro mais recente (o último preenchido); data de cadastro do mais antigo
+        recente = lambda col: next((v for v in grupo[col].iloc[::-1] if isinstance(v, str)), None)
+        cliente = dict(cpf=grupo["cpf"].iloc[0], email=recente("email"), nome=recente("nome"),
+                       telefone=recente("telefone"), aceita_mensagem=r.consentimento_juntado(grupo["resposta"]),
+                       origem=ORIGEM_CLIENTE, criado_em=grupo["data_cadastro"].iloc[0])
+        linhas[chave], de_onde[chave] = cliente, "cadastro do Vulto+"
+        decisao = "K1" if len(grupo) > 1 else "P2"
+        for i, l in enumerate(grupo.itertuples()):
+            onde = lambda decisao, campo=None, valor=None: saida.de_onde(
+                "cliente_sem_conta", chave, FONTE_CLIENTES, l.linha_origem, decisao, campo, valor)
+            onde(decisao)
+            if isinstance(cpf_digitado[l.Index], str):
+                onde("K2", "cpf", cpf_digitado[l.Index])
+            if isinstance(tel_original[l.Index], str):
+                onde("K9a", "telefone", tel_original[l.Index])
+            if l.aceita_msg not in ("sim", "nao", None) or isinstance(l.Obs, str) and l.resposta == "nao_aceita":
+                onde("K9b", "aceita_mensagem", " | ".join(v for v in (l.aceita_msg, l.Obs) if isinstance(v, str)))
+            for campo in ("nome", "email", "telefone"):
+                valor = getattr(l, campo)
+                if isinstance(valor, str) and valor != cliente[campo]:
+                    onde("K1", campo, valor)
+            if i > 0:
+                onde("K1", "criado_em", l.data_cadastro)
+            if isinstance(l.loja_cadastro, str):
+                onde("K1" if len(grupo) > 1 else "P2", "loja_cadastro", l.loja_cadastro)
+
+    # K5c, K5d: quem está nas duas abas fica com o cadastro da aba nova; os só da aba antiga entram sem contato
+    for l in antigos.rename(columns={"NOME COMPLETO": "nome", "CPF/CNPJ": "cpf"}).itertuples():
+        cpf = l.cpf
+        if cpf not in linhas:
+            linhas[cpf], de_onde[cpf] = dict(cpf=cpf, email=None, nome=l.nome, telefone=None, aceita_mensagem=None,
+                                             origem=ORIGEM_CLIENTE, criado_em=None), "só na aba antiga (K5d)"
+            decisao = "K5d"
+        else:
+            decisao = "K5c"
+        saida.de_onde("cliente_sem_conta", cpf, FONTE_CLIENTES, l.linha_origem, decisao)
+
+    # K8: o dono de cada movimento de pontos (J1c, J1d, K2) que não está na planilha entra sem nome
+    p = r.dono_dos_pontos(pontos, compras, pendencias, ident).dropna(subset=["dono"])
+    for dono, grupo in p.sort_values("criado_em").groupby("dono"):
+        if dono not in linhas:
+            linhas[dono], de_onde[dono] = dict(cpf=dono, email=None, nome=None, telefone=None, aceita_mensagem=None,
+                                               origem=ORIGEM_CLIENTE, criado_em=grupo["criado_em"].iloc[0]), \
+                "só nos pontos (K8)"
+            saida.de_onde("cliente_sem_conta", dono, FONTE_BANCO, grupo["linha_origem"].iloc[0], "K8")
+
+    # J1a, P2: comprador com CPF ou só com e-mail fora do Vulto+; a venda de teste não cria cliente (V8)
+    comp, identidade = compradores(origem, clientes)
+    teste = pd.Series([r.eh_teste(*t) for t in zip(vendas["obs"], vendas["cliente_ref"], vendas["cliente_valor"],
+                                                    vendas["pedido_externo"].fillna(""))], index=vendas.index)
+    v = vendas[~teste].assign(identidade=vendas["id"].map(identidade)).dropna(subset=["identidade"])
+    batel_cpf = batel.dropna(subset=["CPF"]).assign(identidade=lambda b: b["CPF"].map(lambda c: comp.identidade("cpf", c)),
+                                                     criado_em=lambda b: b["DATA"].map(r.data_batel))
+    compradores_fora = pd.concat([
+        v[["identidade", "criado_em", "linha_origem"]].assign(fonte=FONTE_BANCO),
+        batel_cpf[["identidade", "criado_em", "linha_origem"]].assign(fonte=FONTE_BATEL)])
+    for chave, grupo in compradores_fora.dropna(subset=["identidade"]).sort_values("criado_em").groupby("identidade"):
+        if chave in linhas:
+            continue
+        por_email = "@" in chave
+        linhas[chave] = dict(cpf=None if por_email else chave, email=chave if por_email else None, nome=None,
+                             telefone=None, aceita_mensagem=None, origem=ORIGEM_CLIENTE,
+                             criado_em=grupo["criado_em"].iloc[0])
+        de_onde[chave] = "comprador só com e-mail (J1a)" if por_email else "comprador com CPF fora do Vulto+"
+        saida.de_onde("cliente_sem_conta", chave, grupo["fonte"].iloc[0], grupo["linha_origem"].iloc[0],
+                      "J1a" if por_email else "P2")
+
+    saida.tabela("cliente_sem_conta", pd.DataFrame(linhas.values()))
+    return pd.Series(de_onde).value_counts()
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--origem", type=Path, default=Path("staging_vulto"))
@@ -296,7 +433,10 @@ def main():
     tratar_unidades(args.origem, saida)
     tratar_contas_internas(args.origem, saida)
     tratar_catalogo(args.origem, saida)
+    por_origem = tratar_clientes(args.origem, saida)
     saida.gravar(args.destino)
+
+    print("clientes por origem:", por_origem.to_dict())
 
     for nome, df in saida.tabelas.items():
         print(f"{nome}: {len(df)} linhas")
