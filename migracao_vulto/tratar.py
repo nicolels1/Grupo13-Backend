@@ -1,5 +1,5 @@
-# Tratamento dos dados da Vulto (etapa 6): aplica as decisões do registro (registro_decisoes.md) ao
-# staging (etapa 1) e grava, em --destino, um CSV por tabela da plataforma, já no formato da carga (etapa 7).
+# Tratamento dos dados da Vulto (etapa 2): aplica as decisões do registro (registro_decisoes.md) ao
+# staging (etapa 1) e grava, em --destino, um CSV por tabela da plataforma, já no formato da carga (etapa 3).
 # As regras estão em regras.py e as traduções em de_para/; aqui só se monta cada tabela.
 # Os ids da Lorenzi nascem no banco, então cada registro sai com a sua chave natural (nome da unidade,
 # e-mail da conta...), que a carga troca pelo id. Junto saem:
@@ -39,8 +39,11 @@ class Saida:
     def tabela(self, nome: str, df: pd.DataFrame):
         self.tabelas[nome] = df
 
-    # linha de origem do registro (campo vazio) ou de um campo que a migração mudou (com o valor original)
+    # linha de origem do registro (campo vazio) ou de um campo que a migração mudou (com o valor original).
+    # A linha é obrigatória no banco: registro criado pela migração, sem linha na Vulto, cita a decisão
     def de_onde(self, tabela, id_registro, fonte, linha_origem, decisao, campo=None, valor_original=None):
+        if pd.isna(linha_origem) or linha_origem == "":
+            raise ValueError(f"{tabela} {id_registro}: origem sem linha_origem ({decisao})")
         self.origem.append(dict(tabela=tabela, id_registro=id_registro, fonte=fonte, linha_origem=linha_origem,
                                 campo=campo, valor_original=valor_original, decisao=decisao))
 
@@ -460,6 +463,13 @@ JUSTIFICATIVA = {"V14": "Cancelado no sistema da Vulto, motivo não registrado",
 NAO_MIGRA = ("V8 teste", "V5 cópia do pedido", "V9 relançamento da Batel")
 
 
+# Chaves que acham um cliente na carga: o CPF e, só de quem não tem CPF, o e-mail. O e-mail de família é de
+# mais de um CPF (P2), então não acha um cliente só
+def chaves_dos_clientes(saida: Saida) -> set:
+    cadastro = saida.tabelas["cliente_sem_conta"]
+    return set(cadastro["cpf"].dropna()) | set(cadastro.loc[cadastro["cpf"].isna(), "email"].dropna())
+
+
 # Identidade do comprador de cada venda do banco: a dos compradores (J1a, J1b, P2) e, no cliente_ref que
 # o staging não aceitou (nas pendências), o dono do celular sem DDD (J1d) ou do CPF digitado errado (K2)
 def identidade_das_vendas(origem: Path) -> tuple[pd.Series, pd.Series, r.Compradores]:
@@ -511,8 +521,7 @@ def tratar_vendas(origem: Path, saida: Saida) -> dict:
     variantes = saida.tabelas["variante"].merge(saida.tabelas["produto"], left_on="produto", right_on="codigo")
     skus = set(variantes["sku"])
     reaproveitados = r.codigos_reaproveitados(catalogo)
-    clientes = set(saida.tabelas["cliente_sem_conta"]["cpf"].dropna()) | \
-        set(saida.tabelas["cliente_sem_conta"]["email"].dropna())
+    clientes = chaves_dos_clientes(saida)
 
     l = r.lancamentos_banco(vendas, itens, catalogo)
     identidade, regra_dono, comp = identidade_das_vendas(origem)
@@ -785,6 +794,10 @@ def tratar_estoque(origem: Path, saida: Saida, original: dict) -> dict:
     online = r.separar_canal(e["posicao"][e["posicao"]["q"] > 0], e["vendidos"])
     online = online[(online["canal"] == "online") & (online["unidade"] == r.LOJAS_FISICAS["1"])]
     canal = lambda unidade: "online" if unidade == r.CD else "loja_fisica"
+    # o saldo inicial, os ajustes e a separação do online saem da contagem: citam a linha contada da peça,
+    # e a peça que não foi contada cita a decisão
+    contada = e["contada"].groupby(["unidade", "sku"])["linha_origem"].first()
+    linha_contada = lambda unidade, sku, decisao: contada.get((unidade, sku), decisao)
 
     linhas = []
 
@@ -797,7 +810,7 @@ def tratar_estoque(origem: Path, saida: Saida, original: dict) -> dict:
 
     for (unidade, sku), q in r.saldo_inicial_estoque(e["posicao"], historico, ajustes).items():
         mover(unidade, sku, "saldo_inicial", q, r.INICIO_HISTORICO, no_dia(r.INICIO_HISTORICO), "saldo_inicial", "E2",
-              FONTE_CONTAGEM, motivo=MOTIVO_SALDO_INICIAL)
+              FONTE_CONTAGEM, linha_contada(unidade, sku, "E2"), motivo=MOTIVO_SALDO_INICIAL)
     for m in movimentos[movimentos["venda_id"].notna()].itertuples():
         tipo = TIPO_DA_VENDA[m.tipo]
         # a devolução e a troca citam o pedido original (V6)
@@ -835,11 +848,11 @@ def tratar_estoque(origem: Path, saida: Saida, original: dict) -> dict:
                   transferencia=m.transferencia)
     for a in ajustes.itertuples():
         mover(a.unidade, a.sku, "ajuste", -a.q, a.dia, no_dia(a.dia, "23:59:59"), "ajuste", "E2", FONTE_CONTAGEM,
-              motivo=MOTIVO_AJUSTE)
+              linha_contada(a.unidade, a.sku, "E2"), motivo=MOTIVO_AJUSTE)
     for o in online.itertuples():
         for tipo, q, c in (("saida_realocacao", -o.q, "loja_fisica"), ("entrada_realocacao", o.q, "online")):
             mover(o.unidade, o.sku, tipo, q, FIM_DO_HISTORICO, no_dia(FIM_DO_HISTORICO, "23:59:59"), "realocacao", "E7",
-                  FONTE_CONTAGEM, motivo=MOTIVO_ONLINE_PINHEIROS, canal_mov=c)
+                  FONTE_CONTAGEM, linha_contada(o.unidade, o.sku, "E7"), motivo=MOTIVO_ONLINE_PINHEIROS, canal_mov=c)
 
     mov = pd.DataFrame(linhas)
     mov = mov[mov["quantidade"] != 0]
@@ -868,7 +881,7 @@ def tratar_estoque(origem: Path, saida: Saida, original: dict) -> dict:
             mov.loc[len(mov)] = {**m, "tipo": "saldo_inicial", "quantidade": q, "motivo": MOTIVO_SALDO_INICIAL,
                                  "pedido": None, "dia": r.INICIO_HISTORICO, "criado_em": no_dia(r.INICIO_HISTORICO),
                                  "grupo": GRUPO["saldo_inicial"], "decisao": "E2", "fonte": FONTE_CONTAGEM,
-                                 "linha_origem": None}
+                                 "linha_origem": linha_contada(m["unidade"], m["sku"], "E2")}
         mov.loc[len(mov)] = {**m, "tipo": "ajuste", "quantidade": -q, "motivo": MOTIVO_AJUSTE, "pedido": None,
                              "criado_em": no_dia(m["dia"], "23:59:59"), "grupo": GRUPO["ajuste"], "decisao": "V17"}
         mov = mov.sort_values(["dia", "grupo", "criado_em"], kind="stable").reset_index(drop=True)
@@ -1076,7 +1089,7 @@ def tratar_fidelidade(origem: Path, saida: Saida) -> dict:
     negativos = passivo_do_extrato(mov)
     negativos = negativos[negativos["saldo"] < 0]
     for cliente, n in negativos.iterrows():
-        mover(cliente, "ajuste", -n["saldo"], FIM_DO_EXTRATO, "K5f", "K5f", FONTE_BANCO, None, motivo=MOTIVO_K5F,
+        mover(cliente, "ajuste", -n["saldo"], FIM_DO_EXTRATO, "K5f", "K5f", FONTE_BANCO, "K5f", motivo=MOTIVO_K5F,
               registrado_por=CONTA_MIGRACAO, chave=f"K5f#{cliente}")
     k5f = pd.DataFrame(linhas[len(mov):])
     k5f["ordem"] = range(len(mov) + 1, len(mov) + len(k5f) + 1)
@@ -1133,8 +1146,7 @@ def tratar_atendimento(origem: Path, saida: Saida) -> dict:
     canais = de_para("canal_atendimento").set_index("valor_vulto")["canal"]
     atendentes = de_para("atendente").set_index("grafia")
     contas = de_para("conta_interna").set_index("conta")["email"]
-    clientes = set(saida.tabelas["cliente_sem_conta"]["cpf"].dropna()) | \
-        set(saida.tabelas["cliente_sem_conta"]["email"].dropna())
+    clientes = chaves_dos_clientes(saida)
     pedidos = saida.tabelas["pedido"].set_index("codigo_venda")["cliente"]
 
     _, _, comp = identidade_das_vendas(origem)

@@ -484,3 +484,21 @@ def test_falas_separa_a_descricao_e_as_falas_seguintes_na_ordem():
     assert descricao == "Oi, meu pedido S101478 atrasou"
     assert seguintes == [("Atendente", "Vou verificar"), ("Cliente", "ok"), ("Bot", "Avalie")]
     assert falas(None) == ("", [])
+
+
+def test_origem_sem_linha_levanta_erro():
+    from migracao_vulto.tratar import Saida
+    saida = Saida()
+    saida.de_onde("movimento_pontos", "K5f#123", "vulto.db", "K5f", "K5f")
+    assert saida.origem[0]["linha_origem"] == "K5f"
+    with pytest.raises(ValueError):
+        saida.de_onde("movimentacao_estoque", "mov#1", "contagem", None, "E2")
+
+
+def test_chaves_dos_clientes_so_usam_o_email_de_quem_nao_tem_cpf():
+    from migracao_vulto.tratar import Saida, chaves_dos_clientes
+    saida = Saida()
+    saida.tabela("cliente_sem_conta", pd.DataFrame({
+        "cpf": ["52998224725", "11144477735", None],
+        "email": ["familia@ex.com", "familia@ex.com", "so.email@ex.com"]}))
+    assert chaves_dos_clientes(saida) == {"52998224725", "11144477735", "so.email@ex.com"}
