@@ -282,14 +282,32 @@ def sql(consulta):
     return str(consulta.compile(dialect=postgresql.dialect()))
 
 
+# fala do cliente: sem autor (atendimento migrado, P6) ou da conta dele; DISTINCT: no chamado de cliente
+# sem conta (id_cliente vazio) a comparação não fica desconhecida
+DO_CLIENTE = "(mensagem.id_autor IS NULL OR mensagem.id_autor IS NOT DISTINCT FROM chamado.id_cliente)"
+
+
 def test_nao_lidas_contam_o_outro_lado():
     equipe = sql(atendimento_repository.consulta_chamados("equipe"))
     do_cliente = sql(atendimento_repository.consulta_chamados("cliente"))
 
-    # DISTINCT: no chamado de cliente sem conta (id_cliente vazio) a comparação não fica desconhecida
-    assert "mensagem.id_autor IS NOT DISTINCT FROM chamado.id_cliente" in equipe
-    assert "mensagem.id_autor IS DISTINCT FROM chamado.id_cliente" in do_cliente
+    assert f"AND {DO_CLIENTE}" in equipe
+    assert f"NOT {DO_CLIENTE}" in do_cliente
     assert "mensagem.interna IS false" in do_cliente  # interna nunca conta para o cliente
+
+
+# a fala sem autor do atendimento migrado é do cliente, mostra o nome de quem falou e não exige usuário
+def test_fala_sem_autor_e_do_cliente_e_mostra_o_nome_externo():
+    consulta = sql(atendimento_repository.consulta_mensagens(1, incluir_internas=True))
+
+    assert f"NOT {DO_CLIENTE} AS da_equipe" in consulta
+    assert "coalesce(mensagem.nome_autor_externo, usuario.nome) AS autor" in consulta
+    assert "LEFT OUTER JOIN usuario ON usuario.id_usuario = mensagem.id_autor" in consulta
+
+
+def test_equipe_marca_como_lidas_as_falas_sem_autor():
+    comando = sql(atendimento_repository.comando_marcar_lidas(1, None, "equipe"))
+    assert "mensagem.id_autor IS NULL OR mensagem.id_autor IS NOT DISTINCT FROM" in comando
 
 
 def test_cliente_nunca_recebe_mensagem_interna():
@@ -315,6 +333,13 @@ def test_cliente_abre_chamado_pela_api(api, banco):
     assert resposta.status_code == 201
     assert resposta.json()["status"] == "aberto"
     assert resposta.json()["id_cliente"] == str(ID_CLIENTE)
+
+
+# categoria nova da migração da Vulto, também para os chamados novos (A4a)
+def test_cliente_abre_chamado_de_pagamento(api, banco):
+    resposta = api(SessaoFalsa(), usuario=cliente()).post("/chamados", json={**CHAMADO, "categoria": "pagamento"})
+
+    assert resposta.status_code == 201 and resposta.json()["categoria"] == "pagamento"
 
 
 def test_categoria_fora_da_lista_responde_422(api, banco):
