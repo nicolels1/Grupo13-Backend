@@ -14,6 +14,7 @@
 import argparse
 import re
 from datetime import datetime
+from functools import cache
 from pathlib import Path
 
 import pandas as pd
@@ -106,28 +107,41 @@ FONTE_CATALOGO = "catalogo_vulto_2026_REVISADO_final.xlsx"
 FONTE_CONTAGEM = "contagem_inventario_set26.xlsx"
 # P8: o item vendido sem a peça identificada (DIVERSO, PRODUTO SEM CADASTRO) aponta para esta variante
 SKU_SEM_CADASTRO = "VLT-SEM-CADASTRO"
+ILEGIVEL = "ILEGÍVEL "  # prefixo da peça contada sem variante única (E10)
+COR_ILEGIVEL = "A identificar"
 NOME_SEM_CADASTRO = "Item sem cadastro Vulto"
 CATEGORIA_SEM_CADASTRO = "Sem cadastro Vulto"
 # C16: a mesma imagem da marca em todo produto, no bucket de fotos de produto; a carga sobe o arquivo
 IMAGEM_GENERICA = "vulto/sem-foto.png"
 
 
-# Estoque de cada variante em 01/10/2026 (posição em 30/09 mais o que está em trânsito, E13). No código
-# reaproveitado, o SKU que as duas peças usam fica com a nova e o que só a antiga tem fica com ela (C2).
-# Devolve também a contagem lida, de onde vem a variante criada a partir do modelo (E10)
-def estoque_por_variante(origem: Path, variantes: set) -> tuple[pd.Series, pd.DataFrame]:
-    vendas, itens = ler(origem, "banco_vendas"), ler(origem, "banco_itens_venda")
-    lancamentos = r.lancamentos_banco(vendas.replace("", None), itens.replace("", None),
-                                      ler(origem, "catalogo_produtos").replace("", None))
-    e = r.estoque_na_data_base(lancamentos[lancamentos["linha_origem"].astype(str).str.startswith("vendas#")],
-                               itens.replace("", None), ler(origem, "banco_entradas_estoque").replace("", None),
+# Vendas classificadas do banco e o estoque na data base (E2, E4, E5, E10, E13), calculados uma vez para o
+# catálogo e para o estoque
+@cache
+def estoque_vulto(origem: Path) -> tuple[pd.DataFrame, dict]:
+    vendas, itens = ler(origem, "banco_vendas").replace("", None), ler(origem, "banco_itens_venda").replace("", None)
+    lancamentos = r.lancamentos_banco(vendas, itens, ler(origem, "catalogo_produtos").replace("", None))
+    lancamentos = lancamentos[lancamentos["linha_origem"].astype(str).str.startswith("vendas#")]
+    e = r.estoque_na_data_base(lancamentos, itens, ler(origem, "banco_entradas_estoque").replace("", None),
                                ler(origem, "contagem_set26").replace("", None), ler(origem, "banco_estoque").replace("", None),
                                ler(origem, "catalogo_produtos"))
+    return lancamentos, e
+
+
+# Variante de cada SKU do estoque. No código reaproveitado, o SKU que as duas peças usam fica com a nova e o
+# que só a antiga tem fica com ela (C2); o código ilegível da contagem fica com o código original (E10)
+def dono_da_peca(skus, variantes: set) -> dict:
+    return {s: s.removeprefix(ILEGIVEL) if s.startswith(ILEGIVEL)
+            else s + r.SUFIXO_PECA_ANTIGA if s not in variantes and s + r.SUFIXO_PECA_ANTIGA in variantes else s
+            for s in set(skus)}
+
+
+# Estoque de cada variante em 01/10/2026 (posição em 30/09 mais o que está em trânsito, E13). Devolve também
+# a contagem lida, de onde vem a variante criada a partir do modelo e a do código ilegível (E10)
+def estoque_por_variante(origem: Path, variantes: set) -> tuple[pd.Series, pd.DataFrame]:
+    _, e = estoque_vulto(origem)
     q = pd.concat([e["posicao"][["sku", "q"]], e["transito"][["sku", "q"]]]).groupby("sku")["q"].sum()
-    antiga = {s + r.SUFIXO_PECA_ANTIGA for s in q.index} & variantes
-    dono = {s: s + r.SUFIXO_PECA_ANTIGA if s not in variantes and s + r.SUFIXO_PECA_ANTIGA in antiga else s
-            for s in q.index}
-    return q.groupby(dono).sum(), e["contada"]
+    return q.groupby(dono_da_peca(q.index, variantes)).sum(), e["contada"]
 
 
 # Histórico de preço de uma variante: os preços em ordem de data, sem repetir o mesmo preço seguido.
@@ -241,6 +255,16 @@ def tratar_catalogo(origem: Path, saida: Saida):
                                decisao="E10"))
         saida.de_onde("variante", l.sku, FONTE_CONTAGEM, l.linha_origem, "E10", "sku", l.codigo)
         feitas.add(l.sku)
+
+    # E10: sem variante única, a peça contada entra com o código original numa variante do produto genérico
+    # (P8), marcada e fora de venda, para a equipe corrigir na plataforma. O código vai no tamanho, que
+    # separa as variantes do mesmo produto
+    for l in contada[contada["leitura"] == "ilegível"].itertuples():
+        if l.codigo not in feitas:
+            variantes.append(dict(sku=l.codigo, produto=SKU_SEM_CADASTRO, ean=None, cor=COR_ILEGIVEL, tamanho=l.codigo,
+                                  preco=0.0, ativo=False, estoque_01_10=int(estoque[l.codigo])))
+            feitas.add(l.codigo)
+        saida.de_onde("variante", l.codigo, FONTE_CONTAGEM, l.linha_origem, "E10")
 
     variante = pd.DataFrame(variantes)
     # C12: o EAN não pode repetir entre variantes; o que repetir sai e o trigger gera o interno
@@ -477,7 +501,8 @@ def ratear(valor: float, pecas: list[dict]) -> list[float]:
 
 # V2–V19, P3, P7, V6, V9: um pedido por venda que migra (as canceladas e as aguardando como canceladas),
 # com os itens e o pagamento; o estorno do V4 e o da devolução (V6) apontam para o pagamento original.
-# A troca e a devolução não viram pedido; a devolução sem pedido original fica nas pendências (V6)
+# A troca e a devolução não viram pedido; a devolução sem pedido original fica nas pendências (V6). Devolve
+# também o pedido original de cada devolução e troca, que a movimentação de estoque delas cita
 def tratar_vendas(origem: Path, saida: Saida) -> dict:
     vendas = ler(origem, "banco_vendas").replace("", None)
     itens = ler(origem, "banco_itens_venda").replace("", None)
@@ -653,6 +678,8 @@ def tratar_vendas(origem: Path, saida: Saida) -> dict:
     originais = r.pedido_original(l, itens)
     devolucoes = l[(l["tipo"] == "devolucao") & l["motivo"].isna()].sort_values("criado_em")
     sem_original = 0.0
+    trocas = l.loc[l["tipo"] == "troca", "id"]
+    original = {i: codigo_do_id[originais[i][0]] for i in trocas if i in originais and originais[i][0] in codigo_do_id}
     for d in devolucoes.itertuples():
         valor = round(-d.corrigido, 2)
         possiveis = [originais[d.id]] if d.id in originais else []
@@ -678,6 +705,7 @@ def tratar_vendas(origem: Path, saida: Saida) -> dict:
             continue
         estornado[codigo] += valor
         n_estornos[codigo] += 1
+        original[d.id] = codigo
         estornar(codigo, f"{codigo}#pagamento", valor, d.criado_em, METODO["(vazio)"], FONTE_BANCO, d.linha_origem,
                  "V6", n_estornos[codigo])
         saida.de_onde("pagamento", f"{codigo}#estorno{n_estornos[codigo]}", FONTE_BANCO, d.linha_origem, "V6",
@@ -688,7 +716,7 @@ def tratar_vendas(origem: Path, saida: Saida) -> dict:
     saida.tabela("pedido", p.reset_index())
     saida.tabela("item_pedido", pd.DataFrame(linhas_itens))
     saida.tabela("pagamento", pd.DataFrame(pagamentos))
-    return dict(sem_original=round(sem_original, 2))
+    return dict(sem_original=round(sem_original, 2), original=original)
 
 
 # Faturamento que a plataforma vai calcular com os pedidos migrados: pagamentos menos estornos, sem o
@@ -706,6 +734,199 @@ def faturamento_tratado(saida: Saida) -> pd.Series:
     return fat[(fat.index >= r.INICIO) & (fat.index <= r.FIM)].round(2)
 
 
+# ---------- estoque ----------
+
+FIM_DO_HISTORICO = "2026-09-30"  # a posição é o fim deste dia (E2)
+MOTIVO_AJUSTE = "Saída não registrada na Vulto"  # E2
+MOTIVO_SALDO_INICIAL = "Saldo em 01/01/2025, reconstruído a partir da contagem de set/2026"  # E2
+MOTIVO_ONLINE_PINHEIROS = "Estoque online da Pinheiros, separado da contagem (E7)"
+MOTIVO_SEM_ORIGINAL = {"devolucao": "Devolução sem o pedido original na Vulto (V6)",
+                       "saida_troca": "Troca sem o pedido original na Vulto (V6)"}
+TIPO_DA_VENDA = {"venda": "venda", "devolucao": "devolucao", "troca": "saida_troca"}
+# ordem dentro do dia, para o saldo nunca ficar negativo na carga: o saldo inicial, as entradas, a venda
+# cancelada (sai e volta), as saídas, o ajuste de saída do dia e, no fim de 30/09, a separação da E7
+GRUPO = {"saldo_inicial": 0, "entrada": 1, "cancelada": 2, "saida": 3, "ajuste": 4, "realocacao": 5}
+
+
+def no_dia(dia: str, hora: str = "00:00:00") -> str:
+    return em_utc(datetime.fromisoformat(f"{dia}T{hora}").replace(tzinfo=r.FUSO_BRASILIA).isoformat())
+
+
+# E1–E14, V10, V17: o histórico de movimentações de 01/01/2025 a 30/09/2026, que o trigger soma no saldo de
+# cada peça. Começa no saldo inicial reconstruído (E2) e segue com as vendas, devoluções e trocas (o ship from
+# store sai da Pinheiros, V10; a cancelada sai e volta, V17), os recebimentos de fornecedor, as transferências
+# (E4; a em trânsito fica enviada, E13) e os ajustes de saída sem registro (E2). No fim, o online da Pinheiros
+# (E7) e o mínimo do CD (E14). A carga insere as movimentações na ordem da coluna `ordem`
+def tratar_estoque(origem: Path, saida: Saida, original: dict) -> dict:
+    l, e = estoque_vulto(origem)
+    itens = ler(origem, "banco_itens_venda").replace("", None)
+    variantes = set(saida.tabelas["variante"]["sku"])
+    pedidos = set(saida.tabelas["pedido"]["codigo_venda"])
+    venda = l.set_index("id")
+    codigo = lambda i: (lambda c: c if c in pedidos else None)(r.codigo_venda(venda.loc[i, "pedido_externo"], i))
+
+    movimentos = e["movimentos"]
+    # V9: a venda da planilha da Batel baixa a peça achada no catálogo (a variante genérica não tem estoque,
+    # P8) e entra no histórico (E2); o relançamento dela no banco não baixa. A cancelada sai e volta (V17)
+    do_pedido = saida.tabelas["pedido"].set_index("codigo_venda")
+    it = saida.tabelas["item_pedido"]
+    it = it[it["pedido"].str.startswith("VLT-BATEL-") & (it["variante"] != SKU_SEM_CADASTRO)]
+    planilha = pd.DataFrame({"unidade": r.LOJAS_FISICAS[r.LOJA_BATEL],
+                             "sku": it["variante"].str.removesuffix(r.SUFIXO_PECA_ANTIGA), "q": -it["quantidade"],
+                             "origem": "venda da planilha da Batel", "pedido": it["pedido"], "linha_origem": it["item"],
+                             "criado_em": it["pedido"].map(do_pedido["criado_em"]).map(em_utc),
+                             "cancelada": it["pedido"].map(do_pedido["status"]) == "cancelado"})
+    planilha["dia"] = planilha["criado_em"].map(r.dia_brasilia)
+    historico = pd.concat([movimentos, planilha.loc[~planilha["cancelada"], ["unidade", "sku", "dia", "q", "origem"]]],
+                          ignore_index=True)
+    ajustes = r.reconstruir_historico(e["contada"], historico, e["datas"])[1]
+    canceladas = r.itens_cancelados(l, itens)
+    canceladas = canceladas[(canceladas["tipo"] == "venda") & canceladas["sku"].notna()]
+    online = r.separar_canal(e["posicao"][e["posicao"]["q"] > 0], e["vendidos"])
+    online = online[(online["canal"] == "online") & (online["unidade"] == r.LOJAS_FISICAS["1"])]
+    canal = lambda unidade: "online" if unidade == r.CD else "loja_fisica"
+
+    linhas = []
+
+    def mover(unidade, sku, tipo, q, dia, criado_em, grupo, decisao, fonte=FONTE_BANCO, linha_origem=None, motivo=None,
+              pedido=None, transferencia=None, usuario=None, canal_mov=None):
+        linhas.append(dict(sku=sku, unidade=unidade, canal=canal_mov or canal(unidade), tipo=tipo, quantidade=int(q),
+                           motivo=motivo, pedido=pedido, transferencia=transferencia, usuario=usuario,
+                           criado_em=criado_em, dia=dia, grupo=GRUPO[grupo], decisao=decisao, fonte=fonte,
+                           linha_origem=linha_origem))
+
+    for (unidade, sku), q in r.saldo_inicial_estoque(e["posicao"], historico, ajustes).items():
+        mover(unidade, sku, "saldo_inicial", q, r.INICIO_HISTORICO, no_dia(r.INICIO_HISTORICO), "saldo_inicial", "E2",
+              FONTE_CONTAGEM, motivo=MOTIVO_SALDO_INICIAL)
+    for m in movimentos[movimentos["venda_id"].notna()].itertuples():
+        tipo = TIPO_DA_VENDA[m.tipo]
+        # a devolução e a troca citam o pedido original (V6)
+        pedido = codigo(m.venda_id) if tipo == "venda" else original.get(m.venda_id)
+        grupo = "entrada" if m.q > 0 else "saida"
+        if tipo != "venda" and pedido is None:
+            mover(m.unidade, m.sku, "ajuste", m.q, m.dia, em_utc(m.criado_em), grupo, "V6", linha_origem=m.linha_origem,
+                  motivo=MOTIVO_SEM_ORIGINAL[tipo])
+            continue
+        if pedido is None:
+            saida.pendente("movimentacao_estoque", FONTE_BANCO, m.linha_origem, "pedido", m.venda_id,
+                           "venda que baixa o estoque sem pedido migrado")
+        sfs = m.unidade == r.LOJAS_FISICAS["1"] and m.origem != "venda loja"
+        mover(m.unidade, m.sku, tipo, m.q, m.dia, em_utc(m.criado_em), grupo,
+              "V10" if sfs else ("E2" if tipo == "venda" else "V6"), linha_origem=m.linha_origem, pedido=pedido,
+              usuario=None if tipo == "venda" else CONTA_MIGRACAO)
+    for m in canceladas.itertuples():
+        for tipo, q in (("venda", m.q), ("retorno_cancelamento", -m.q)):
+            mover(m.unidade, m.sku, tipo, q, m.dia, em_utc(m.criado_em), "cancelada", "V17", linha_origem=m.linha_origem,
+                  pedido=codigo(m.venda_id))
+    for m in planilha.itertuples():
+        if m.cancelada:
+            for tipo, q in (("venda", m.q), ("retorno_cancelamento", -m.q)):
+                mover(m.unidade, m.sku, tipo, q, m.dia, m.criado_em, "cancelada", "V17", FONTE_BATEL, m.linha_origem,
+                      pedido=m.pedido)
+        else:
+            mover(m.unidade, m.sku, "venda", m.q, m.dia, m.criado_em, "saida", "V9", FONTE_BATEL, m.linha_origem,
+                  pedido=m.pedido)
+    for m in movimentos[movimentos["venda_id"].isna()].itertuples():
+        if pd.isna(m.transferencia):
+            mover(m.unidade, m.sku, "recebimento", m.q, m.dia, no_dia(m.dia), "entrada", "E2", linha_origem=m.linha_origem)
+        else:
+            mover(m.unidade, m.sku, "entrada_transferencia" if m.q > 0 else "saida_transferencia", m.q, m.dia,
+                  no_dia(m.dia), "entrada" if m.q > 0 else "saida", "E4", linha_origem=m.linha_origem,
+                  transferencia=m.transferencia)
+    for a in ajustes.itertuples():
+        mover(a.unidade, a.sku, "ajuste", -a.q, a.dia, no_dia(a.dia, "23:59:59"), "ajuste", "E2", FONTE_CONTAGEM,
+              motivo=MOTIVO_AJUSTE)
+    for o in online.itertuples():
+        for tipo, q, c in (("saida_realocacao", -o.q, "loja_fisica"), ("entrada_realocacao", o.q, "online")):
+            mover(o.unidade, o.sku, tipo, q, FIM_DO_HISTORICO, no_dia(FIM_DO_HISTORICO, "23:59:59"), "realocacao", "E7",
+                  FONTE_CONTAGEM, motivo=MOTIVO_ONLINE_PINHEIROS, canal_mov=c)
+
+    mov = pd.DataFrame(linhas)
+    mov = mov[mov["quantidade"] != 0]
+    mov["variante"] = mov["sku"].map(dono_da_peca(mov["sku"], variantes))
+    sem_variante = mov[~mov["variante"].isin(variantes)]
+    for (unidade, sku), g in sem_variante.groupby(["unidade", "sku"]):
+        saida.pendente("movimentacao_estoque", FONTE_CONTAGEM, None, "sku", sku,
+                       f"peça sem variante: {int(g['quantidade'].sum())} no saldo de {unidade}")
+    mov = mov[mov["variante"].isin(variantes)]
+    mov = mov.sort_values(["dia", "grupo", "criado_em"], kind="stable").reset_index(drop=True)
+    # V17: a cancelada sai e volta na hora, e a venda mostra que a peça estava na loja. O histórico fecha por dia
+    # sem ela (E2); se naquele momento o saldo não tem a peça, faltou registrar uma entrada antes e uma saída
+    # depois: o saldo inicial sobe e entra um ajuste de saída no fim do dia, como os da E2
+    peca = ["variante", "unidade", "canal"]
+    canceladas_sem_peca = 0
+    while True:
+        saldo = mov.groupby(peca)["quantidade"].cumsum()
+        falta = (mov["grupo"] == GRUPO["cancelada"]) & (mov["tipo"] == "venda") & (saldo < 0)
+        if not falta.any():
+            break
+        m, q = mov[falta].iloc[0], int(-saldo[falta].iloc[0])
+        inicial = (mov[peca] == m[peca]).all(axis=1) & (mov["tipo"] == "saldo_inicial")
+        if inicial.any():
+            mov.loc[inicial.idxmax(), "quantidade"] += q
+        else:
+            mov.loc[len(mov)] = {**m, "tipo": "saldo_inicial", "quantidade": q, "motivo": MOTIVO_SALDO_INICIAL,
+                                 "pedido": None, "dia": r.INICIO_HISTORICO, "criado_em": no_dia(r.INICIO_HISTORICO),
+                                 "grupo": GRUPO["saldo_inicial"], "decisao": "E2", "fonte": FONTE_CONTAGEM,
+                                 "linha_origem": None}
+        mov.loc[len(mov)] = {**m, "tipo": "ajuste", "quantidade": -q, "motivo": MOTIVO_AJUSTE, "pedido": None,
+                             "criado_em": no_dia(m["dia"], "23:59:59"), "grupo": GRUPO["ajuste"], "decisao": "V17"}
+        mov = mov.sort_values(["dia", "grupo", "criado_em"], kind="stable").reset_index(drop=True)
+        canceladas_sem_peca += 1
+    mov["ordem"] = mov.index + 1
+    mov["chave"] = "mov#" + mov["ordem"].astype(str)
+    for m in mov.itertuples():
+        saida.de_onde("movimentacao_estoque", m.chave, m.fonte, m.linha_origem, m.decisao)
+
+    # transferências (E4): uma por envio ou recebimento sem par; a em trânsito em 01/10 fica enviada (E13)
+    destino_em_transito = e["transito"].set_index("linha_origem")["destino"]
+    transferencias, itens_t = [], []
+    for chave, g in mov[mov["transferencia"].notna()].groupby("transferencia", sort=False):
+        sai, entra = g[g["quantidade"] < 0].iloc[0], g[g["quantidade"] > 0]
+        recebida = len(entra) > 0
+        destino = entra["unidade"].iloc[0] if recebida else destino_em_transito[chave]
+        transferencias.append(dict(chave=chave, unidade_origem=sai.unidade, unidade_destino=destino,
+                                   status="recebida" if recebida else "enviada", solicitante=CONTA_MIGRACAO,
+                                   enviado_por=CONTA_MIGRACAO, recebido_por=CONTA_MIGRACAO if recebida else None,
+                                   solicitada_em=sai.criado_em, enviada_em=sai.criado_em,
+                                   recebida_em=entra["criado_em"].iloc[0] if recebida else None))
+        q = -int(sai.quantidade)
+        itens_t.append(dict(transferencia=chave, variante=sai.variante, canal_saida=sai.canal,
+                            canal_entrada=canal(destino), quantidade_solicitada=q, quantidade_enviada=q,
+                            quantidade_recebida=q if recebida else None))
+        for linha in g["linha_origem"].dropna().unique():
+            saida.de_onde("transferencia", chave, FONTE_BANCO, linha, "E4" if recebida else "E13")
+
+    # saldo de cada peça depois de cada movimentação: nunca negativo, e o último é o estoque em 01/10/2026
+    mov["saldo"] = mov.groupby(peca)["quantidade"].cumsum()
+    negativos = int((mov["saldo"] < 0).sum())
+    saldo = mov.groupby(peca)["saldo"].last()
+    # E14: no CD, o mínimo é a saída do mês com piso de 2; nas lojas, sem mínimo
+    minimo = r.estoque_minimo_cd(movimentos)
+    minimo = minimo.groupby(dono_da_peca(minimo.index, variantes)).sum()
+    minimo.index = pd.MultiIndex.from_tuples([(v, r.CD, "online") for v in minimo.index], names=peca)
+    estoque = pd.concat([saldo.rename("quantidade"), minimo.rename("estoque_minimo")], axis=1).reset_index()
+    estoque["quantidade"] = estoque["quantidade"].fillna(0).astype(int)
+    estoque["estoque_minimo"] = estoque["estoque_minimo"].astype("Int64")
+    estoque = estoque[(estoque["quantidade"] > 0) | estoque["estoque_minimo"].notna()]
+    estoque.insert(4, "quantidade_reservada", 0)  # E8
+
+    colunas = ["ordem", "chave", "variante", "unidade", "canal", "tipo", "quantidade", "motivo", "pedido",
+               "transferencia", "usuario", "criado_em"]
+    saida.tabela("movimentacao_estoque", mov[colunas])
+    saida.tabela("transferencia", pd.DataFrame(transferencias))
+    saida.tabela("item_transferencia", pd.DataFrame(itens_t))
+    saida.tabela("estoque", estoque)
+
+    cd = estoque[estoque["unidade"] == r.CD]
+    return dict(por_unidade=estoque.groupby(["unidade", "canal"])["quantidade"].sum(),
+                em_transito=sum(i["quantidade_enviada"] for i in itens_t if i["quantidade_recebida"] is None),
+                negativos=negativos, sem_variante=int(sem_variante["quantidade"].sum()),
+                canceladas_sem_peca=canceladas_sem_peca,
+                abaixo_do_minimo=int((cd["quantidade"] < cd["estoque_minimo"]).sum()),
+                sem_minimo=int(((cd["quantidade"] > 0) & cd["estoque_minimo"].isna()).sum()))
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--origem", type=Path, default=Path("staging_vulto"))
@@ -718,11 +939,19 @@ def main():
     tratar_catalogo(args.origem, saida)
     por_origem = tratar_clientes(args.origem, saida)
     vendas = tratar_vendas(args.origem, saida)
+    estoque = tratar_estoque(args.origem, saida, vendas["original"])
     saida.gravar(args.destino)
 
     print("clientes por origem:", por_origem.to_dict())
     fat = faturamento_tratado(saida)
     print(f"faturamento dos pedidos: {fat.sum():,.2f} | devoluções sem pedido original: {vendas['sem_original']:,.2f}")
+    nas_unidades = estoque["por_unidade"].sum()
+    print("estoque por unidade e canal:", estoque["por_unidade"].to_dict())
+    print(f"estoque em 01/10/2026: {nas_unidades:,} nas unidades + {estoque['em_transito']} em trânsito = "
+          f"{nas_unidades + estoque['em_transito']:,} | saldos negativos no caminho: {estoque['negativos']} | "
+          f"peças sem variante: {estoque['sem_variante']} | canceladas sem a peça no saldo (V17): "
+          f"{estoque['canceladas_sem_peca']} | CD abaixo do mínimo: {estoque['abaixo_do_minimo']}, "
+          f"sem mínimo: {estoque['sem_minimo']}")
 
     for nome, df in saida.tabelas.items():
         print(f"{nome}: {len(df)} linhas")

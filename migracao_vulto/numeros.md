@@ -73,28 +73,28 @@ De jan a jul/2025, antes dos centavos, a diferença fica entre R$ 15 mil e R$ 26
 
 ## 2. Estoque da Vulto em 01/10/2026
 
-**15.234 peças**: 15.201 nas unidades e 33 em trânsito do CD para a Pinheiros (E13).
+**15.233 peças**: 15.200 nas unidades e 33 em trânsito do CD para a Pinheiros (E13).
 
 | Unidade | Peças | Base |
 |---|---:|---|
 | CD Cajamar (online) | 6.552 | WMS de 28/09 (E1, E8), menos as vendas online e as saídas de 29 e 30/09 |
 | Vulto Pinheiros | 2.387 (2.300 loja física, 87 online) | contagem de 20/09; 87 peças vão para o online pelo ship from store (E7) |
-| Vulto Shopping Eldorado | 2.283 | contagem sem data, considerada de 20/09 (E5) |
+| Vulto Shopping Eldorado | 2.282 | contagem sem data, considerada de 20/09 (E5) |
 | Vulto Savassi | 2.119 | contagem por modelo, distribuída pelas variantes (E6) |
 | Vulto Batel | 1.860 | contagem sem data, considerada de 20/09 (E5) |
 | Em trânsito CD → Pinheiros | 33 | 31 envios de 21/09, um dia depois da contagem, sem recebimento (E13) |
-| **Total** | **15.234** | |
+| **Total** | **15.233** | |
 
 A posição de cada peça é a contada mais os movimentos depois da contagem até 30/09: vendas, devoluções, recebimentos e transferências. O sistema da Vulto dizia 28.136 peças só no CD (o WMS tem 6.601) e tinha 1.156 saldos negativos. Ele não entra: as lojas valem pela contagem, o CD pelo WMS (E1), e o estoque espelhado do site e do app não é estoque (E3). O detalhe por produto está em `numeros_vulto/estoque_por_produto.csv`.
 
 ### O que conseguimos reconstruir do histórico
 
-O histórico vai de 01/01/2025 a 30/09/2026, dia a dia, em todas as unidades (E2). Ele parte da contagem e desfaz para trás as vendas, as entradas e as transferências (E4). Com isso, a pergunta "quanto tinha na loja X há duas semanas" tem resposta em qualquer dia. Em 17/09/2026 eram 15.691 peças: CD 6.851, Pinheiros 2.453, Eldorado 2.354, Savassi 2.131 e Batel 1.902.
+O histórico vai de 01/01/2025 a 30/09/2026, dia a dia, em todas as unidades (E2). Ele parte da contagem e desfaz para trás as vendas, as entradas e as transferências (E4). Com isso, a pergunta "quanto tinha na loja X há duas semanas" tem resposta em qualquer dia. Em 17/09/2026 eram 15.690 peças: CD 6.851, Pinheiros 2.453, Eldorado 2.353, Savassi 2.131 e Batel 1.902.
 
 O que não conseguimos reconstruir:
 
-- **Saídas sem registro:** quando, voltando no tempo, o saldo ficaria negativo, entrou mais do que ficou. Entram 721 ajustes, 2.035 peças em 21 meses, contra 21.139 peças de fornecedor e 31.379 vendidas. No CD são 1.511, concentradas em set–out/2025 e mar–abr/2026, os lançamentos de coleção; nas lojas, de 109 a 166 cada.
-- **Entradas sem registro:** não aparecem como ajuste. Viram saldo maior no começo: 27.466 peças em 01/01/2025 (CD 19.538).
+- **Saídas sem registro:** quando, voltando no tempo, o saldo ficaria negativo, entrou mais do que ficou. Entram 718 ajustes, 2.028 peças em 21 meses, contra 21.139 peças de fornecedor e 31.379 vendidas. No CD são 1.511, concentradas em set–out/2025 e mar–abr/2026, os lançamentos de coleção; nas lojas, de 109 a 166 cada.
+- **Entradas sem registro:** não aparecem como ajuste. Viram saldo maior no começo: 27.458 peças em 01/01/2025 (CD 19.538).
 - **Transferências:** o CD anotou só parte das saídas. Das transferências, 3.299 têm os dois lados, 2.213 só o envio e 7.536 só o recebimento da loja, que então dá a saída do CD (E4).
 - **Trocas:** a Vulto registra a peça que sai, não a que volta (V6).
 
@@ -103,12 +103,11 @@ O que não conseguimos reconstruir:
 | Unidade | Motivo | Peças |
 |---|---|---:|
 | Batel | 82 linhas da contagem marcadas "faltou contar provador" ou "recontar" (E11) | 222 |
-| Eldorado | 31 SKUs com saldo no sistema que não aparecem na contagem (E12) | 56 |
+| Eldorado | 29 SKUs com saldo no sistema que não aparecem na contagem (E12) | 53 |
 | Eldorado | contagem em 30/09 em vez de 20/09 (E5) | +36 |
 | Batel | contagem em 13/09 ou 30/09 (E5) | −31 a +17 |
 | Savassi | contagem em 30/09 (E5) | −8 |
-| todas | 4 códigos da contagem sem variante única: contam no total, sem variante (E10) | 14 |
-| todas | peças vendidas depois da contagem que a contagem não viu (a posição negativa vira zero) | 26 |
+| todas | peças vendidas depois da contagem que a contagem não viu (a posição negativa vira zero) | 25 |
 
 Por produto, a Savassi tem a maior margem: o total de cada modelo está certo, mas a divisão por cor e tamanho segue o sistema (E6).
 
