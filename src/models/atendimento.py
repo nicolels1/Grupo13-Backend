@@ -60,7 +60,12 @@ class Chamado(Base):
         CheckConstraint(
             "(status = 'concluido') = (motivo_encerramento IS NOT NULL)", name="concluido_exige_motivo"
         ),
-        CheckConstraint("num_nonnulls(id_cliente, id_cliente_sem_conta) = 1", name="um_cliente"),
+        # sem cliente, só o atendimento migrado da Vulto em que ninguém foi achado (A5–A7)
+        CheckConstraint(
+            "num_nonnulls(id_cliente, id_cliente_sem_conta) = 1 OR "
+            "(id_cliente IS NULL AND id_cliente_sem_conta IS NULL AND canal_externo IS NOT NULL)",
+            name="um_cliente_ou_externo",
+        ),
         CheckConstraint("canal_externo IN ('whatsapp', 'instagram', 'email')", name="canal_externo_valido"),
         CheckConstraint("contato_externo IS NULL OR canal_externo IS NOT NULL", name="contato_externo_exige_canal"),
         # "meus chamados" do cliente

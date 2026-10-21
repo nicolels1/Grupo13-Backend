@@ -45,7 +45,7 @@ Conferidas contra os models (`src/models/`) e as migrations em 21/10/2026, já c
 - **`movimentacao_estoque`, `historico_preco` e `historico_chamado` não podem ser alterados nem apagados.** Uma carga errada não se desfaz com `DELETE`: testar antes num banco de teste.
 
 **Atendimento**
-- Chamado exige exatamente um cliente (`id_cliente` ou `id_cliente_sem_conta`); `categoria` aceita `entrega`, `troca_devolucao`, `estorno`, `duvida`, `pagamento` (A4a) ou `outros`; `status` é `aberto`, `em_andamento` ou `concluido`, e concluído exige `motivo_encerramento` (`resolvido`, `desistencia` ou `sem_resposta`). `canal_externo` (`whatsapp`, `instagram`, `email`) e `contato_externo` só nos migrados; contato exige canal (P6).
+- Chamado exige exatamente um cliente (`id_cliente` ou `id_cliente_sem_conta`), fora o migrado sem cliente (A5–A7), que só entra com `canal_externo`; `categoria` aceita `entrega`, `troca_devolucao`, `estorno`, `duvida`, `pagamento` (A4a) ou `outros`; `status` é `aberto`, `em_andamento` ou `concluido`, e concluído exige `motivo_encerramento` (`resolvido`, `desistencia` ou `sem_resposta`). `canal_externo` (`whatsapp`, `instagram`, `email`) e `contato_externo` só nos migrados; contato exige canal (P6).
 - Mensagem exige `id_autor` ou `nome_autor_externo`; sem autor é a fala do cliente do chamado (P6).
 
 **Fidelidade**
