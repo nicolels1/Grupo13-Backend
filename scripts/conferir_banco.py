@@ -220,6 +220,45 @@ def conferir_fidelidade(c: Conferencia, db: Session, local: dict, sufixo: str) -
     deve_recusar(c, db, "a API não roda o job de vencimento", "SELECT vence_pontos()", {})
     conferir_resgate(c, db, local, dono, sufixo)
     conferir_pontos_do_pagamento(c, db, local, dono, sufixo)
+    conferir_passagem_para_a_conta(c, db, dono)
+
+
+# migration 9da6b1aa2392: quando o cliente sem conta cria a conta, o saldo e os lotes passam para ela (somando ao
+# que a conta já tinha), e a conta usa esses pontos com a época de cada um
+def conferir_passagem_para_a_conta(c: Conferencia, db: Session, dono: dict) -> None:
+    id_cliente = db.scalar(text("SELECT id_usuario FROM usuario WHERE tipo_conta = 'cliente' LIMIT 1"))
+    if id_cliente is None:
+        c.registrar("os pontos passam para a conta criada", False, "nenhum cliente no banco para o teste")
+        return
+
+    def saldos(coluna: str, valor) -> dict:
+        return dict(db.execute(text(f"SELECT marca, saldo FROM saldo_pontos WHERE {coluna} = :v"), {"v": valor}).all())
+
+    da_conta, do_sem_conta = saldos("id_cliente", id_cliente), saldos("id_cliente_sem_conta", dono["c"])
+    db.execute(text("UPDATE cliente_sem_conta SET id_usuario = :u WHERE id_cliente_sem_conta = :c"),
+               {**dono, "u": id_cliente})
+    depois = saldos("id_cliente", id_cliente)
+    esperado = {m: da_conta.get(m, 0) + do_sem_conta.get(m, 0) for m in da_conta.keys() | do_sem_conta.keys()}
+    sobrou = db.scalar(text("SELECT count(*) FROM lote_pontos WHERE id_cliente_sem_conta = :c"), dono)
+    c.registrar("os pontos passam para a conta criada, somando ao que ela já tinha",
+                depois == esperado and not saldos("id_cliente_sem_conta", dono["c"]) and sobrou == 0,
+                f"conta {depois}, esperado {esperado}, lotes que ficaram {sobrou}")
+    if "vulto" not in da_conta:
+        valor = fidelidade_repository.valor_do_resgate(db, id_cliente, None, "vulto", 1000)
+        c.registrar("a conta usa os pontos com o valor da época de cada um", valor == 100, f"R$ {valor}")
+
+    # outro cliente sem conta da mesma pessoa (pelo e-mail) com pontos na mesma marca: os saldos se somam
+    outro = db.scalar(text(
+        "INSERT INTO cliente_sem_conta (email, origem) VALUES (:email, 'migracao_vulto') RETURNING id_cliente_sem_conta"
+    ), {"email": f"conferencia-outro-{dono['c']}@vulto.example"})
+    db.execute(text("INSERT INTO movimento_pontos (id_cliente_sem_conta, marca, tipo, pontos, origem, criado_em) "
+                    "VALUES (:c, 'vulto', 'saldo_inicial', 500, 'migracao', '2025-01-01 00:00-03')"), {"c": outro})
+    antes = saldos("id_cliente", id_cliente)["vulto"]
+    db.execute(text("UPDATE cliente_sem_conta SET id_usuario = :u WHERE id_cliente_sem_conta = :c"),
+               {"c": outro, "u": id_cliente})
+    somado = saldos("id_cliente", id_cliente)["vulto"]
+    c.registrar("o segundo cadastro da mesma pessoa soma o saldo na conta", somado == antes + 500,
+                f"{antes} + 500 virou {somado}")
 
 
 # migration 380e5e8b5f0a: o resgate vale os pontos mais antigos primeiro, cada um pelo valor da época, e os pontos
