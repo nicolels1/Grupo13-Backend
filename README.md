@@ -350,6 +350,10 @@ No resgate, os pontos viram desconto no pedido (`valor_desconto`): saem primeiro
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
 | GET | `/fidelidade/regras?marca=` | `gerenciar_fidelidade` | regras de cada marca, da mais nova para a mais antiga; `vigente` marca a que vale hoje |
+| GET | `/fidelidade/meus-pontos` | cliente | saldo em cada marca, com o valor em R$ (cada ponto pela época), a categoria, os pontos ganhos no ano e o próximo vencimento |
+| GET | `/fidelidade/meus-pontos/extrato?marca=` | cliente | extrato paginado, do mais novo para o mais antigo, com o histórico de quando era cliente sem conta; nas entradas, o que sobra e quando vence |
+| GET | `/fidelidade/clientes/pontos?id_cliente=` ou `?id_cliente_sem_conta=`, `/fidelidade/clientes/pontos/extrato` | `atender_chamado`, `registrar_venda_fisica` ou `gerenciar_fidelidade` | o mesmo, de um cliente, para o atendimento ("meus pontos sumiram"), o caixa e quem cuida do programa |
+| GET | `/fidelidade/passivo` | `gerenciar_fidelidade` | quanto cada marca deve em pontos, separado pelo valor do ponto na época em que foi ganho (o passivo da Entrega 3) |
 | GET | `/fidelidade/resgate?marca=&pontos=` | cliente | quanto valem os pontos do cliente num resgate, antes do checkout: os mais antigos primeiro, cada um pelo valor da época (K3); confere o mínimo, o saldo e a regra da marca |
 | GET | `/fidelidade/resgate/caixa?cpf=&marca=&pontos=` | `registrar_venda_fisica` | o mesmo no caixa, para o cliente do CPF (com conta ou da Vulto sem conta) |
 | POST | `/fidelidade/regras` | `gerenciar_fidelidade` | regra nova a partir de amanhã ou de uma data futura: vale dali em diante e nunca muda um ponto já ganho; uma regra que ainda não começou se corrige com outra para a mesma data (vale a criada por último) |
