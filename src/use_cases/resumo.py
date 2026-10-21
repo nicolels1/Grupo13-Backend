@@ -1,17 +1,23 @@
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
+from typing import get_args
 
 from sqlalchemy.orm import Session
 
+from src.entities.comum import Marca
 from src.models.contas import Usuario
 from src.repositories import catalogo_repository, permissao_repository, unidade_repository
 from src.repositories import resumo_repository as repo
+from src.use_cases import fidelidade
 from src.use_cases.catalogo import foto_principal
-from src.use_cases.erros import RecursoNaoEncontrado, SemPermissao
+from src.use_cases.erros import RecursoNaoEncontrado, RegraDeNegocio, SemPermissao
 from src.use_cases.estoque import BRASILIA
 from src.use_cases.permissoes import usuario_tem_permissao
 
-CANAIS = ("online", "loja_fisica")
+MARCAS = get_args(Marca)
+# canal da venda (P3); o app só existe no histórico da Vulto e só aparece quando o período tem venda dele
+CANAIS = ("loja", "site")
+APP = "app"
 VENDAS = ("registrar_venda_fisica", "preparar_entregar_pedido")
 ZERO = Decimal("0.00")
 DIAS_DE_VENDAS = 14
@@ -35,6 +41,11 @@ def inicio_dos_ultimos(dias: int, hoje: date | None = None) -> datetime:
     return datetime.combine((hoje or _hoje()) - timedelta(days=dias - 1), time.min, BRASILIA)
 
 
+# meia-noite seguinte ao dia: as janelas terminam no fim do dia de referência
+def fim_do_dia(dia: date) -> datetime:
+    return datetime.combine(dia + timedelta(days=1), time.min, BRASILIA)
+
+
 def _dias(dias: int, hoje: date) -> list[date]:
     return [hoje - timedelta(days=d) for d in range(dias - 1, -1, -1)]
 
@@ -56,33 +67,45 @@ def variacao_pct(atual, anterior) -> float | None:
     return _uma_casa((Decimal(atual) - Decimal(anterior)) * 100 / Decimal(anterior))
 
 
-def _por_canal(linhas: list) -> dict[str, dict]:
-    totais = {canal: {"pedidos": 0, "valor": ZERO} for canal in CANAIS}
-    for linha in linhas:
-        totais[linha["canal"]] = {"pedidos": linha["pedidos"], "valor": linha["valor"] or ZERO}
+def _canais(*grupos_de_linhas: list) -> tuple[str, ...]:
+    tem_app = any(linha["canal_venda"] == APP for linhas in grupos_de_linhas for linha in linhas)
+    return CANAIS + (APP,) if tem_app else CANAIS
+
+
+def _volume(linha) -> dict:
+    return {"pedidos": linha["pedidos"], "valor": linha["valor"] or ZERO} if linha else {"pedidos": 0, "valor": ZERO}
+
+
+def _por_canal(linhas: list, canais: tuple[str, ...]) -> dict[str, dict]:
+    por_canal = {linha["canal_venda"]: linha for linha in linhas}
+    totais = {canal: _volume(por_canal.get(canal)) for canal in canais}
     totais["total"] = {"pedidos": sum(t["pedidos"] for t in totais.values()),
                        "valor": sum((t["valor"] for t in totais.values()), ZERO)}
     return totais
 
 
+def _com_variacao(atual: dict, anterior: dict) -> dict:
+    return {**atual, "variacao_pedidos_pct": variacao_pct(atual["pedidos"], anterior["pedidos"]),
+            "variacao_valor_pct": variacao_pct(atual["valor"], anterior["valor"])}
+
+
+def _ticket(volume: dict) -> Decimal | None:
+    return (volume["valor"] / volume["pedidos"]).quantize(Decimal("0.01")) if volume["pedidos"] else None
+
+
 # ---------- seções ----------
 
-def _vendas_por_dia(db: Session, id_unidade: int | None, hoje: date) -> list[dict]:
-    linhas = repo.vendas_por_dia(db, inicio_dos_ultimos(DIAS_DE_VENDAS, hoje), id_unidade)
-    por_dia = {(linha["dia"], linha["canal"]): linha for linha in linhas}
-    resultado = []
-    for dia in _dias(DIAS_DE_VENDAS, hoje):
-        item = {"dia": dia}
-        for canal in CANAIS:
-            linha = por_dia.get((dia, canal))
-            item[canal] = {"pedidos": linha["pedidos"], "valor": linha["valor"]} if linha \
-                else {"pedidos": 0, "valor": ZERO}
-        resultado.append(item)
-    return resultado
+def _vendas_por_dia(db: Session, id_unidade: int | None, marca: str | None, hoje: date) -> list[dict]:
+    linhas = repo.vendas_por_dia(db, inicio_dos_ultimos(DIAS_DE_VENDAS, hoje), fim_do_dia(hoje), id_unidade, marca)
+    por_dia = {(linha["dia"], linha["canal_venda"]): linha for linha in linhas}
+    canais = _canais(linhas)
+    return [{"dia": dia, **{canal: _volume(por_dia.get((dia, canal))) for canal in canais}}
+            for dia in _dias(DIAS_DE_VENDAS, hoje)]
 
 
-def _mais_vendidas(db: Session, id_unidade: int | None, hoje: date) -> list[dict]:
-    linhas = repo.mais_vendidas(db, inicio_dos_ultimos(DIAS_DA_SEMANA, hoje), id_unidade, MAIS_VENDIDAS)
+def _mais_vendidas(db: Session, id_unidade: int | None, marca: str | None, hoje: date) -> list[dict]:
+    linhas = repo.mais_vendidas(db, inicio_dos_ultimos(DIAS_DA_SEMANA, hoje), fim_do_dia(hoje), id_unidade, marca,
+                                MAIS_VENDIDAS)
     saldos = repo.saldos_das_variantes(db, [l["id_variante"] for l in linhas], id_unidade)
     imagens = catalogo_repository.imagens_dos_produtos(db, list({l["id_produto"] for l in linhas}))
     return [{
@@ -92,10 +115,10 @@ def _mais_vendidas(db: Session, id_unidade: int | None, hoje: date) -> list[dict
     } for l in linhas]
 
 
-def _chamados(db: Session, id_unidade: int | None, hoje: date) -> dict:
-    desde = inicio_dos_ultimos(DIAS_DA_SEMANA, hoje)
-    por_status = repo.chamados_por_status(db, desde, id_unidade)
-    abertos, concluidos = repo.chamados_por_dia(db, desde, id_unidade)
+def _chamados(db: Session, id_unidade: int | None, marca: str | None, hoje: date) -> dict:
+    desde, ate = inicio_dos_ultimos(DIAS_DA_SEMANA, hoje), fim_do_dia(hoje)
+    por_status = repo.chamados_por_status(db, desde, ate, id_unidade, marca)
+    abertos, concluidos = repo.chamados_por_dia(db, desde, ate, id_unidade, marca)
     return {
         "abertos": por_status.get("aberto", 0), "em_andamento": por_status.get("em_andamento", 0),
         "concluidos_7_dias": por_status.get("concluido", 0),
@@ -104,57 +127,70 @@ def _chamados(db: Session, id_unidade: int | None, hoje: date) -> dict:
     }
 
 
-# números da rede inteira, só para o Admin (ignora o filtro de unidade)
-def _rede_agora(db: Session, hoje: date) -> dict:
+# Casa Lorenzi × Vulto lado a lado: vendas de 14 dias e ticket de 30 de cada marca
+def _por_marca(db: Session, marca: str | None, hoje: date) -> list[dict]:
+    fim = fim_do_dia(hoje)
     inicio_14 = inicio_dos_ultimos(DIAS_DE_VENDAS, hoje)
-    inicio_28 = inicio_dos_ultimos(DIAS_DE_VENDAS * 2, hoje)
+    linhas = {
+        periodo: {l["marca"]: l for l in repo.vendas_por_marca(db, desde, ate, marca)}
+        for periodo, desde, ate in (("atual", inicio_14, fim),
+                                    ("anterior", inicio_dos_ultimos(DIAS_DE_VENDAS * 2, hoje), inicio_14),
+                                    ("mes", inicio_dos_ultimos(DIAS_DO_MES, hoje), fim))
+    }
+    return [{
+        "marca": m,
+        "vendas_14_dias": _com_variacao(_volume(linhas["atual"].get(m)), _volume(linhas["anterior"].get(m))),
+        "ticket_medio_30_dias": _ticket(_volume(linhas["mes"].get(m))),
+    } for m in ((marca,) if marca else MARCAS)]
+
+
+# números da rede inteira (ou da marca), só para o Admin (ignora o filtro de unidade). As janelas terminam no
+# dia de referência; saldo, ruptura e retiradas são sempre de agora
+def _rede_agora(db: Session, marca: str | None, ids_das_unidades: set[int], hoje: date) -> dict:
+    fim = fim_do_dia(hoje)
+    inicio_14 = inicio_dos_ultimos(DIAS_DE_VENDAS, hoje)
     inicio_30 = inicio_dos_ultimos(DIAS_DO_MES, hoje)
 
-    atual = _por_canal(repo.vendas_por_canal(db, inicio_14))
-    anterior = _por_canal(repo.vendas_por_canal(db, inicio_28, inicio_14))
-    vendas_14 = {
-        chave: {
-            **atual[chave],
-            "variacao_pedidos_pct": variacao_pct(atual[chave]["pedidos"], anterior[chave]["pedidos"]),
-            "variacao_valor_pct": variacao_pct(atual[chave]["valor"], anterior[chave]["valor"]),
-        }
-        for chave in atual
-    }
-    mes = _por_canal(repo.vendas_por_canal(db, inicio_30))
-    ticket = {chave: (mes[chave]["valor"] / mes[chave]["pedidos"]).quantize(Decimal("0.01"))
-              if mes[chave]["pedidos"] else None for chave in mes}
+    linhas_atual = repo.vendas_por_canal(db, inicio_14, fim, marca)
+    linhas_anterior = repo.vendas_por_canal(db, inicio_dos_ultimos(DIAS_DE_VENDAS * 2, hoje), inicio_14, marca)
+    linhas_mes = repo.vendas_por_canal(db, inicio_30, fim, marca)
+    canais = _canais(linhas_atual, linhas_anterior, linhas_mes)
+    atual, anterior = _por_canal(linhas_atual, canais), _por_canal(linhas_anterior, canais)
+    mes = _por_canal(linhas_mes, canais)
 
-    a_venda, sem_online = repo.ruptura_online(db)
-    mediana, sem_resposta = repo.primeira_resposta(db, inicio_30)
-    media, quantidade, denuncias = repo.avaliacoes(db, inicio_dos_ultimos(DIAS_DE_AVALIACOES, hoje))
-    vendidas = sum(repo.pecas_vendidas_por_unidade(db, inicio_30).values())
+    a_venda, sem_online = repo.ruptura_online(db, marca)
+    mediana, sem_resposta = repo.primeira_resposta(db, inicio_30, fim, marca)
+    media, quantidade, denuncias = repo.avaliacoes(db, inicio_dos_ultimos(DIAS_DE_AVALIACOES, hoje), fim, marca)
+    vendidas = sum(repo.pecas_vendidas_por_unidade(db, inicio_30, fim, marca).values())
+    retiradas = repo.retiradas_perto_de_vencer(db, _agora() - RETIRADA_PERTO_DE_VENCER)
     return {
-        "cobertura_dias": cobertura_dias(repo.saldo_total(db), vendidas),
+        "cobertura_dias": cobertura_dias(repo.saldo_total(db, marca), vendidas),
         "ruptura_online_pct": _uma_casa(sem_online * 100 / a_venda) if a_venda else None,
-        "vendas_14_dias": vendas_14,
-        "ticket_medio_30_dias": ticket,
+        "vendas_14_dias": {chave: _com_variacao(atual[chave], anterior[chave]) for chave in atual},
+        "ticket_medio_30_dias": {chave: _ticket(mes[chave]) for chave in mes},
+        "por_marca": _por_marca(db, marca, hoje),
         "primeira_resposta_mediana_horas": _uma_casa(mediana),
         "chamados_esperando_primeira_resposta": sem_resposta,
         "avaliacoes": {"nota_media_90_dias": _uma_casa(media), "quantidade_90_dias": quantidade,
                        "denuncias_pendentes": denuncias},
-        "retiradas_perto_de_vencer": sum(
-            repo.retiradas_perto_de_vencer(db, _agora() - RETIRADA_PERTO_DE_VENCER).values()),
+        "retiradas_perto_de_vencer": sum(n for u, n in retiradas.items() if marca is None or u in ids_das_unidades),
     }
 
 
-def _por_unidade(db: Session, hoje: date) -> list[dict]:
-    vendas = repo.vendas_por_unidade(db, inicio_dos_ultimos(DIAS_DA_SEMANA, hoje))
-    vendidas_30 = repo.pecas_vendidas_por_unidade(db, inicio_dos_ultimos(DIAS_DO_MES, hoje))
+def _por_unidade(db: Session, unidades: list, hoje: date) -> list[dict]:
+    fim = fim_do_dia(hoje)
+    vendas = repo.vendas_por_unidade(db, inicio_dos_ultimos(DIAS_DA_SEMANA, hoje), fim)
+    vendidas_30 = repo.pecas_vendidas_por_unidade(db, inicio_dos_ultimos(DIAS_DO_MES, hoje), fim)
     saldos = repo.saldo_por_unidade(db)
     abaixo = repo.abaixo_do_minimo_por_unidade(db)
     retiradas = repo.retiradas_perto_de_vencer(db, _agora() - RETIRADA_PERTO_DE_VENCER)
     esperando_envio, chegando = repo.transferencias_por_unidade(db)
     linhas = []
-    for unidade in repo.unidades_ativas(db):
+    for unidade in unidades:
         u = unidade.id_unidade
         pedidos, valor = vendas.get(u, (0, ZERO))
         linhas.append({
-            "id_unidade": u, "nome": unidade.nome, "tipo": unidade.tipo,
+            "id_unidade": u, "nome": unidade.nome, "tipo": unidade.tipo, "marca": unidade.marca,
             "vendas_7_dias": {"pedidos": pedidos, "valor": valor or ZERO},
             "cobertura_dias": cobertura_dias(saldos.get(u, 0), vendidas_30.get(u, 0)),
             "variantes_abaixo_do_minimo": abaixo.get(u, 0),
@@ -166,23 +202,55 @@ def _por_unidade(db: Session, hoje: date) -> list[dict]:
     return linhas
 
 
+# o quanto cada marca deve em pontos hoje (o passivo não tem histórico, então ignora a referência)
+def _pontos(db: Session, marca: str | None) -> list[dict]:
+    return [p for p in fidelidade.passivo(db) if marca is None or p["marca"] == marca]
+
+
+# ---------- faturamento ----------
+
+# por mês, unidade e canal da venda, com a regra dos três números da Vulto; só Admin, como a rede agora
+def faturamento(db: Session, usuario: Usuario, de: date, ate: date, id_unidade: int | None = None,
+                marca: str | None = None) -> dict:
+    if usuario.tipo_conta != "interna" or not permissao_repository.modelo_eh_admin(db, usuario.id_modelo_acesso):
+        raise SemPermissao("Só o Admin vê o faturamento")
+    if ate < de:
+        raise RegraDeNegocio("O fim do período vem antes do início")
+    if id_unidade is not None and unidade_repository.buscar_unidade(db, id_unidade) is None:
+        raise RecursoNaoEncontrado("Unidade não encontrada")
+
+    linhas = [{**linha, "valor": linha["valor"] or ZERO, "frete": linha["frete"] or ZERO}
+              for linha in repo.faturamento_por_mes(db, inicio_dos_ultimos(1, de), fim_do_dia(ate), id_unidade, marca)]
+    return {
+        "de": de, "ate": ate, "id_unidade": id_unidade, "marca": marca,
+        "valor": sum((l["valor"] for l in linhas), ZERO), "frete": sum((l["frete"] for l in linhas), ZERO),
+        "items": linhas,
+    }
+
+
 # ---------- resumo ----------
 
 # só as seções que a conta pode ver: as outras ficam ausentes, não zeradas
-def resumo(db: Session, usuario: Usuario, id_unidade: int | None) -> dict:
+def resumo(db: Session, usuario: Usuario, id_unidade: int | None, marca: str | None = None,
+           referencia: date | None = None) -> dict:
     if usuario.tipo_conta != "interna":
         raise SemPermissao("Só para contas internas")
     if id_unidade is not None and unidade_repository.buscar_unidade(db, id_unidade) is None:
         raise RecursoNaoEncontrado("Unidade não encontrada")
+    if referencia is not None and referencia > _hoje():
+        raise RegraDeNegocio("A data de referência não pode ser futura")
 
-    hoje = _hoje()
-    dados = {"id_unidade": id_unidade, "gerado_em": _agora()}
+    hoje = referencia or _hoje()
+    dados = {"id_unidade": id_unidade, "marca": marca, "referencia": hoje, "gerado_em": _agora()}
     if usuario_tem_permissao(db, usuario, *VENDAS):
-        dados["vendas_por_dia"] = _vendas_por_dia(db, id_unidade, hoje)
-        dados["mais_vendidas"] = _mais_vendidas(db, id_unidade, hoje)
+        dados["vendas_por_dia"] = _vendas_por_dia(db, id_unidade, marca, hoje)
+        dados["mais_vendidas"] = _mais_vendidas(db, id_unidade, marca, hoje)
     if usuario_tem_permissao(db, usuario, "atender_chamado"):
-        dados["chamados"] = _chamados(db, id_unidade, hoje)
+        dados["chamados"] = _chamados(db, id_unidade, marca, hoje)
+    if usuario_tem_permissao(db, usuario, "gerenciar_fidelidade"):
+        dados["pontos"] = _pontos(db, marca)
     if permissao_repository.modelo_eh_admin(db, usuario.id_modelo_acesso):
-        dados["rede_agora"] = _rede_agora(db, hoje)
-        dados["por_unidade"] = _por_unidade(db, hoje)
+        unidades = repo.unidades_ativas(db, marca)
+        dados["rede_agora"] = _rede_agora(db, marca, {u.id_unidade for u in unidades}, hoje)
+        dados["por_unidade"] = _por_unidade(db, unidades, hoje)
     return dados
