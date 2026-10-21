@@ -101,6 +101,7 @@ def tratar_contas_internas(origem: Path, saida: Saida):
 # ---------- catálogo ----------
 
 FONTE_CATALOGO = "catalogo_vulto_2026_REVISADO_final.xlsx"
+FONTE_CONTAGEM = "contagem_inventario_set26.xlsx"
 # P8: o item vendido sem a peça identificada (DIVERSO, PRODUTO SEM CADASTRO) aponta para esta variante
 SKU_SEM_CADASTRO = "VLT-SEM-CADASTRO"
 NOME_SEM_CADASTRO = "Item sem cadastro Vulto"
@@ -110,17 +111,21 @@ IMAGEM_GENERICA = "vulto/sem-foto.png"
 
 
 # Estoque de cada variante em 01/10/2026 (posição em 30/09 mais o que está em trânsito, E13). No código
-# reaproveitado, o SKU que as duas peças usam fica com a nova e o que só a antiga tem fica com ela (C2)
-def estoque_por_variante(origem: Path, variantes: set) -> pd.Series:
+# reaproveitado, o SKU que as duas peças usam fica com a nova e o que só a antiga tem fica com ela (C2).
+# Devolve também a contagem lida, de onde vem a variante criada a partir do modelo (E10)
+def estoque_por_variante(origem: Path, variantes: set) -> tuple[pd.Series, pd.DataFrame]:
     vendas, itens = ler(origem, "banco_vendas"), ler(origem, "banco_itens_venda")
     lancamentos = r.lancamentos_banco(vendas.replace("", None), itens.replace("", None),
                                       ler(origem, "catalogo_produtos").replace("", None))
     e = r.estoque_na_data_base(lancamentos[lancamentos["linha_origem"].astype(str).str.startswith("vendas#")],
                                itens.replace("", None), ler(origem, "banco_entradas_estoque").replace("", None),
-                               ler(origem, "contagem_set26").replace("", None), ler(origem, "banco_estoque").replace("", None))
+                               ler(origem, "contagem_set26").replace("", None), ler(origem, "banco_estoque").replace("", None),
+                               ler(origem, "catalogo_produtos"))
     q = pd.concat([e["posicao"][["sku", "q"]], e["transito"][["sku", "q"]]]).groupby("sku")["q"].sum()
-    dono = {s: s if s in variantes else s + r.SUFIXO_PECA_ANTIGA for s in q.index}
-    return q.groupby(dono).sum()
+    antiga = {s + r.SUFIXO_PECA_ANTIGA for s in q.index} & variantes
+    dono = {s: s + r.SUFIXO_PECA_ANTIGA if s not in variantes and s + r.SUFIXO_PECA_ANTIGA in antiga else s
+            for s in q.index}
+    return q.groupby(dono).sum(), e["contada"]
 
 
 # Histórico de preço de uma variante: os preços em ordem de data, sem repetir o mesmo preço seguido.
@@ -158,7 +163,7 @@ def tratar_catalogo(origem: Path, saida: Saida):
 
     vendidos = r.vendas_em_loja(ler(origem, "banco_vendas"), ler(origem, "banco_itens_venda"), reaproveitados)
     praticado = r.preco_mais_cobrado(vendidos, r.PRATICADO_DESDE, r.PRATICADO_ATE)
-    estoque = estoque_por_variante(origem, set(c["variante"]))
+    estoque, contada = estoque_por_variante(origem, set(c["variante"]))
     nome_cor = de_para("cor").set_index("codigo")["nome"]
 
     variantes, historicos, para_marina = [], [], []
@@ -218,6 +223,22 @@ def tratar_catalogo(origem: Path, saida: Saida):
             para_marina.append(dict(sku=v, linha_origem=l.linha_origem, preco=l.preco_n,
                                     motivo=f"preço e custo trocados na planilha: preço {l.preco}, custo {l.custo}",
                                     decisao="C17"))
+
+    # E10 (como a C4): peça contada de um modelo do catálogo sem a cor ou o tamanho dele vira variante,
+    # com o preço mais comum do modelo, à venda enquanto tiver estoque
+    feitas = {v["sku"] for v in variantes}
+    for l in contada[contada["leitura"] == "modelo do catálogo"].itertuples():
+        if l.sku in feitas or estoque.get(l.sku, 0) <= 0:
+            continue
+        do_modelo = [v for v in variantes if v["produto"] == l.sku[:11]]
+        preco = pd.Series([v["preco"] for v in do_modelo]).mode().max()
+        _, cat, num, cor, tam = l.sku.split("-")
+        variantes.append(dict(sku=l.sku, produto=l.sku[:11], ean=None, cor=nome_cor[cor], tamanho=tam, preco=preco,
+                              ativo=True, estoque_01_10=int(estoque[l.sku])))
+        historicos.append(dict(sku=l.sku, preco_anterior=None, preco_novo=preco, alterado_em=r.DATA_CONTAGEM_GERAL,
+                               decisao="E10"))
+        saida.de_onde("variante", l.sku, FONTE_CONTAGEM, l.linha_origem, "E10", "sku", l.codigo)
+        feitas.add(l.sku)
 
     variante = pd.DataFrame(variantes)
     # C12: o EAN não pode repetir entre variantes; o que repetir sai e o trigger gera o interno
