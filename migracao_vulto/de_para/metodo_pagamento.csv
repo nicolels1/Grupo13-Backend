@@ -1,0 +1,7 @@
+valor_vulto,metodo,decisao
+credito 2x,cartao_credito,V9
+crédito,cartao_credito,V9
+débito,cartao_debito,V9
+dinheiro,dinheiro,V9
+pix,pix,V9
+(vazio),nao_informado,P7

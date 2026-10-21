@@ -1,0 +1,8 @@
+loja_id,unidade,nome_curto,tipo,decisao
+1,Vulto Pinheiros,Pinheiros,loja,U1
+2,Vulto Shopping Eldorado,Eldorado,loja,U1
+3,Vulto Savassi,Savassi,loja,U1
+4,Vulto Batel,Batel,loja,U1
+5,CD Cajamar,Site,cd,V12
+6,CD Cajamar,App,cd,V12
+7,CD Cajamar,CD Cajamar,cd,E1

@@ -1,0 +1,47 @@
+loja_id,grafia,conta,valido_desde,valido_ate,decisao
+1,beatriz,beatriz.souza,,,P9
+1,beatriz s.,beatriz.souza,,,P9
+1,bia,beatriz.souza,,,P9
+1,bia.pinheiros,beatriz.souza,,,P9
+1,rafael,rafael.lima,,,P9
+1,rafael l.,rafael.lima,,,P9
+1,rafaela,rafaela.couto,,,P9
+1,rafaela c.,rafaela.couto,,,P9
+1,rafa,rafael.lima,,2025-10-30,P9
+1,rafa,rafaela.couto,2025-11-11,,P9
+1,rafa.pin,rafael.lima,,2025-10-30,P9
+1,rafa.pin,rafaela.couto,2025-11-11,,P9
+1,camila,camila.duarte,,,P9
+1,camila d.,camila.duarte,,,P9
+1,cami,camila.duarte,,,P9
+2,jessica,jessica.prado,,,P9
+2,jessica p.,jessica.prado,,,P9
+2,jess.eldorado,jessica.prado,,,P9
+2,thiago,thiago.martins,,,P9
+2,thiago m,thiago.martins,,,P9
+2,tiago,thiago.martins,,,P9
+2,larissa,larissa.rocha,,,P9
+2,larissa r.,larissa.rocha,,,P9
+2,lari,larissa.rocha,,,P9
+3,carlos,carlos.mendes,,,P9
+3,carlinhos,carlos.mendes,,,P9
+3,carlos.savassi,carlos.mendes,,,P9
+3,ana paula,ana.paula.reis,,,P9
+3,ap,ana.paula.reis,,,P9
+3,ana p.,ana.paula.reis,,,P9
+3,anapaula,ana.paula.reis,,,P9
+3,bianca,bianca.torres,,,P9
+3,bianca t.,bianca.torres,,,P9
+3,bia,bianca.torres,,,P9
+4,fernanda,fernanda.kowalski,,,P9
+4,fernanda k.,fernanda.kowalski,,,P9
+4,fer,fernanda.kowalski,,,P9
+4,fer.batel,fernanda.kowalski,,,P9
+4,gustavo,gustavo.lenz,,,P9
+4,gus,gustavo.lenz,,,P9
+4,gustavo.batel,gustavo.lenz,,,P9
+4,patricia,patricia.wolff,,,P9
+4,patricia w.,patricia.wolff,,,P9
+4,pati,patricia.wolff,,,P9
+4,gerente,,,,P9
+4,gerente batel,,,,P9
