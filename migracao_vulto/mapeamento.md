@@ -14,26 +14,28 @@ Legenda: ✅ decidido (cabe como está ou com a regra da decisão citada) · ⚠
 
 ## Restrições do nosso banco que pesam na migração
 
-Conferidas contra os models (`src/models/`) e as migrations em 19/10/2026.
+Conferidas contra os models (`src/models/`) e as migrations em 21/10/2026, já com o que a plataforma ganhou para a Vulto.
 
 **Contas**
-- **Todo cliente é uma conta com login**: `usuario.id_usuario` aponta para `auth.users` (Supabase Auth); `nome` e `email` são obrigatórios (e-mail único); `tipo_conta = 'cliente'` exige CPF.
-- Funcionário é `usuario` com `tipo_conta = 'interna'` e um `modelo_acesso`.
+- **Conta** é `usuario`, ligado a `auth.users` (Supabase Auth): `nome` e `email` obrigatórios (e-mail único); `tipo_conta = 'cliente'` exige CPF. **Funcionário** é `usuario` com `tipo_conta = 'interna'` e um `modelo_acesso`: as contas internas da P9 também precisam de usuário no Auth, mesmo inativas.
+- **Cliente sem conta** (P2): `cliente_sem_conta` com CPF ou e-mail (pelo menos um; CPF único, e-mail único entre quem não tem CPF), `origem = 'migracao_vulto'`. Pedido, chamado e pontos apontam para ele até a pessoa criar a conta.
 
 **Unidades e catálogo**
-- **Unidade exige endereço completo**: `rua`, `numero`, `bairro`, `cidade`, `uf`, `cep`. A Vulto só tem nome e cidade.
+- **Unidade exige endereço completo**: `rua`, `numero`, `bairro`, `cidade`, `uf`, `cep` (8 caracteres). A Vulto só tem nome e cidade. `marca` é `lorenzi` ou `vulto` (P1), também no produto.
 - **Produto exige `descricao_tecnica` e `descricao_cliente`**. A Vulto não tem descrição.
-- Variante: `sku` único, `cor` e `tamanho` obrigatórios (sem cor usa `Única`, sem tamanho usa `U`), `preco` ≥ 0, um par cor × tamanho por produto.
+- Variante: `sku` único, `cor` e `tamanho` obrigatórios (sem cor usa `Única`, sem tamanho usa `U`), `preco` ≥ 0, um par cor × tamanho por produto. `ean` único (EAN-13 válido); sem ele, o banco gera um código interno (C12).
 
 **Pedidos**
 - `codigo_venda` obrigatório e único (até 20 caracteres). Os códigos da Lorenzi são `CL` + 8 caracteres; os da Vulto (`S123456`, `APP-1234567`) não colidem, mas 10.885 vendas da loja física não têm código.
-- `canal` só aceita `loja_fisica` ou `online`; o online exige `modalidade` (`entrega` ou `retirada`) e cliente com conta (`online_exige_cliente`). Venda física sem conta pode ter só o `cpf_nota`.
+- `canal` só aceita `loja_fisica` ou `online`; o online exige `modalidade` (`entrega` ou `retirada`) e cliente, com ou sem conta (`online_exige_cliente`). Venda física sem cliente pode ter só o `cpf_nota`. Nunca os dois clientes no mesmo pedido.
+- `canal_venda` obrigatório: `loja`, `site` ou `app`, e `loja` se e só se o canal é `loja_fisica` (P3).
 - **O CD não faz venda física nem retirada** (trigger).
 - `status`: `aguardando_pagamento`, `pago`, `enviado`, `pronto_para_retirada`, `entregue` ou `cancelado`.
 - Cancelado exige `motivo_cancelamento` (`cliente`, `reserva_vencida`, `retirada_vencida` ou `equipe`); `equipe` exige quem cancelou e justificativa.
-- `valor_total` e `valor_frete` ≥ 0. **Não existe campo de desconto.**
+- `valor_total`, `valor_frete` e `valor_desconto` ≥ 0; total = itens − desconto + frete (V18).
 - Item: `quantidade` > 0 e precisa de uma `id_variante`.
-- Pagamento: `metodo` só aceita `pix`, `cartao_credito`, `cartao_debito` ou `dinheiro`; `valor` > 0; o estorno usa o mesmo método do pagamento original (trigger).
+- Pagamento: `metodo` aceita `pix`, `cartao_credito`, `cartao_debito`, `dinheiro` e, só no pagamento com `origem = 'migracao'`, `nao_informado` (P7); `valor` > 0; o estorno usa o mesmo método do pagamento original (trigger) e sempre tem origem (`cancelamento`, `atendimento`, `balcao` ou `migracao`).
+- **Pontos automáticos:** pagamento aprovado da plataforma credita pontos e estorno tira; o pagamento com `origem = 'migracao'` não mexe nos pontos (os da Vulto entram pelos movimentos da carga).
 
 **Estoque**
 - Nunca negativo: a movimentação que deixaria o saldo negativo é recusada (`Estoque insuficiente`). **A ordem da carga importa**: o saldo inicial precisa entrar antes das vendas.
@@ -43,8 +45,14 @@ Conferidas contra os models (`src/models/`) e as migrations em 19/10/2026.
 - **`movimentacao_estoque`, `historico_preco` e `historico_chamado` não podem ser alterados nem apagados.** Uma carga errada não se desfaz com `DELETE`: testar antes num banco de teste.
 
 **Atendimento**
-- Chamado exige `id_cliente`; `categoria` só aceita `entrega`, `troca_devolucao`, `estorno`, `duvida` ou `outros`; `status` é `aberto`, `em_andamento` ou `concluido`, e concluído exige `motivo_encerramento` (`resolvido`, `desistencia` ou `sem_resposta`).
-- Mensagem exige `id_autor` (um usuário).
+- Chamado exige exatamente um cliente (`id_cliente` ou `id_cliente_sem_conta`); `categoria` aceita `entrega`, `troca_devolucao`, `estorno`, `duvida`, `pagamento` (A4a) ou `outros`; `status` é `aberto`, `em_andamento` ou `concluido`, e concluído exige `motivo_encerramento` (`resolvido`, `desistencia` ou `sem_resposta`). `canal_externo` (`whatsapp`, `instagram`, `email`) e `contato_externo` só nos migrados; contato exige canal (P6).
+- Mensagem exige `id_autor` ou `nome_autor_externo`; sem autor é a fala do cliente do chamado (P6).
+
+**Fidelidade**
+- `movimento_pontos` nunca é alterado nem apagado, e o saldo, a categoria e os lotes só mudam pelo trigger. **Os movimentos de cada cliente entram em ordem de data**: movimento de um ano anterior ao último já gravado é recusado, e dentro do ano a ordem de gravação é a do FIFO.
+- Tipos: `saldo_inicial`, `credito`, `resgate`, `estorno`, `ajuste` (exige `motivo`) e `vencimento`. Tudo da carga leva `origem = 'migracao'`, que pode deixar o saldo negativo (K5f); a plataforma nunca.
+- O estorno de crédito (K6), o ajuste do dobro do online (K4b) e o vencimento levam `id_movimento_original` (o crédito): sem ele, o ponto não sai da época certa (K3).
+- Toda data precisa ter regra da marca vigente (`regra_fidelidade`): a da Vulto começa em 01/01/2025.
 
 ## 1. Unidades (Nicole)
 
