@@ -216,7 +216,10 @@ Próximos passos, fora da Entrega 3:
 
 - **mudança de rede com data:** hoje a marca é a atual. Se uma loja mudar de rede, um histórico de marca com data (como o de preço) mantém o passado na rede antiga; dá para criar depois sem refazer nada;
 - **notificações por e-mail e consentimento na conta:** a plataforma não manda e-mail da loja. O consentimento de mensagem dos clientes da Vulto está guardado (K9b); antes de qualquer campanha, a conta da Lorenzi também precisa perguntar o consentimento;
-- **EAN das 9 peças da Vulto cortado pelo Excel:** entram com o código interno; a loja corrige lendo a etiqueta (`PATCH /variantes/{id}`).
+- **EAN das 9 peças da Vulto cortado pelo Excel:** entram com o código interno; a loja corrige lendo a etiqueta (`PATCH /variantes/{id}`);
+- **programa de pontos único da rede:** hoje cada marca tem o seu saldo (P10); se a diretoria quiser unificar, basta uma regra que valha para a rede, sem refazer o histórico;
+- **pontos na junção de contas:** quando a correção de CPF junta duas contas, os pedidos passam para a conta certa, mas os pontos da conta errada não; levar os pontos exige registrar qual conta foi juntada a qual;
+- **telas da fidelidade no front:** regras (`gerenciar_fidelidade`), "meus pontos" e extrato, consulta da equipe, passivo e o campo `pontos_resgate` no caixa e no checkout; o `tiposApi.ts` precisa ser gerado de novo (permissão nova, categoria `pagamento` e `id_autor` vazio na mensagem).
 
 ## Rotas
 
