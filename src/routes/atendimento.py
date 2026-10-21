@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
@@ -124,6 +126,7 @@ def fila(
     categoria: Categoria | None = None,
     prioridade: Prioridade | None = None,
     id_unidade: int | None = None,
+    id_cliente: uuid.UUID | None = Query(None, description="Chamados de um cliente com conta"),
     id_cliente_sem_conta: int | None = Query(None, description="Chamados de um cliente da Vulto sem conta"),
     paginacao: dict = Depends(_paginacao),
     usuario: Usuario = Depends(ATENDER),
@@ -132,7 +135,7 @@ def fila(
     return atendimento.listar_fila(
         db, usuario, **paginacao, meus=meus, status=status_chamado, sem_responsavel=sem_responsavel,
         com_mensagem_nova=com_mensagem_nova, categoria=categoria, prioridade=prioridade, id_unidade=id_unidade,
-        id_cliente_sem_conta=id_cliente_sem_conta,
+        id_cliente=id_cliente, id_cliente_sem_conta=id_cliente_sem_conta,
     )
 
 

@@ -8,7 +8,8 @@ from src.dependencies.permissoes import exige_permissao
 from src.dependencies.supabase import get_supabase_admin
 from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Pagina, campos_alterados
 from src.entities.vendas import (
-    CancelamentoEquipe, ClienteCorrigido, ClienteCorrigir, ClienteResumo, ClienteSemContaSaida, Entrega, Modalidade,
+    CancelamentoEquipe, ClienteComConta, ClienteCorrigido, ClienteCorrigir, ClienteResumo, ClienteSemContaSaida, Entrega,
+    Modalidade,
     PedidoSaida, StatusPedido, VendaFisica,
 )
 from src.models.contas import Usuario
@@ -42,6 +43,7 @@ def listar(
     modalidade: Modalidade | None = None,
     id_unidade: int | None = None,
     codigo_venda: str | None = Query(None, max_length=20),
+    id_cliente: uuid.UUID | None = Query(None, description="Pedidos de um cliente com conta"),
     id_cliente_sem_conta: int | None = Query(None, description="Pedidos de um cliente da Vulto sem conta"),
     pronto_ha_mais_de_dias: int | None = Query(
         None, ge=0, description="Retiradas prontas há mais de N dias (risco de vencer)",
@@ -55,7 +57,8 @@ def listar(
 ):
     return vendas.listar(
         db, limit, offset, pronto_ha_mais_de_dias, de, ate, status=status_pedido, canal=canal, modalidade=modalidade,
-        id_unidade=id_unidade, codigo_venda=codigo_venda, id_cliente_sem_conta=id_cliente_sem_conta,
+        id_unidade=id_unidade, codigo_venda=codigo_venda, id_cliente=id_cliente,
+        id_cliente_sem_conta=id_cliente_sem_conta,
     )
 
 
@@ -126,6 +129,33 @@ def buscar_cliente(
     db: Session = Depends(get_db),
 ):
     return clientes.buscar_por_cpf(db, cpf)
+
+
+# ---------- área Clientes ----------
+
+@router.get(
+    "/vendas/clientes-com-conta",
+    response_model=Pagina[ClienteComConta],
+    responses=ERROS,
+    description="Clientes com conta. Os pedidos e chamados de cada um saem em /vendas/pedidos e "
+                "/atendimento/chamados com ?id_cliente=",
+)
+def listar_clientes_com_conta(
+    busca: str | None = Query(
+        None, max_length=100,
+        description="Só números (com ou sem máscara): CPF exato. Texto: parte do nome ou do e-mail",
+    ),
+    limit: int = Query(LIMITE_PADRAO, ge=1, le=LIMITE_MAXIMO),
+    offset: int = Query(0, ge=0),
+    _: Usuario = Depends(VER_PEDIDOS),
+    db: Session = Depends(get_db),
+):
+    return clientes.listar_com_conta(db, limit, offset, busca)
+
+
+@router.get("/vendas/clientes/{id_usuario}", response_model=ClienteComConta, responses=ERROS)
+def cliente_com_conta(id_usuario: uuid.UUID, _: Usuario = Depends(VER_PEDIDOS), db: Session = Depends(get_db)):
+    return clientes.buscar_com_conta(db, id_usuario)
 
 
 @router.get(

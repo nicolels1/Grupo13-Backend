@@ -40,6 +40,20 @@ def buscar_por_cpf(db: Session, cpf: str) -> Usuario:
     return cliente
 
 
+# cliente com conta na área Clientes: os pedidos e chamados dele saem nas listas da equipe filtradas
+# por id_cliente
+def listar_com_conta(db: Session, limit: int, offset: int, busca: str | None = None) -> dict:
+    itens, total = usuario_repository.listar_clientes(db, limit, offset, busca)
+    return {"items": itens, "total": total, "limit": limit, "offset": offset}
+
+
+def buscar_com_conta(db: Session, id_usuario: uuid.UUID):
+    cliente = usuario_repository.buscar_cliente(db, id_usuario)
+    if cliente is None:
+        raise RecursoNaoEncontrado("Cliente não encontrado")
+    return cliente
+
+
 # cliente da migração da Vulto sem conta: a equipe consulta os dados; os pedidos e chamados dele saem
 # nas listas da equipe filtradas por id_cliente_sem_conta (ADR 0016)
 def listar_sem_conta(db: Session, limit: int, offset: int, busca: str | None = None) -> dict:

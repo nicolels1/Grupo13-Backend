@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
+from sqlalchemy.dialects import postgresql
 
 from src.entities.vendas import VendaFisica
 from src.models.contas import ClienteSemConta, Usuario
@@ -407,3 +408,71 @@ def test_pedidos_do_cliente_sem_conta(api, monkeypatch):
     api(SessaoFalsa(), usuario=funcionario()).get("/vendas/pedidos", params={"id_cliente_sem_conta": 7})
 
     assert filtros[0]["id_cliente_sem_conta"] == 7
+
+
+# ---------- cliente com conta (área Clientes) ----------
+
+def com_conta(**campos):
+    dados = dict(id_usuario=ID_CLIENTE, nome="Ana", email="ana@x.com", cpf=CPF, status_conta="ativa",
+                 id_cliente_sem_conta=None)
+    dados.update(campos)
+    return dados
+
+
+def test_pedidos_do_cliente_com_conta(api, monkeypatch):
+    filtros = []
+    monkeypatch.setattr(pedido_repository, "listar_pedidos",
+                        lambda db, limit, offset, **f: filtros.append(f) or ([], 0))
+
+    api(SessaoFalsa(), usuario=funcionario()).get("/vendas/pedidos", params={"id_cliente": str(ID_CLIENTE)})
+
+    assert filtros[0]["id_cliente"] == ID_CLIENTE
+
+
+def test_equipe_busca_cliente_com_conta(api, monkeypatch):
+    buscas = []
+    monkeypatch.setattr(usuario_repository, "listar_clientes",
+                        lambda db, limit, offset, busca: buscas.append(busca) or ([com_conta()], 1))
+
+    resposta = api(SessaoFalsa(), usuario=funcionario()).get("/vendas/clientes-com-conta", params={"busca": "Ana"})
+
+    assert resposta.status_code == 200 and buscas == ["Ana"]
+    assert resposta.json()["items"][0]["nome"] == "Ana" and resposta.json()["total"] == 1
+
+
+# quem veio da Vulto mostra o cadastro de origem na ficha
+def test_ficha_do_cliente_com_conta_traz_o_cadastro_da_vulto(api, monkeypatch):
+    monkeypatch.setattr(usuario_repository, "buscar_cliente", lambda db, i: com_conta(id_cliente_sem_conta=7))
+
+    resposta = api(SessaoFalsa(), usuario=funcionario()).get(f"/vendas/clientes/{ID_CLIENTE}")
+
+    assert resposta.status_code == 200
+    assert (resposta.json()["id_usuario"], resposta.json()["id_cliente_sem_conta"]) == (str(ID_CLIENTE), 7)
+
+
+def test_cliente_com_conta_inexistente(api, monkeypatch):
+    monkeypatch.setattr(usuario_repository, "buscar_cliente", lambda db, i: None)
+
+    assert api(SessaoFalsa(), usuario=funcionario()).get(f"/vendas/clientes/{ID_CLIENTE}").status_code == 404
+
+
+def test_cliente_com_conta_exige_permissao(api):
+    sem_permissao = api(SessaoFalsa(), usuario=funcionario(), permitido=False)
+
+    assert sem_permissao.get("/vendas/clientes-com-conta").status_code == 403
+    assert sem_permissao.get(f"/vendas/clientes/{ID_CLIENTE}").status_code == 403
+
+
+def sql(consulta):
+    return str(consulta.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
+
+
+# só clientes (nunca a equipe); só dígitos procura o CPF exato, texto procura no nome e no e-mail
+def test_busca_de_clientes_com_conta():
+    por_cpf = sql(usuario_repository.consulta_clientes(busca="529.982.247-25"))
+    por_texto = sql(usuario_repository.consulta_clientes(busca="ana"))
+
+    assert "usuario.tipo_conta = 'cliente'" in por_cpf and "usuario.cpf = '52998224725'" in por_cpf
+    assert "usuario.nome ILIKE '%%ana%%'" in por_texto and "usuario.email ILIKE '%%ana%%'" in por_texto
+    # dois cadastros da Vulto na mesma conta: a origem é o do CPF
+    assert "ORDER BY cliente_sem_conta.cpf IS NULL, cliente_sem_conta.id_cliente_sem_conta" in por_texto
