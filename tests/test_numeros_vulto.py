@@ -476,3 +476,11 @@ def test_passivo_do_extrato_como_o_trigger():
     passivo = t.passivo_do_extrato(mov).loc["A"]
     # o resgate de 1.100 leva os 1.000 antigos e 100 dos 200 de junho; os 400 de agosto entram inteiros
     assert passivo["saldo"] == 500 and round(passivo["reais"], 2) == 25.0
+
+
+def test_falas_separa_a_descricao_e_as_falas_seguintes_na_ordem():
+    from migracao_vulto.tratar import falas
+    descricao, seguintes = falas("Oi, meu pedido S101478 atrasou\n[Atendente]: Vou verificar\n[Cliente]: ok [Bot]: Avalie")
+    assert descricao == "Oi, meu pedido S101478 atrasou"
+    assert seguintes == [("Atendente", "Vou verificar"), ("Cliente", "ok"), ("Bot", "Avalie")]
+    assert falas(None) == ("", [])
