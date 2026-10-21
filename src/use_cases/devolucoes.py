@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from src.models.atendimento import Chamado
 from src.models.contas import Usuario
 from src.models.vendas import Pedido
-from src.repositories import atendimento_repository, estoque_repository, unidade_repository
+from src.repositories import atendimento_repository, estoque_repository, migracao_repository, unidade_repository
 from src.repositories import pedido_repository as repo
 from src.use_cases import pagamentos
 from src.use_cases.erros import RecursoNaoEncontrado, RegraDeNegocio
@@ -32,11 +32,21 @@ class Registro:
 
 # ---------- regras comuns ----------
 
+# o prazo conta da entrega; o pedido online migrado da Vulto não tem data de entrega e conta do
+# pagamento (V13). Pedido novo continua exigindo a entrega
+def _inicio_do_prazo(db: Session, pedido: Pedido):
+    if pedido.entregue_em is not None:
+        return pedido.entregue_em
+    if migracao_repository.migrado(db, "pedido", str(pedido.id_pedido)):
+        return pedido.pago_em
+    raise RegraDeNegocio("Pedido sem data de entrega")
+
+
 # pedido entregue há no máximo 30 dias, com ou sem conta; a peça volta numa loja ativa (não no CD)
 def _conferir_pedido_e_loja(db: Session, pedido: Pedido, id_unidade: int) -> None:
     if pedido.status != "entregue":
         raise RegraDeNegocio("Só pedido entregue tem troca ou devolução")
-    if pedido.entregue_em + PRAZO < agora():
+    if _inicio_do_prazo(db, pedido) + PRAZO < agora():
         raise RegraDeNegocio("Passou o prazo de 30 dias após a entrega")
     loja = unidade_repository.buscar_unidade(db, id_unidade)
     if loja is None:

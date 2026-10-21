@@ -57,7 +57,7 @@ def montar(db: Session, linhas: list) -> list[dict]:
                    for item in itens[pedido.id_pedido]],
             pagamentos=lancamentos[pedido.id_pedido], endereco_entrega=enderecos_entrega.get(pedido.id_pedido),
             valor_pago=pagamentos.valor_pago(lancamentos[pedido.id_pedido]),
-            valor_itens=pedido.valor_total - pedido.valor_frete,
+            valor_itens=pedido.valor_total - pedido.valor_frete + pedido.valor_desconto,
         )
         resultado.append(dados)
     return resultado
@@ -246,7 +246,7 @@ def checkout(db: Session, cliente: Usuario, dados: dict) -> dict:
     frete = calcular_frete(valor_itens, dados["modalidade"])
     pedido = Pedido(
         codigo_venda=novo_codigo_venda(), id_cliente=cliente.id_usuario, id_unidade=unidade["id_unidade"],
-        canal="online", modalidade=dados["modalidade"], status="aguardando_pagamento", valor_frete=frete,
+        canal="online", canal_venda="site", modalidade=dados["modalidade"], status="aguardando_pagamento", valor_frete=frete,
         valor_total=valor_itens + frete, reserva_expira_em=agora() + RESERVA,
     )
     db.add(pedido)

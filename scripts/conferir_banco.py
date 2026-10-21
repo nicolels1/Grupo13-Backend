@@ -154,9 +154,10 @@ def conferir_reserva_vencida(c: Conferencia, db: Session, local: dict, sufixo: s
         "UPDATE estoque SET quantidade_reservada = 2 WHERE id_variante = :v AND id_unidade = :u AND canal = 'online'"
     ), local)
     id_pedido = db.scalar(text("""
-        INSERT INTO pedido (codigo_venda, id_cliente, id_unidade, canal, modalidade, status, valor_total,
-                            reserva_expira_em)
-        VALUES (:codigo, :cliente, :u, 'online', 'retirada', 'aguardando_pagamento', 20, now() - interval '1 minute')
+        INSERT INTO pedido (codigo_venda, id_cliente, id_unidade, canal, canal_venda, modalidade, status,
+                            valor_total, reserva_expira_em)
+        VALUES (:codigo, :cliente, :u, 'online', 'site', 'retirada', 'aguardando_pagamento', 20,
+                now() - interval '1 minute')
         RETURNING id_pedido
     """), {**local, "codigo": f"CF{sufixo}".upper(), "cliente": id_cliente})
     db.execute(text("INSERT INTO item_pedido (id_pedido, id_variante, quantidade, preco_unitario) "

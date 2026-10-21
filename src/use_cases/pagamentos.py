@@ -9,9 +9,10 @@ from src.use_cases.erros import RegraDeNegocio
 ZERO = Decimal("0.00")
 
 
-# não há gateway real no case: cada transação online ganha um id do gateway simulado
+# não há gateway real no case: cada transação online ganha um id do gateway simulado; dinheiro e o
+# pagamento migrado sem método (P7) não passam por ele
 def id_transacao(metodo: str) -> str | None:
-    return None if metodo == "dinheiro" else f"sim_{uuid.uuid4().hex}"
+    return None if metodo in ("dinheiro", "nao_informado") else f"sim_{uuid.uuid4().hex}"
 
 
 # o pedido está pago quando aprovados − estornos aprovados cobrem o total (ADR 0003)

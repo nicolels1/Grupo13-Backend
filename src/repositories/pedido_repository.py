@@ -89,7 +89,8 @@ def consulta_pedidos(
     if criado_ate is not None:
         filtros.append(Pedido.criado_em <= criado_ate)
     if entregue_desde is not None:
-        filtros.append(Pedido.entregue_em >= entregue_desde)
+        # o pedido online migrado da Vulto não tem data de entrega e conta do pagamento (V13)
+        filtros.append(func.coalesce(Pedido.entregue_em, Pedido.pago_em) >= entregue_desde)
     if pronto_antes_de is not None:
         filtros.append(Pedido.status == "pronto_para_retirada")
         filtros.append(Pedido.pronto_retirada_em < pronto_antes_de)

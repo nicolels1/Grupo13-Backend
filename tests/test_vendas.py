@@ -44,6 +44,7 @@ def test_venda_fisica_nasce_paga_e_entregue(banco):
     pedido = vendas.registrar_venda_fisica(db, funcionario(), venda())
 
     assert pedido["status"] == "entregue" and pedido["canal"] == "loja_fisica" and pedido["modalidade"] is None
+    assert pedido["canal_venda"] == "loja"
     assert pedido["id_registrado_por"] == ID_FUNCIONARIO and pedido["id_cliente"] is None
     assert pedido["valor_total"] == Decimal("200.00") and pedido["valor_pago"] == Decimal("200.00")
     assert [p.id_transacao_gateway is None for p in pedido["pagamentos"]] == [True, False]

@@ -6,7 +6,9 @@ import pytest
 from src.models.atendimento import Chamado
 from src.models.estoque import MovimentacaoEstoque
 from src.models.vendas import Pagamento
-from src.repositories import atendimento_repository, estoque_repository, pedido_repository, permissao_repository
+from src.repositories import (
+    atendimento_repository, estoque_repository, migracao_repository, pedido_repository, permissao_repository,
+)
 from src.use_cases import devolucoes, pedidos, vendas
 from src.use_cases.erros import RecursoNaoEncontrado, RegraDeNegocio
 from tests.apoio import SessaoFalsa, api, funcionario  # noqa: F401
@@ -100,6 +102,39 @@ def test_prazo_de_30_dias(entregue):
     entregue.pedido.entregue_em = pedidos.agora() - timedelta(days=31)
     with pytest.raises(RegraDeNegocio, match="30 dias"):
         devolucoes.registrar_devolucao(entregue.nova(), funcionario(), 8, devolucao(entregue))
+
+
+# pedido online migrado da Vulto não tem data de entrega: o prazo conta do pagamento (V13)
+@pytest.mark.parametrize("dias, aceita", [(29, True), (31, False)])
+def test_prazo_do_pedido_migrado_sem_entrega_conta_do_pagamento(entregue, monkeypatch, dias, aceita):
+    monkeypatch.setattr(migracao_repository, "migrado",
+                        lambda db, tabela, i: (tabela, i) == ("pedido", str(entregue.pedido.id_pedido)))
+    entregue.pedido.entregue_em = None
+    entregue.pedido.pago_em = pedidos.agora() - timedelta(days=dias)
+
+    if aceita:
+        pedido = devolucoes.registrar_devolucao(entregue.nova(), funcionario(), 8, devolucao(entregue))
+        assert pedido["devolucao"] == "parcial"
+    else:
+        with pytest.raises(RegraDeNegocio, match="30 dias"):
+            devolucoes.registrar_devolucao(entregue.nova(), funcionario(), 8, devolucao(entregue))
+
+
+def test_pedido_novo_sem_entrega_nao_conta_do_pagamento(entregue, monkeypatch):
+    monkeypatch.setattr(migracao_repository, "migrado", lambda db, tabela, i: False)
+    entregue.pedido.entregue_em = None
+    with pytest.raises(RegraDeNegocio, match="sem data de entrega"):
+        devolucoes.registrar_devolucao(entregue.nova(), funcionario(), 8, devolucao(entregue))
+
+
+# o pagamento migrado sem método (P7) é estornado pelo mesmo método, sem passar pelo gateway
+def test_estorno_de_pagamento_migrado_sem_metodo(entregue):
+    entregue.pix.metodo, entregue.pix.id_transacao_gateway = "nao_informado", None
+
+    pedido = devolucoes.registrar_devolucao(entregue.nova(), funcionario(), 8, devolucao(entregue))
+
+    [estorno] = [p for p in pedido["pagamentos"] if p.tipo == "estorno"]
+    assert (estorno.metodo, estorno.id_transacao_gateway, estorno.origem) == ("nao_informado", None, "atendimento")
 
 
 def test_devolucao_nao_e_no_cd(entregue):

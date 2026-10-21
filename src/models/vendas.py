@@ -26,7 +26,8 @@ class Pedido(Base):
     )
     # CPF informado na venda física de quem ainda não tem conta; o cadastro pelo site liga o pedido (ADR 0014)
     cpf_nota: Mapped[str | None] = mapped_column(String(11))
-    canal: Mapped[str] = mapped_column(String(20))
+    canal: Mapped[str] = mapped_column(String(20))  # o do estoque (ADR 0004)
+    canal_venda: Mapped[str] = mapped_column(String(10))  # loja, site ou app: o faturamento por canal (P3)
     modalidade: Mapped[str | None] = mapped_column(String(20))  # só na venda online
     status: Mapped[str] = mapped_column(String(30))
     motivo_cancelamento: Mapped[str | None] = mapped_column(String(30))
@@ -36,6 +37,8 @@ class Pedido(Base):
     justificativa_cancelamento: Mapped[str | None] = mapped_column(Text)
     devolucao: Mapped[str] = mapped_column(String(10), default="nenhuma", server_default="nenhuma")
     valor_frete: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0, server_default="0")
+    # total = itens − desconto + frete; a Lorenzi não dá desconto, só o pedido migrado tem (V18)
+    valor_desconto: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0, server_default="0")
     valor_total: Mapped[Decimal] = mapped_column(Numeric(10, 2))
     pronto_retirada_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     reserva_expira_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -51,6 +54,9 @@ class Pedido(Base):
     __table_args__ = (
         CheckConstraint("canal IN ('loja_fisica', 'online')", name="canal_valido"),
         CheckConstraint("modalidade IN ('entrega', 'retirada')", name="modalidade_valida"),
+        CheckConstraint("canal_venda IN ('loja', 'site', 'app')", name="canal_venda_valido"),
+        # a venda na loja é a do estoque da loja física; site e app vendem do estoque online
+        CheckConstraint("(canal = 'loja_fisica') = (canal_venda = 'loja')", name="canal_venda_do_canal"),
         CheckConstraint(
             "status IN ('aguardando_pagamento', 'pago', 'enviado', 'pronto_para_retirada', 'entregue', 'cancelado')",
             name="status_valido",
@@ -77,7 +83,9 @@ class Pedido(Base):
             "OR (id_cancelado_por IS NOT NULL AND justificativa_cancelamento IS NOT NULL)",
             name="cancelamento_equipe_exige_autor",
         ),
-        CheckConstraint("valor_frete >= 0 AND valor_total >= 0", name="valores_nao_negativos"),
+        CheckConstraint(
+            "valor_frete >= 0 AND valor_total >= 0 AND valor_desconto >= 0", name="valores_nao_negativos"
+        ),
         CheckConstraint("cpf_nota IS NULL OR canal = 'loja_fisica'", name="cpf_nota_so_loja_fisica"),
         CheckConstraint("cpf_nota ~ '^[0-9]{11}$'", name="cpf_nota_so_digitos"),
         # busca dos pedidos ainda sem conta no cadastro pelo site
@@ -119,7 +127,8 @@ class Pagamento(Base):
         ForeignKey("pagamento.id_pagamento", ondelete="RESTRICT")
     )
     id_chamado: Mapped[int | None] = mapped_column(ForeignKey("chamado.id_chamado", ondelete="RESTRICT"))
-    # estorno: de onde veio e, no balcão, quem registrou e em que loja (ADR 0015)
+    # estorno: de onde veio e, no balcão, quem registrou e em que loja (ADR 0015);
+    # pagamento e estorno migrados da Vulto: migracao (P7)
     origem: Mapped[str | None] = mapped_column(String(20))
     id_registrado_por: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("usuario.id_usuario", ondelete="RESTRICT")
@@ -136,7 +145,10 @@ class Pagamento(Base):
 
     __table_args__ = (
         CheckConstraint("tipo IN ('pagamento', 'estorno')", name="tipo_valido"),
-        CheckConstraint("metodo IN ('pix', 'cartao_credito', 'cartao_debito', 'dinheiro')", name="metodo_valido"),
+        # nao_informado: só no pagamento migrado da Vulto, que nunca guardou o método (P7)
+        CheckConstraint(
+            "metodo IN ('pix', 'cartao_credito', 'cartao_debito', 'dinheiro', 'nao_informado')", name="metodo_valido"
+        ),
         CheckConstraint(
             "status IN ('pendente', 'aprovado', 'recusado')", name="status_valido"
         ),
@@ -145,8 +157,18 @@ class Pagamento(Base):
             "(tipo = 'estorno') = (id_pagamento_original IS NOT NULL)", name="estorno_exige_original"
         ),
         CheckConstraint("tipo = 'estorno' OR id_chamado IS NULL", name="chamado_so_em_estorno"),
-        CheckConstraint("origem IN ('cancelamento', 'atendimento', 'balcao')", name="origem_valida"),
-        CheckConstraint("(tipo = 'estorno') = (origem IS NOT NULL)", name="origem_so_em_estorno"),
+        CheckConstraint("origem IN ('cancelamento', 'atendimento', 'balcao', 'migracao')", name="origem_valida"),
+        # o estorno sempre tem origem; o pagamento só tem a da migração
+        CheckConstraint(
+            "(tipo = 'estorno' AND origem IS NOT NULL) "
+            "OR (tipo = 'pagamento' AND (origem IS NULL OR origem = 'migracao'))",
+            name="origem_do_tipo",
+        ),
+        # no estorno, o trigger estorno_mesmo_metodo já exige o método do pagamento original
+        CheckConstraint(
+            "metodo <> 'nao_informado' OR tipo = 'estorno' OR origem IS NOT DISTINCT FROM 'migracao'",
+            name="nao_informado_so_migrado",
+        ),
         CheckConstraint(
             "origem IS DISTINCT FROM 'balcao' OR (id_registrado_por IS NOT NULL AND id_unidade IS NOT NULL)",
             name="estorno_balcao_exige_funcionario_e_unidade",
