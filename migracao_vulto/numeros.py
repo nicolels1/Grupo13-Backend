@@ -10,11 +10,11 @@ from pathlib import Path
 import pandas as pd
 
 from migracao_vulto.regras import (
-    CPF_TESTE, DATA_ALTERNATIVA, DATA_SALDO_INICIAL, FIM, FUSO_BRASILIA, INICIO, LOJAS_FISICAS,
-    UNIDADE_DA_CONTAGEM, VALOR_PONTO, chave_sku, creditos_a_estornar, creditos_sem_dobro, dono_dos_pontos, epoca,
+    DATA_ALTERNATIVA, DATA_SALDO_INICIAL, FIM, FUSO_BRASILIA, INICIO, LOJAS_FISICAS,
+    UNIDADE_DA_CONTAGEM, VALOR_PONTO, chave_sku, cpfs_conhecidos, creditos_a_estornar, creditos_sem_dobro, dono_dos_pontos, epoca,
     estoque_na_data_base, Identidades, lancamentos_banco, lancamentos_batel, posicao_na_data_base,
     reconstruir_historico,
-    resgates_so_na_planilha, saldo_inicial, separar_canal, sku_oficial, so_digitos, valorar_fifo,
+    resgates_so_na_planilha, saldo_inicial, separar_canal, sku_oficial, valorar_fifo,
 )
 
 
@@ -102,13 +102,8 @@ def calcular_passivo(origem: Path, destino: Path, vendas_classificadas: pd.DataF
     pendencias = pd.read_csv(origem / "pendencias.csv", dtype=str)
     vendas = vendas_classificadas
 
-    from src.utils.cpf import cpf_valido
-    conhecidos = set()
-    for serie in [clientes["cpf"], pontos["cpf"], resgates["cliente_cpf"], antigos["CPF/CNPJ"],
-                  compras["cliente_ref"], vendas["cliente_ref"]]:
-        conhecidos |= {c for c in serie.map(so_digitos).dropna() if cpf_valido(c)}
-    conhecidos.discard(CPF_TESTE)
-
+    conhecidos = cpfs_conhecidos(clientes["cpf"], pontos["cpf"], resgates["cliente_cpf"], antigos["CPF/CNPJ"],
+                                 compras["cliente_ref"], vendas["cliente_ref"])
     ident = Identidades(clientes, pendencias, conhecidos)
     p = dono_dos_pontos(pontos, compras, pendencias, ident)
     inicial, sem_dono_planilha = saldo_inicial(clientes, antigos, pendencias, conhecidos)

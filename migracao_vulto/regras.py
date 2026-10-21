@@ -427,11 +427,7 @@ def dono_dos_pontos(pontos: pd.DataFrame, compras: pd.DataFrame, pendencias: pd.
 def saldo_inicial(clientes: pd.DataFrame, antigos: pd.DataFrame, pendencias: pd.DataFrame,
                   conhecidos: set) -> tuple[pd.Series, float]:
     c = clientes.assign(pts=clientes["Pontos"].map(pontos_planilha))
-    errado = pendencias[(pendencias["coluna"] == "cpf") & pendencias["fonte"].str.startswith("clientes")]
-    digitado = c["linha_origem"].map(errado.set_index("linha")["valor"].map(so_digitos))
-    corrigido = digitado.map(lambda d: (lambda cs: cs[0] if len(cs) == 1 else None)(candidatos_um_digito(d, conhecidos))
-                             if isinstance(d, str) else None)
-    c["cpf"] = c["cpf"].fillna(corrigido)
+    c["cpf"], _ = cpf_do_cadastro(c, pendencias, conhecidos)
     sem_dono = c.loc[c["cpf"].isna(), "pts"].sum()
     planilha = c.dropna(subset=["cpf"]).groupby("cpf")["pts"].sum()
     # com o CPF já corrigido: quem tem o CPF digitado errado na aba nova também está nas duas abas (K5c)
@@ -546,6 +542,176 @@ def valorar_fifo(movimentos: pd.DataFrame) -> pd.DataFrame:
     tabela = pd.DataFrame.from_dict(saldos, orient="index", columns=["antigo", "novo"])
     tabela["pontos"] = tabela["antigo"] + tabela["novo"]
     return tabela
+
+
+# ---------- clientes ----------
+
+# CPFs válidos que aparecem em alguma fonte, sem o de teste: só contra eles se corrige o dígito errado (K2)
+def cpfs_conhecidos(*series: pd.Series) -> set:
+    from src.utils.cpf import cpf_valido
+    conhecidos = set()
+    for serie in series:
+        conhecidos |= {c for c in serie.map(so_digitos).dropna() if cpf_valido(c)}
+    conhecidos.discard(CPF_TESTE)
+    return conhecidos
+
+
+# K2 no cadastro: o CPF com o dígito errado (vazio no staging; o digitado está nas pendências) vira o
+# único CPF válido a 1 dígito que aparece em outra fonte. Devolve o CPF de cada linha e o que foi digitado
+def cpf_do_cadastro(clientes: pd.DataFrame, pendencias: pd.DataFrame, conhecidos: set) -> tuple[pd.Series, pd.Series]:
+    errado = pendencias[(pendencias["coluna"] == "cpf") & pendencias["fonte"].str.startswith("clientes")]
+    digitado = clientes["linha_origem"].map(errado.set_index("linha")["valor"].map(so_digitos))
+    corrigido = digitado.map(lambda d: (lambda cs: cs[0] if len(cs) == 1 else None)(candidatos_um_digito(d, conhecidos))
+                             if isinstance(d, str) else None)
+    return clientes["cpf"].fillna(corrigido), digitado
+
+
+def _unico(donos) -> str | None:
+    return next(iter(donos)) if isinstance(donos, set) and len(donos) == 1 else None
+
+
+class Compradores:
+    """Identidade de quem comprou ou escreveu no atendimento (J1a, J1b, P2): o CPF; sem CPF, o e-mail."""
+
+    def __init__(self, clientes: pd.DataFrame):  # o cadastro com o CPF já corrigido (K2)
+        com_cpf = clientes.dropna(subset=["cpf"])
+        self.cpfs = set(com_cpf["cpf"])
+        self.por_telefone = com_cpf.dropna(subset=["Tel"]).groupby("Tel")["cpf"].agg(set)
+        email = com_cpf.dropna(subset=["E-mail"])
+        self.por_email = email.groupby(email["E-mail"].str.lower())["cpf"].agg(set)
+        self.ponte = {}  # e-mail → CPF achado no atendimento (J1a)
+
+    # CPF para onde o identificador aponta, pelas camadas da J1b: cadastro, depois o formato (o ambíguo
+    # vira CPF). O e-mail de 2 CPFs do cadastro (família) não escolhe nenhum (P2)
+    def cpf(self, tipo, valor) -> str | None:
+        from src.utils.cpf import cpf_valido
+        if not isinstance(valor, str):
+            return None
+        if tipo == "cpf":
+            return valor
+        if tipo == "email":
+            return _unico(self.por_email.get(valor.lower())) or self.ponte.get(valor.lower())
+        if tipo == "telefone":
+            return _unico(self.por_telefone.get(valor))
+        if tipo == "numero":
+            if valor in self.cpfs:
+                return valor
+            return _unico(self.por_telefone.get("+55" + valor)) or (valor if cpf_valido(valor) else None)
+        return None  # CNPJ, @ e o que o staging não classificou
+
+    # CPF; sem CPF, o e-mail em minúsculas; sem os dois, ninguém. O CPF de teste não é cliente (V8)
+    def identidade(self, tipo, valor) -> str | None:
+        cpf = self.cpf(tipo, valor)
+        if cpf:
+            return None if cpf == CPF_TESTE else cpf
+        return valor.lower() if tipo == "email" and isinstance(valor, str) else None
+
+    def familia(self, email: str) -> bool:
+        return len(self.por_email.get(email, set())) > 1
+
+
+# código de pedido escrito pelo cliente na primeira fala, antes da resposta do atendente (J3)
+CODIGO_NO_TEXTO = r"\b(S\d{5,7}|APP-\d+|#\s?\d{3,7}|pedido\s*\d{3,8}|\d{7})\b"
+DIAS_PEDIDO_CITADO = 60  # número solto e dígitos invertidos só valem para venda de até 60 dias antes (J3)
+
+
+def primeira_fala(mensagem: pd.Series) -> pd.Series:
+    return mensagem.fillna("").str.split(r"\[").str[0]
+
+
+# J3: a venda de cada atendimento, pelo código da coluna ou do texto; o número de 7 dígitos começando em 7
+# é o app sem o prefixo; número solto e dígitos invertidos só até 60 dias antes. No código repetido (V5)
+# fica a última linha, a que migra. Devolve o id da venda e como foi achada
+def venda_do_atendimento(atendimentos: pd.DataFrame, vendas: pd.DataFrame) -> pd.DataFrame:
+    externos = vendas.dropna(subset=["pedido_externo"]).drop_duplicates("pedido_externo", keep="last") \
+        .set_index("pedido_externo")
+    por_id = vendas.set_index("id")
+    no_texto = (primeira_fala(atendimentos["mensagem"]).str.extract(CODIGO_NO_TEXTO, flags=re.IGNORECASE)[0]
+                .str.upper().str.replace("PEDIDO", "").str.replace("#", "").str.strip())
+    codigos = atendimentos["pedido_codigo"].fillna(no_texto)
+
+    def ate_60_dias(quando, venda):
+        return 0 <= (pd.to_datetime(quando) - pd.to_datetime(venda["criado_em"])).days <= DIAS_PEDIDO_CITADO
+
+    def acha(original, quando):
+        if pd.isna(original):
+            return None, "sem código"
+        codigo = "APP-" + original if re.fullmatch(r"7\d{6}", original) else original
+        if codigo in externos.index:
+            return externos.loc[codigo, "id"], "código" if codigo == original else "app sem prefixo"
+        if codigo.isdigit() and codigo in por_id.index and ate_60_dias(quando, por_id.loc[codigo]):
+            return codigo, "número solto"
+        invertido = re.sub(r"\D", "", codigo)[::-1]
+        for candidato in ("S" + invertido, "APP-" + invertido):
+            if candidato in externos.index and ate_60_dias(quando, externos.loc[candidato]):
+                return externos.loc[candidato, "id"], "dígitos invertidos"
+        return None, "código não acha"
+
+    achados = [acha(c, q) for c, q in zip(codigos, atendimentos["data_hora"])]
+    return pd.DataFrame(achados, index=atendimentos.index, columns=["id_venda", "como"])
+
+
+# J1a: no atendimento em que um lado (quem escreveu ou o dono do pedido citado) dá o CPF e o outro só um
+# e-mail, o e-mail é dessa pessoa (quando os dois lados têm CPF, sempre concordam). O e-mail de família
+# fica de fora: a venda dele não escolhe um CPF (P2). Devolve e-mail → CPF
+def ponte_pelo_atendimento(atendimentos: pd.DataFrame, id_venda: pd.Series, identidade_venda: pd.Series,
+                           compradores: Compradores) -> dict:
+    compradores_email = {i for i in identidade_venda.dropna() if "@" in i}
+
+    def pelo_contato(tipo, valor):
+        cpf = compradores.cpf(tipo, valor)
+        if cpf:
+            return cpf
+        return valor.lower() if tipo == "email" and valor.lower() in compradores_email else None
+
+    contato = pd.Series([pelo_contato(t, v) for t, v in zip(atendimentos["contato_tipo"], atendimentos["contato_valor"])],
+                        index=atendimentos.index, dtype=object)
+    pedido = id_venda.map(identidade_venda)
+    e_cpf = lambda i: isinstance(i, str) and "@" not in i
+    e_email = lambda i: isinstance(i, str) and "@" in i
+    # o e-mail de quem escreveu vale mesmo que a pessoa nunca tenha comprado com ele
+    do_contato = (contato.map(e_email) | (atendimentos["contato_tipo"].eq("email") & contato.isna())) & pedido.map(e_cpf)
+    do_pedido = pedido.map(e_email) & contato.map(e_cpf)
+    ponte = {**dict(zip(atendimentos.loc[do_contato, "contato_valor"].str.lower(), pedido[do_contato])),
+             **dict(zip(pedido[do_pedido], contato[do_pedido]))}
+    return {e: c for e, c in ponte.items() if not compradores.familia(e)}
+
+
+# K9a: o celular do cadastro anotado sem DDD ganha o DDD do número completo da mesma pessoa em outra fonte
+# (cadastro, atendimento, vendas, compras), quando há um só. Nunca o DDD da loja. Devolve 9 dígitos → DDD
+def ddd_dos_sem_ddd(clientes: pd.DataFrame, atendimentos: pd.DataFrame, vendas: pd.DataFrame,
+                    compras: pd.DataFrame) -> dict:
+    from src.utils.cpf import cpf_valido
+    completos = {}
+    numeros = [clientes["Tel"], atendimentos.loc[atendimentos["contato_tipo"] == "telefone", "contato_valor"]]
+    for tabela in (vendas, compras):
+        # "numero" só conta quando não é CPF válido (J1b: o ambíguo vira CPF)
+        celular = (tabela["cliente_tipo"] == "telefone") | (
+            (tabela["cliente_tipo"] == "numero") & ~tabela["cliente_valor"].fillna("").map(cpf_valido))
+        numeros.append(tabela.loc[celular, "cliente_valor"])
+    for d in pd.concat(numeros).map(so_digitos).dropna():
+        d = d[2:] if len(d) in (12, 13) and d.startswith("55") else d
+        if len(d) in (10, 11):
+            completos.setdefault(d[-9:], set()).add(d[:-9])
+    return {nove: next(iter(ddds)) for nove, ddds in completos.items() if len(ddds) == 1}
+
+
+_CONSENTIMENTO = dict(zip(de_para("consentimento")["valor_vulto"], de_para("consentimento")["consentimento"]))
+
+
+# K9b: aceita (sim/S/1/x), não aceita (nao/N/0) ou não informado (vazio); "não ligar" na Obs é recusa
+def consentimento(aceita_msg, obs) -> str:
+    if isinstance(obs, str) and "nao ligar" in sem_acento(obs.lower()):
+        return "nao_aceita"
+    return _CONSENTIMENTO[aceita_msg if isinstance(aceita_msg, str) and aceita_msg else "(vazio)"]
+
+
+# K9b: entre os cadastros do mesmo CPF (K1), a recusa vale sobre o aceite e a resposta sobre o vazio
+def consentimento_juntado(respostas) -> bool | None:
+    respostas = set(respostas)
+    if "nao_aceita" in respostas:
+        return False
+    return True if "aceita" in respostas else None
 
 
 # ---------- estoque ----------

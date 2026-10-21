@@ -202,6 +202,72 @@ def test_saldo_inicial_nao_soma_a_aba_antiga_de_quem_tem_o_cpf_corrigido():
     assert sem_dono == 0
 
 
+# ---------- clientes ----------
+
+def test_cpfs_conhecidos_so_validos_e_sem_o_de_teste():
+    serie = pd.Series(["529.982.247-25", "52998224726", "12345678909", None])
+    assert r.cpfs_conhecidos(serie) == {"52998224725"}
+
+
+def _compradores():
+    clientes = pd.DataFrame({"cpf": ["52998224725", "11144477735", "39053344705"],
+                             "Tel": ["+5511987654321", None, None],
+                             "E-mail": ["ana@x.com", "familia@x.com", "Familia@x.com"]})
+    return r.Compradores(clientes)
+
+
+def test_compradores_numero_pelo_cadastro_e_depois_pelo_formato():
+    c = _compradores()
+    assert c.identidade("numero", "11987654321") == "52998224725"  # telefone do cadastro (J1b, camada 1)
+    assert c.identidade("numero", "11144477735") == "11144477735"  # CPF do cadastro
+    assert c.identidade("numero", "41912345678") is None  # só formato de celular: não é cliente
+    assert c.identidade("cpf", "12345678909") is None  # CPF de teste (V8)
+
+
+def test_compradores_email_de_familia_nao_escolhe_cpf():
+    c = _compradores()
+    assert c.identidade("email", "ANA@x.com") == "52998224725"
+    assert c.identidade("email", "familia@x.com") == "familia@x.com"  # P2
+    assert c.identidade("email", "novo@x.com") == "novo@x.com"
+    c.ponte = {"novo@x.com": "11144477735"}
+    assert c.identidade("email", "novo@x.com") == "11144477735"  # J1a
+
+
+def test_venda_do_atendimento_pelo_codigo_e_pelo_texto():
+    vendas = pd.DataFrame({"id": ["1", "2", "3"], "pedido_externo": ["S100234", "APP-7001340", None],
+                           "criado_em": ["2026-01-01", "2026-01-01", "2026-01-01"]})
+    atendimentos = pd.DataFrame({
+        "pedido_codigo": ["S100234", "7001340", None, "3", "3"],
+        "mensagem": [None, None, "oi, meu pedido S100234 não chegou [atendente] ok", None, None],
+        "data_hora": ["2026-01-10", "2026-01-10", "2026-01-10", "2026-01-10", "2026-06-10"],
+    })
+    achados = r.venda_do_atendimento(atendimentos, vendas)
+    assert achados["id_venda"].tolist() == ["1", "2", "1", "3", None]
+    assert achados["como"].tolist() == ["código", "app sem prefixo", "código", "número solto", "código não acha"]
+
+
+def test_ddd_so_quando_ha_um_so():
+    clientes = pd.DataFrame({"Tel": ["+5511987654321", "+5521987654321", "+5531912345678"]})
+    vazio = pd.DataFrame({"contato_tipo": [], "contato_valor": [], "cliente_tipo": [], "cliente_valor": []})
+    ddd = r.ddd_dos_sem_ddd(clientes, vazio, vazio, vazio)
+    assert ddd == {"912345678": "31"}  # 987654321 aparece com dois DDDs: não completa (K9a)
+
+
+@pytest.mark.parametrize(
+    "aceita, obs, esperado",
+    [("x", None, "aceita"), ("1", None, "aceita"), ("N", None, "nao_aceita"), (None, None, "nao_informado"),
+     ("sim", "Não ligar", "nao_aceita")],
+)
+def test_consentimento(aceita, obs, esperado):
+    assert r.consentimento(aceita, obs) == esperado
+
+
+def test_consentimento_juntado_recusa_vale_sobre_aceite():
+    assert r.consentimento_juntado(["aceita", "nao_aceita"]) is False
+    assert r.consentimento_juntado(["nao_informado", "aceita"]) is True
+    assert r.consentimento_juntado(["nao_informado"]) is None
+
+
 # ---------- estoque ----------
 
 @pytest.mark.parametrize(

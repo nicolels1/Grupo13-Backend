@@ -150,3 +150,20 @@ Os pontos creditados em telefone, celular sem DDD ou CPF digitado errado vão pa
 | Saldos abreviados ("2,7k") da planilha, para mais ou para menos (K5b) | ±4.800 | ±480,00 |
 
 A margem é pequena perto do total. O que mais mexe no número é a regra, não o dado: o valor do ponto (K3) e o vencimento (K4a), acima.
+
+## Quantos clientes a Vulto tem de verdade
+
+A Head de CRM não sabia quantos clientes do Vulto+ são de verdade ("tem gente que aparece duas, três vezes"). O tratamento ([`tratar.py`](tratar.py), `tratar_clientes`) responde: cada pessoa entra uma vez, como cliente sem conta (P2), identificada pelo CPF e, sem CPF, pelo e-mail.
+
+| Origem | Clientes | Como |
+|---|---:|---|
+| Cadastro do Vulto+ (aba `Clientes`) | 2.393 | 2.535 linhas: os cadastros do mesmo CPF viram um cliente (K1) e o CPF digitado com 1 dígito errado é corrigido (K2); 1 cadastro sem CPF certo entra pelo e-mail |
+| Só na aba antiga | 120 | sem compra desde 2023; os 30 ATIVOS levam o saldo de 2023 (K5d) |
+| Só nos pontos | 486 | o sistema creditava pelo CPF da compra sem exigir cadastro; entram sem nome (K8) |
+| Compradores com CPF fora do Vulto+ | 72 | CPF na venda do banco ou da planilha da Batel, sem pontos nem cadastro (J1a) |
+| Compradores só com e-mail | 1.247 | compra no site ou no app sem CPF; o e-mail não achou um CPF no cadastro nem no atendimento (J1a, P2) |
+| **Total** | **4.318** | 3.070 com CPF e 1.248 só com e-mail |
+
+Dos 2.393 do cadastro, 928 aceitam mensagem, 744 não aceitam e 721 não informaram (K9b); 274 têm o celular sem DDD e ficam com o número incompleto (K9a).
+
+Margem de erro: parte dos 1.248 só com e-mail pode ser a mesma pessoa de um CPF, com outro e-mail; elas se juntam quando a pessoa criar a conta com o mesmo CPF ou e-mail (J1a).
