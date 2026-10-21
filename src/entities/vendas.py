@@ -241,6 +241,13 @@ class ClienteResumo(BaseModel):
     status_conta: str
 
 
+# cliente com conta na área Clientes da equipe: o resumo e, se veio da Vulto, o cadastro de origem
+class ClienteComConta(ClienteResumo):
+    id_cliente_sem_conta: int | None = Field(
+        description="Cadastro da Vulto que passou para esta conta (a origem); vazio = não veio da migração",
+    )
+
+
 # cliente da migração da Vulto que ainda não criou conta (ADR 0016); só a equipe consulta
 class ClienteSemContaSaida(BaseModel):
     model_config = ConfigDict(from_attributes=True)

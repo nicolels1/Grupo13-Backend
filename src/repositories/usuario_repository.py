@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy import Select, func, or_, select, text
 from sqlalchemy.orm import Session
 
-from src.models.contas import ModeloAcesso, Usuario
+from src.models.contas import ClienteSemConta, ModeloAcesso, Usuario
 from src.models.estoque import Unidade
 
 
@@ -34,6 +34,53 @@ def cpf_em_uso(db: Session, cpf: str) -> bool:
 # funcionário entra só com e-mail; o login por CPF é só de cliente
 def buscar_cliente_por_cpf(db: Session, cpf: str) -> Usuario | None:
     return db.scalar(select(Usuario).where(Usuario.cpf == cpf, Usuario.tipo_conta == "cliente"))
+
+
+# ---------- área Clientes: clientes com conta ----------
+
+# cadastro da Vulto que passou para a conta (ADR 0016); quem tinha um pelo CPF e outro pelo e-mail fica
+# com o do CPF, que é o da pessoa (o e-mail pode ser de família, P2)
+def _cadastro_da_vulto():
+    return (
+        select(ClienteSemConta.id_cliente_sem_conta)
+        .where(ClienteSemConta.id_usuario == Usuario.id_usuario)
+        .order_by(ClienteSemConta.cpf.is_(None), ClienteSemConta.id_cliente_sem_conta)
+        .limit(1)
+        .scalar_subquery()
+    )
+
+
+# mesma busca da lista sem conta: só dígitos procura o CPF exato; texto procura parte do nome ou do e-mail
+def consulta_clientes(id_usuario: uuid.UUID | None = None, busca: str | None = None) -> Select:
+    consulta = (
+        select(
+            Usuario.id_usuario, Usuario.nome, Usuario.email, Usuario.cpf, Usuario.status_conta,
+            _cadastro_da_vulto().label("id_cliente_sem_conta"),
+        )
+        .where(Usuario.tipo_conta == "cliente")
+        .order_by(Usuario.nome, Usuario.email)
+    )
+    if id_usuario is not None:
+        consulta = consulta.where(Usuario.id_usuario == id_usuario)
+    termo = (busca or "").strip()
+    digitos = "".join(c for c in termo if c.isdigit())
+    if termo and digitos and not any(c.isalpha() or c == "@" for c in termo):
+        consulta = consulta.where(Usuario.cpf == digitos)
+    elif termo:
+        padrao = f"%{termo}%"
+        consulta = consulta.where(or_(Usuario.nome.ilike(padrao), Usuario.email.ilike(padrao)))
+    return consulta
+
+
+def listar_clientes(db: Session, limit: int, offset: int, busca: str | None = None) -> tuple[list, int]:
+    consulta = consulta_clientes(busca=busca)
+    total = db.scalar(select(func.count()).select_from(consulta.order_by(None).subquery()))
+    linhas = db.execute(consulta.limit(limit).offset(offset)).mappings().all()
+    return list(linhas), total
+
+
+def buscar_cliente(db: Session, id_usuario: uuid.UUID):
+    return db.execute(consulta_clientes(id_usuario=id_usuario)).mappings().first()
 
 
 # ---------- Gestão: lista de contas ----------
