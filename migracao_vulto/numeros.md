@@ -93,8 +93,8 @@ O histórico vai de 01/01/2025 a 30/09/2026, dia a dia, em todas as unidades (E2
 
 O que não conseguimos reconstruir:
 
-- **Saídas sem registro:** quando, voltando no tempo, o saldo ficaria negativo, entrou mais do que ficou. Entram 737 ajustes, 2.061 peças em 21 meses, contra 21.139 peças de fornecedor e 31.379 vendidas. No CD são 1.511, concentradas em set–out/2025 e mar–abr/2026, os lançamentos de coleção; nas lojas, de 124 a 166 cada.
-- **Entradas sem registro:** não aparecem como ajuste. Viram saldo maior no começo: 27.492 peças em 01/01/2025 (CD 19.538).
+- **Saídas sem registro:** quando, voltando no tempo, o saldo ficaria negativo, entrou mais do que ficou. Entram 721 ajustes, 2.035 peças em 21 meses, contra 21.139 peças de fornecedor e 31.379 vendidas. No CD são 1.511, concentradas em set–out/2025 e mar–abr/2026, os lançamentos de coleção; nas lojas, de 109 a 166 cada.
+- **Entradas sem registro:** não aparecem como ajuste. Viram saldo maior no começo: 27.466 peças em 01/01/2025 (CD 19.538).
 - **Transferências:** o CD anotou só parte das saídas. Das transferências, 3.299 têm os dois lados, 2.213 só o envio e 7.536 só o recebimento da loja, que então dá a saída do CD (E4).
 - **Trocas:** a Vulto registra a peça que sai, não a que volta (V6).
 
@@ -103,11 +103,11 @@ O que não conseguimos reconstruir:
 | Unidade | Motivo | Peças |
 |---|---|---:|
 | Batel | 82 linhas da contagem marcadas "faltou contar provador" ou "recontar" (E11) | 222 |
-| Eldorado | 40 SKUs com saldo no sistema que não aparecem na contagem (E12) | 76 |
+| Eldorado | 31 SKUs com saldo no sistema que não aparecem na contagem (E12) | 56 |
 | Eldorado | contagem em 30/09 em vez de 20/09 (E5) | +36 |
 | Batel | contagem em 13/09 ou 30/09 (E5) | −31 a +17 |
 | Savassi | contagem em 30/09 (E5) | −8 |
-| todas | 12 códigos ilegíveis na contagem: contam no total, sem variante (E10) | 35 |
+| todas | 4 códigos da contagem sem variante única: contam no total, sem variante (E10) | 14 |
 | todas | peças vendidas depois da contagem que a contagem não viu (a posição negativa vira zero) | 26 |
 
 Por produto, a Savassi tem a maior margem: o total de cada modelo está certo, mas a divisão por cor e tamanho segue o sistema (E6).

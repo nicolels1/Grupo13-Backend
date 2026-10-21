@@ -10,10 +10,10 @@ from pathlib import Path
 import pandas as pd
 
 from migracao_vulto.regras import (
-    CD, CPF_TESTE, DATA_ALTERNATIVA, DATA_CONTAGEM, DATA_SALDO_INICIAL, DATA_WMS, FIM, FUSO_BRASILIA, INICIO,
-    LOJAS_FISICAS, UNIDADE_DA_CONTAGEM, VALOR_PONTO, chave_sku, creditos_a_estornar, creditos_sem_dobro,
-    dono_dos_pontos, epoca, Identidades, itens_que_baixam, lancamentos_banco, lancamentos_batel,
-    movimentos_de_entrada, posicao_contada, posicao_na_data_base, reconstruir_historico,
+    CPF_TESTE, DATA_ALTERNATIVA, DATA_SALDO_INICIAL, FIM, FUSO_BRASILIA, INICIO, LOJAS_FISICAS,
+    UNIDADE_DA_CONTAGEM, VALOR_PONTO, chave_sku, creditos_a_estornar, creditos_sem_dobro, dono_dos_pontos, epoca,
+    estoque_na_data_base, Identidades, lancamentos_banco, lancamentos_batel, posicao_na_data_base,
+    reconstruir_historico,
     resgates_so_na_planilha, saldo_inicial, separar_canal, sku_oficial, so_digitos, valorar_fifo,
 )
 
@@ -180,15 +180,9 @@ def calcular_estoque(origem: Path, destino: Path, vendas_classificadas: pd.DataF
     itens = pd.read_csv(origem / "banco_itens_venda.csv", dtype=str)
     catalogo = pd.read_csv(origem / "catalogo_produtos.csv", dtype=str)
 
-    vendidos = itens_que_baixam(vendas_classificadas, itens)
-    entrou, transito = movimentos_de_entrada(entradas)
-    movimentos = pd.concat([vendidos, entrou], ignore_index=True)
-    sem_sku = movimentos["sku"].isna()
-    movimentos = movimentos[~sem_sku]
-    contada = posicao_contada(contagem, estoque, vendidos.assign(q=vendidos["q"].abs()))
-
-    datas = {**{UNIDADE_DA_CONTAGEM[k]: v for k, v in DATA_CONTAGEM.items()}, CD: DATA_WMS}
-    posicao = posicao_na_data_base(contada, movimentos, datas)
+    e = estoque_na_data_base(vendas_classificadas, itens, entradas, contagem, estoque, catalogo)
+    vendidos, movimentos, contada, transito, datas, posicao = (
+        e["vendidos"], e["movimentos"], e["contada"], e["transito"], e["datas"], e["posicao"])
 
     # margem da data da contagem (E5): a mesma conta com a data alternativa de cada loja
     faixas = []
@@ -237,7 +231,7 @@ def calcular_estoque(origem: Path, destino: Path, vendas_classificadas: pd.DataF
     gravar(movimentos_por_origem, destino, "estoque_movimentos_por_origem")
     print(por_unidade.to_string())
     print(margem.to_string(index=False))
-    print("movimentos sem SKU convertível:", int(sem_sku.sum()))
+    print("movimentos sem SKU convertível:", e["sem_sku"])
     print("ajustes do histórico:", len(ajustes), "linhas,", ajustes["q"].sum(), "peças; por unidade:",
           ajustes.groupby("unidade")["q"].sum().to_dict())
     print(movimentos_por_origem.to_string(index=False))
