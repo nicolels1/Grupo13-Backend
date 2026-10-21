@@ -927,6 +927,187 @@ def tratar_estoque(origem: Path, saida: Saida, original: dict) -> dict:
                 sem_minimo=int(((cd["quantidade"] > 0) & cd["estoque_minimo"].isna()).sum()))
 
 
+# ---------- fidelidade ----------
+
+MARCA_VULTO = "vulto"
+TIPO_DOS_PONTOS = {"C": "credito", "D": "resgate", "E": "estorno", "AJ": "ajuste"}
+MOTIVO_K4B = "Dobro do online que o sistema da Vulto não deu (K4b)"
+MOTIVO_K5F = "Saldo negativo herdado da Vulto (K5f)"
+FIM_DO_EXTRATO = no_dia(FIM_DO_HISTORICO, "23:59:59")
+# ordem no mesmo instante: o saldo inicial, o crédito, o dobro dele (K4b), os outros movimentos, o estorno
+# da K6 (depois do que a Vulto já estornou do mesmo crédito) e, no fim de 30/09, o ajuste da K5f
+GRUPO_PONTOS = {"saldo_inicial": 0, "credito": 1, "K4b": 2, "movimento": 3, "K6": 4, "K5f": 5}
+
+
+# Saldo e valor em R$ de cada cliente depois do extrato, como o trigger aplica_movimento_pontos calcula: cada
+# entrada vira um lote com o valor do ponto da data (K3) e primeiro cobre o saldo negativo herdado; a saída
+# ligada a uma entrada sai primeiro do lote dela, e o resto sai dos lotes mais antigos (FIFO)
+def passivo_do_extrato(mov: pd.DataFrame) -> pd.DataFrame:
+    saldos = {}
+    for cliente, d in mov.groupby("cliente", sort=False):
+        lotes, saldo = {}, 0
+        for chave, pontos, original, quando in zip(d["chave"], d["pontos"], d["movimento_original"], d["criado_em"]):
+            if pontos > 0:
+                cobre = min(pontos, max(-saldo, 0))
+                lotes[chave] = [r.VALOR_PONTO[r.epoca(r.dia_brasilia(quando))], pontos - cobre]
+            else:
+                falta = -pontos
+                for lote in ([lotes[original]] if original in lotes else []) + list(lotes.values()):
+                    parte = min(falta, lote[1])
+                    lote[1] -= parte
+                    falta -= parte
+            saldo += pontos
+        saldos[cliente] = dict(saldo=saldo, reais=sum(v * resto for v, resto in lotes.values()))
+    return pd.DataFrame.from_dict(saldos, orient="index")
+
+
+# P5, K1–K9: o extrato do Vulto+ de 01/01/2025 a 30/09/2026, que o trigger aplica_movimento_pontos soma no
+# saldo, nos lotes e no valor do ponto pela data (K3). Começa no saldo da planilha (K5a, K1, K5d, K2), segue
+# com os movimentos do banco no dono certo (J1c, J1d, K2), o dobro do online que faltou (K4b), o estorno do
+# crédito que não vale (K6) e os resgates só na planilha (K7a, K7b), e fecha com o ajuste que zera o saldo
+# negativo (K5f). Sem vencimento nem bônus Ouro: só a partir de 01/10/2026 (K4a). As regras do Vulto+ já estão
+# no banco (migration da fidelidade). A carga insere os movimentos na ordem da coluna `ordem`
+def tratar_fidelidade(origem: Path, saida: Saida) -> dict:
+    clientes = ler(origem, "clientes_clientes").replace("", None)
+    antigos = ler(origem, "clientes_antigos").replace("", None)
+    pendencias = ler(origem, "pendencias").replace("", None)
+    pontos = ler(origem, "banco_pontos_mov").replace("", None)
+    compras = ler(origem, "banco_compras").replace("", None)
+    resgates = ler(origem, "clientes_resgates").replace("", None)
+    vendas = ler(origem, "banco_vendas").replace("", None)
+    l = r.lancamentos_banco(vendas, ler(origem, "banco_itens_venda").replace("", None),
+                            ler(origem, "catalogo_produtos").replace("", None))
+    l = l[l["linha_origem"].astype(str).str.startswith("vendas#")]
+
+    # as mesmas regras do numeros.py, para o passivo da carga ser o mesmo
+    conhecidos = r.cpfs_conhecidos(clientes["cpf"], pontos["cpf"], resgates["cliente_cpf"], antigos["CPF/CNPJ"],
+                                   compras["cliente_ref"], vendas["cliente_ref"])
+    p = r.dono_dos_pontos(pontos, compras, pendencias, r.Identidades(clientes.copy(), pendencias, conhecidos))
+    inicial, _ = r.saldo_inicial(clientes, antigos, pendencias, conhecidos)
+    estornar = r.creditos_a_estornar(p, compras, l)
+    dobro = r.creditos_sem_dobro(p, compras, estornar)
+    so_planilha = r.resgates_so_na_planilha(resgates, pendencias, p, l, clientes)
+    nao_vale = r.compras_que_nao_valem(compras, l)
+    corrigido = r.credito_corrigido(p, compras)
+
+    pedidos = set(saida.tabelas["pedido"]["codigo_venda"])
+    codigos = dict(zip(vendas["id"], map(r.codigo_venda, vendas["pedido_externo"], vendas["id"])))
+    venda_da_compra = r.venda_da_compra(compras, l)
+    pedido_da_venda = lambda venda: (lambda c: c if c in pedidos else None)(codigos.get(venda))
+    p["criado_utc"] = p["criado_em"].map(em_utc)
+    credito = p[p["tipo"] == "C"]
+    credito_da_compra = pd.Series(credito.index, index=credito["compra"])
+    ref = p["linha_origem"]  # chave provisória de cada movimento, até a ordem final
+
+    linhas = []
+
+    def mover(cliente, tipo, pontos, criado_em, grupo, decisao, fonte, linha_origem, pedido=None, original=None,
+              motivo=None, registrado_por=None, chave=None, mudou=()):
+        linhas.append(dict(ref=chave or f"{decisao}#{linha_origem}", cliente=cliente, tipo=tipo, pontos=int(pontos),
+                           pedido=pedido, original=original, motivo=motivo, registrado_por=registrado_por,
+                           criado_em=criado_em, grupo=GRUPO_PONTOS[grupo], decisao=decisao, fonte=fonte,
+                           linha_origem=linha_origem, mudou=mudou))
+
+    # K5a, K1, K5d: o saldo da planilha em 01/01/2025, com as linhas de onde veio (o CPF já corrigido pela K2)
+    cad = clientes.assign(pts=clientes["Pontos"].map(r.pontos_planilha))
+    cad["cpf"], _ = r.cpf_do_cadastro(cad, pendencias, conhecidos)
+    ativos = antigos[(antigos["STATUS"] == "ATIVO") & ~antigos["CPF/CNPJ"].isin(cad["cpf"])]
+    linhas_do_saldo = {**cad[cad["pts"] > 0].groupby("cpf")["linha_origem"].agg(list).to_dict(),
+                       **ativos.groupby("CPF/CNPJ")["linha_origem"].agg(list).to_dict()}
+    for cpf, q in inicial[inicial > 0].items():
+        origens = linhas_do_saldo.get(cpf, [])
+        decisao = "K5d" if cpf in set(ativos["CPF/CNPJ"]) else ("K1" if len(origens) > 1 else "K5a")
+        mover(cpf, "saldo_inicial", q, no_dia(r.DATA_SALDO_INICIAL), "saldo_inicial", decisao, FONTE_CLIENTES,
+              origens[0] if origens else None, chave=f"saldo#{cpf}", mudou=[("linha", o) for o in origens[1:]])
+
+    # P5: os movimentos do banco; o estorno e a correção do bug ligados ao crédito, o crédito e o estorno ao pedido
+    for i, m in p.iterrows():
+        if m["dono"] is None or pd.isna(m["dono"]):
+            saida.pendente("movimento_pontos", FONTE_BANCO, m["linha_origem"], "cpf",
+                           m["digitado"] if isinstance(m["digitado"], str) else m["cpf"],
+                           f"pontos sem dono: {m['regra_dono']}")
+            continue
+        original = ref.get(credito_da_compra.get(m["compra"])) if m["tipo"] == "E" else ref.get(corrigido.get(i))
+        pedido = pedido_da_venda(venda_da_compra.get(m["compra"])) if m["tipo"] in ("C", "E") else None
+        mudou = [] if m["regra_dono"] == "CPF" else [(m["regra_dono"].split()[0], m["digitado"])]
+        mover(m["dono"], TIPO_DOS_PONTOS[m["tipo"]], m["mov"], m["criado_utc"],
+              "credito" if m["tipo"] == "C" else "movimento", "P5", FONTE_BANCO, m["linha_origem"], pedido, original,
+              m["obs"], chave=m["linha_origem"], mudou=mudou)
+
+    # K4b: o dobro do online que faltou, na data do crédito
+    for i, q in dobro.items():
+        m = p.loc[i]
+        if isinstance(m["dono"], str):
+            mover(m["dono"], "ajuste", q, m["criado_utc"], "K4b", "K4b", FONTE_BANCO, m["linha_origem"],
+                  pedido_da_venda(venda_da_compra.get(m["compra"])), ref[i], MOTIVO_K4B, CONTA_MIGRACAO)
+
+    # K6: o que falta estornar, depois do que a Vulto já estornou ou corrigiu do mesmo crédito
+    depois = pd.concat([p.loc[p["tipo"] == "E"].set_index("compra")["criado_utc"],
+                        pd.Series(p.loc[corrigido.index, "criado_utc"].values, index=p.loc[corrigido.values, "compra"])])
+    depois = depois.groupby(level=0).max()
+    for i, q in estornar.items():
+        m = p.loc[i]
+        if isinstance(m["dono"], str):
+            motivo = nao_vale.get(m["compra"])
+            mover(m["dono"], "estorno" if motivo else "ajuste", -q, max(m["criado_utc"], depois.get(m["compra"], "")),
+                  "K6", "K6", FONTE_BANCO, m["linha_origem"], pedido_da_venda(venda_da_compra.get(m["compra"])), ref[i],
+                  motivo or r.MOTIVO_BUG_APP, CONTA_MIGRACAO)
+
+    # K7a: o resgate anotado só na planilha, com a venda que o confirmou; K7b: o "2.000" lido como 2
+    anotado = resgates.set_index("linha_origem")["pontos usados"]
+    for g in so_planilha.itertuples():
+        if not isinstance(g.cliente_cpf, str):
+            saida.pendente("movimento_pontos", FONTE_CLIENTES, g.linha_origem, "cliente", g.cliente_nome,
+                           "resgate só na planilha sem cliente identificado (K7a, margem de erro)")
+            continue
+        q_anotado = anotado.get(g.linha_origem)
+        mudou = [] if q_anotado is not None and float(q_anotado) == g.pts else [("K7b", q_anotado)]
+        venda = getattr(g, "venda", None)
+        mover(g.cliente_cpf, "resgate", -g.pts, no_dia(g.dia.strftime("%Y-%m-%d")), "movimento", "K7a", FONTE_CLIENTES,
+              g.linha_origem, pedido_da_venda(venda) if isinstance(venda, str) else None,
+              registrado_por=CONTA_MIGRACAO, mudou=mudou)
+
+    mov = pd.DataFrame(linhas).sort_values(["criado_em", "grupo"], kind="stable").reset_index(drop=True)
+    mov["ordem"] = mov.index + 1
+    mov["chave"] = "pts#" + mov["ordem"].astype(str)
+    mov["movimento_original"] = mov["original"].map(dict(zip(mov["ref"], mov["chave"])))
+
+    # K5f: o saldo que termina negativo recebe um ajuste que o zera, no fim de 30/09
+    negativos = passivo_do_extrato(mov)
+    negativos = negativos[negativos["saldo"] < 0]
+    for cliente, n in negativos.iterrows():
+        mover(cliente, "ajuste", -n["saldo"], FIM_DO_EXTRATO, "K5f", "K5f", FONTE_BANCO, None, motivo=MOTIVO_K5F,
+              registrado_por=CONTA_MIGRACAO, chave=f"K5f#{cliente}")
+    k5f = pd.DataFrame(linhas[len(mov):])
+    k5f["ordem"] = range(len(mov) + 1, len(mov) + len(k5f) + 1)
+    k5f["chave"] = "pts#" + k5f["ordem"].astype(str)
+    mov = pd.concat([mov, k5f], ignore_index=True) if len(k5f) else mov
+
+    sem_cliente = ~mov["cliente"].isin(set(saida.tabelas["cliente_sem_conta"]["cpf"].dropna()))
+    for m in mov[sem_cliente].itertuples():
+        saida.pendente("movimento_pontos", m.fonte, m.linha_origem, "cliente", m.cliente,
+                       "dono dos pontos fora dos clientes migrados")
+    for m in mov.itertuples():
+        saida.de_onde("movimento_pontos", m.chave, m.fonte, m.linha_origem, m.decisao)
+        for decisao, valor in m.mudou:
+            if decisao == "linha":  # o saldo inicial que soma mais de uma linha da planilha
+                saida.de_onde("movimento_pontos", m.chave, m.fonte, valor, m.decisao)
+            else:
+                saida.de_onde("movimento_pontos", m.chave, m.fonte, m.linha_origem, decisao,
+                              "pontos" if decisao == "K7b" else "cliente", valor)
+
+    mov = mov.assign(marca=MARCA_VULTO, origem="migracao")
+    colunas = ["ordem", "chave", "cliente", "marca", "tipo", "pontos", "origem", "pedido", "movimento_original",
+               "motivo", "registrado_por", "criado_em"]
+    saida.tabela("movimento_pontos", mov[colunas])
+
+    passivo = passivo_do_extrato(mov)
+    return dict(pontos=int(passivo["saldo"].sum()), reais=round(passivo["reais"].sum(), 2),
+                clientes=int((passivo["saldo"] > 0).sum()), negativos=int((passivo["saldo"] < 0).sum()),
+                k5f=len(k5f), por_decisao=mov.groupby("decisao")["pontos"].agg(["count", "sum"]),
+                com_pedido=int(mov["pedido"].notna().sum()), sem_cliente=int(sem_cliente.sum()))
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--origem", type=Path, default=Path("staging_vulto"))
@@ -940,6 +1121,7 @@ def main():
     por_origem = tratar_clientes(args.origem, saida)
     vendas = tratar_vendas(args.origem, saida)
     estoque = tratar_estoque(args.origem, saida, vendas["original"])
+    fidelidade = tratar_fidelidade(args.origem, saida)
     saida.gravar(args.destino)
 
     print("clientes por origem:", por_origem.to_dict())
@@ -952,6 +1134,10 @@ def main():
           f"peças sem variante: {estoque['sem_variante']} | canceladas sem a peça no saldo (V17): "
           f"{estoque['canceladas_sem_peca']} | CD abaixo do mínimo: {estoque['abaixo_do_minimo']}, "
           f"sem mínimo: {estoque['sem_minimo']}")
+    print(f"passivo em 01/10/2026: {fidelidade['pontos']:,} pts = R$ {fidelidade['reais']:,.2f} de "
+          f"{fidelidade['clientes']:,} clientes | saldos negativos: {fidelidade['negativos']} (K5f: {fidelidade['k5f']}) | "
+          f"movimentos com pedido: {fidelidade['com_pedido']:,} | dono fora dos clientes: {fidelidade['sem_cliente']}")
+    print(fidelidade["por_decisao"].to_string())
 
     for nome, df in saida.tabelas.items():
         print(f"{nome}: {len(df)} linhas")
