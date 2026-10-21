@@ -1,5 +1,5 @@
-# Confere no banco de verdade as garantias do usuário restrito da API, do saldo do estoque e do
-# cancelamento automático da reserva vencida (ADRs 0002 e 0005). Tudo roda numa transação desfeita
+# Confere no banco de verdade as garantias do usuário restrito da API, do saldo do estoque, do saldo de
+# pontos e do cancelamento automático da reserva vencida (ADRs 0002 e 0005). Tudo roda numa transação desfeita
 # no final: nada fica gravado.
 # Uso, na raiz do repositório com o venv ativo e a DATABASE_URL do usuário restrito no .env:
 #   python -m scripts.conferir_banco
@@ -134,6 +134,7 @@ def conferir(db: Session) -> Conferencia:
     login = tentar(db, "SELECT login_por_email(:email)", {"email": f"ninguem-{sufixo}@casalorenzi.example"})
     c.registrar("a API consulta login pela função do banco", login is None, str(login))
     conferir_reserva_vencida(c, db, local, sufixo)
+    conferir_fidelidade(c, db, sufixo)
     divergencias = estoque_repository.listar_divergencias(db)
     c.registrar("depois do teste, o saldo continua batendo", not divergencias, f"{len(divergencias)} divergente(s)")
     return c
@@ -172,6 +173,46 @@ def conferir_reserva_vencida(c: Conferencia, db: Session, local: dict, sufixo: s
     c.registrar("reserva vencida é cancelada pela função do pg_cron",
                 erro is None and (status, motivo, reservada) == ("cancelado", "reserva_vencida", 0),
                 str(erro) if erro else f"pedido {status}/{motivo}, reservado {reservada}")
+
+
+# migration 3532b648a2ad: o saldo de pontos só muda pelo trigger, o resgate gasta primeiro o ponto mais
+# antigo (FIFO, K3), a devolução volta para os mesmos lotes e a plataforma nunca deixa o saldo negativo
+def conferir_fidelidade(c: Conferencia, db: Session, sufixo: str) -> None:
+    dono = {"c": db.scalar(text(
+        "INSERT INTO cliente_sem_conta (email, origem) VALUES (:email, 'migracao_vulto') RETURNING id_cliente_sem_conta"
+    ), {"email": f"conferencia-{sufixo}@vulto.example"})}
+
+    def movimento(tipo: str, pontos: int, quando: str, original: int | None = None) -> int:
+        return db.scalar(text("""
+            INSERT INTO movimento_pontos (id_cliente_sem_conta, marca, tipo, pontos, origem, criado_em,
+                                          id_movimento_original)
+            VALUES (:c, 'vulto', :tipo, :pontos, 'migracao', :quando, :original) RETURNING id_movimento
+        """), {**dono, "tipo": tipo, "pontos": pontos, "quando": quando, "original": original})
+
+    def restantes() -> list[int]:
+        return list(db.scalars(text(
+            "SELECT restante FROM lote_pontos WHERE id_cliente_sem_conta = :c ORDER BY ganho_em"
+        ), dono))
+
+    movimento("saldo_inicial", 1000, "2025-01-01 00:00-03")
+    movimento("credito", 3000, "2025-06-01 12:00-03")
+    resgate = movimento("resgate", -1500, "2025-07-01 12:00-03")
+    categoria = db.scalar(text("SELECT categoria FROM saldo_pontos WHERE id_cliente_sem_conta = :c"), dono)
+    c.registrar("o resgate gasta primeiro o ponto mais antigo (FIFO)", restantes() == [0, 2500], str(restantes()))
+    c.registrar("o crédito sobe a categoria na hora", categoria == "prata", f"categoria {categoria}")
+    movimento("estorno", 1500, "2025-07-02 12:00-03", resgate)
+    c.registrar("o estorno do resgate devolve para os mesmos lotes", restantes() == [1000, 3000], str(restantes()))
+
+    deve_recusar(c, db, "o saldo de pontos não muda direto (só por movimento)",
+                 "UPDATE saldo_pontos SET saldo = 99 WHERE id_cliente_sem_conta = :c", dono)
+    deve_recusar(c, db, "os lotes de pontos não mudam direto", "UPDATE lote_pontos SET restante = 0", {})
+    deve_recusar(c, db, "movimento de pontos não é editado",
+                 "UPDATE movimento_pontos SET motivo = 'x' WHERE id_cliente_sem_conta = :c", dono)
+    deve_recusar(c, db, "regra de fidelidade não é apagada", "DELETE FROM regra_fidelidade", {})
+    deve_recusar(c, db, "a plataforma não deixa o saldo de pontos negativo",
+                 "INSERT INTO movimento_pontos (id_cliente_sem_conta, marca, tipo, pontos, origem, motivo) "
+                 "VALUES (:c, 'vulto', 'ajuste', -99999, 'plataforma', 'teste')", dono)
+    deve_recusar(c, db, "a API não roda o job de vencimento", "SELECT vence_pontos()", {})
 
 
 # executa dentro de um savepoint e mantém o resultado (desfeito junto com a transação no final)
