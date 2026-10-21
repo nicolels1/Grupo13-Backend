@@ -219,7 +219,7 @@ Documento consolidado com o contexto do case, as decisões tomadas ao longo do p
 - Valor total = itens + frete; frete zero na retirada e na venda física. Na entrega em casa, R$ 19,90, grátis a partir de R$ 299,00 em itens. O item guarda o preço do momento da compra.
 - Pagamento online pelo gateway simulado: a cobrança nasce pendente e é aprovada ou recusada; recusada, o cliente tenta de novo enquanto a reserva vale (ADR 0011).
 - Vários pagamentos por pedido; fica pago quando aprovados − estornos aprovados ≥ total. Métodos: Pix, crédito, débito e dinheiro (só loja física).
-- **Estorno:** lançamento próprio, ligado ao pagamento original. Pode ser parcial e volta pelo mesmo método. Com vários pagamentos, quem atende escolhe de qual sai. Todo estorno tem uma origem: **atendimento** (ligado ao chamado), **balcão** (com a pessoa da equipe e a loja) ou **cancelamento** (pela equipe, retirada vencida ou pagamento depois da reserva vencida).
+- **Estorno:** lançamento próprio, ligado ao pagamento original. Pode ser parcial e volta pelo mesmo método. Com vários pagamentos, quem atende escolhe de qual sai. Todo estorno tem uma origem: **atendimento** (ligado ao chamado), **balcão** (com a pessoa da equipe e a loja) ou **cancelamento** (pela equipe, retirada vencida ou pagamento depois da reserva vencida). Na Entrega 3, o pagamento e o estorno trazidos da Vulto têm a origem **migração**, e só eles aceitam o método "não informado" (P7).
 
 ### Clientes e contas
 
@@ -283,6 +283,7 @@ Cada funcionário está ligado a um modelo de acesso e pode ter exceções indiv
 | Balcão | registrar troca e devolução | sim | sim | — | — | sim |
 | Atendimento | atender chamado | sim | sim | — | sim | — |
 | Avaliações | moderar avaliações | sim | — | — | sim | — |
+| Fidelidade | gerenciar as regras de fidelidade (Entrega 3) | sim | — | — | — | — |
 
 - O **Vendedor** trabalha no balcão de uma loja: a conta fica ligada a ela. Consulta o estoque das unidades só para ler (sem as permissões de estoque). A troca pelo Atendimento continua usando `atender_chamado`.
 
@@ -290,7 +291,7 @@ Cada funcionário está ligado a um modelo de acesso e pode ter exceções indiv
 - Sempre há pelo menos uma conta ativa no Admin; modelo com pessoas ligadas não pode ser desativado.
 - Permissões lidas do banco a cada ação: mudanças valem na hora.
 - As três permissões da Gestão (gerenciar contas, gerenciar modelos de acesso e gerenciar unidades) são só do Admin: não entram em outro modelo nem em exceção. Exceção só vale para conta interna. As regras do Admin são garantidas por trigger no banco (ADRs 0009 e 0010).
-- No sistema, cada permissão tem um código. São 16: `gerenciar_contas`, `gerenciar_modelos_acesso`, `gerenciar_catalogo`, `gerenciar_unidades`, `movimentar_estoque`, `definir_estoque_minimo`, `solicitar_transferencia`, `enviar_transferencia`, `receber_transferencia`, `registrar_venda_fisica`, `preparar_entregar_pedido`, `cancelar_pedido_equipe`, `corrigir_cadastro_cliente`, `atender_chamado`, `moderar_avaliacoes`, `registrar_troca_devolucao`.
+- No sistema, cada permissão tem um código. São 17: `gerenciar_contas`, `gerenciar_modelos_acesso`, `gerenciar_catalogo`, `gerenciar_unidades`, `movimentar_estoque`, `definir_estoque_minimo`, `solicitar_transferencia`, `enviar_transferencia`, `receber_transferencia`, `registrar_venda_fisica`, `preparar_entregar_pedido`, `cancelar_pedido_equipe`, `corrigir_cadastro_cliente`, `atender_chamado`, `moderar_avaliacoes`, `registrar_troca_devolucao`, `gerenciar_fidelidade` (Entrega 3).
 
 ---
 
@@ -355,6 +356,20 @@ Campos com `?` aceitam vazio. A chave primária vem primeiro. No banco, nomes fi
 | VOTO_UTIL | id_avaliacao + id_cliente, criado_em | AVALIACAO, USUARIO |
 | DENUNCIA_AVALIACAO | id_denuncia, id_avaliacao, id_cliente, motivo, status, id_analisada_por?, analisada_em?, criada_em — uma por cliente por avaliação | AVALIACAO, USUARIO |
 
+### Entrega 3: migração da Vulto e fidelidade
+
+Colunas novas: `marca` em UNIDADE e PRODUTO; `ean` em VARIANTE; `canal_venda`, `valor_desconto` e `id_cliente_sem_conta?` em PEDIDO; `id_cliente_sem_conta?`, `canal_externo?` e `contato_externo?` em CHAMADO (e `id_cliente` passa a aceitar vazio: o chamado tem um dos dois); `nome_autor_externo?` em MENSAGEM (e `id_autor` passa a aceitar vazio: a mensagem tem um dos dois).
+
+| Tabela | Campos | Liga com |
+| --- | --- | --- |
+| CLIENTE_SEM_CONTA | id_cliente_sem_conta, cpf? (único), email?, nome?, telefone?, aceita_mensagem?, origem, id_usuario?, criado_em — CPF ou e-mail | PEDIDO, CHAMADO, pontos (1:N); USUARIO quando cria a conta |
+| ORIGEM_MIGRACAO | id_origem, tabela, id_registro, fonte, linha_origem, campo?, valor_original?, decisao?, criado_em — nunca alterada | qualquer registro migrado (sem FK) |
+| REGRA_FIDELIDADE | id_regra, marca, valida_desde, valor_ponto, pontos_por_real, multiplicador_online, bonus_ouro, validade_meses?, validade_meses_ouro?, limite_prata, limite_ouro, resgate_minimo, id_criado_por?, criado_em — nunca alterada | USUARIO |
+| MOVIMENTO_PONTOS | id_movimento, id_cliente? ou id_cliente_sem_conta?, marca, tipo, pontos, origem, id_pedido?, id_movimento_original?, motivo?, id_registrado_por?, criado_em, ganho_em? — nunca alterado | PEDIDO, LOTE_PONTOS, CONSUMO_PONTOS |
+| SALDO_PONTOS | id_saldo, id_cliente? ou id_cliente_sem_conta?, marca, saldo, categoria, categoria_desde, ano_referencia, ganhos_no_ano, atualizado_em — um por cliente e marca, só o trigger muda | USUARIO, CLIENTE_SEM_CONTA |
+| LOTE_PONTOS | id_movimento, id_cliente? ou id_cliente_sem_conta?, marca, ganho_em, valor_ponto, pontos, restante, vence_em? — só o trigger muda | MOVIMENTO_PONTOS |
+| CONSUMO_PONTOS | id_consumo, id_movimento, id_lote, pontos — nunca alterado | MOVIMENTO_PONTOS, LOTE_PONTOS |
+
 Campos de "quem fez" (minimo_alterado_por, id_registrado_por, id_cancelado_por, id_analisada_por, id_alterado_por etc.) apontam para USUARIO, mas não têm linha no diagrama para não poluí-lo. `auth.users` aparece só como referência.
 
 ### Valores aceitos
@@ -364,6 +379,7 @@ Campos de status e de tipo só aceitam os valores abaixo, sempre em minúsculas 
 | Campo | Valores aceitos |
 | --- | --- |
 | unidade.tipo | loja, cd |
+| marca (unidade, produto, fidelidade) | lorenzi, vulto |
 | canal (estoque, movimentação, pedido, item de transferência) | loja_fisica, online |
 | movimentacao_estoque.tipo | saldo_inicial, recebimento, avaria, perda, ajuste, venda, retorno_cancelamento, devolucao, saida_troca, saida_transferencia, entrada_transferencia, saida_realocacao, entrada_realocacao |
 | transferencia.status | solicitada, enviada, recebida, cancelada |
@@ -371,19 +387,25 @@ Campos de status e de tipo só aceitam os valores abaixo, sempre em minúsculas 
 | pedido.modalidade | entrega, retirada (só na venda online) |
 | pedido.motivo_cancelamento | cliente, reserva_vencida, retirada_vencida, equipe |
 | pedido.devolucao | nenhuma, parcial, total |
+| pedido.canal_venda | loja, site, app (loja só no canal loja_fisica) |
 | pagamento.tipo | pagamento, estorno |
-| pagamento.metodo | pix, cartao_credito, cartao_debito, dinheiro |
+| pagamento.metodo | pix, cartao_credito, cartao_debito, dinheiro, nao_informado (só no pagamento migrado) |
 | pagamento.status | pendente, aprovado, recusado |
-| pagamento.origem | cancelamento, atendimento, balcao (só em estorno) |
+| pagamento.origem | cancelamento, atendimento, balcao (estorno); migracao (pagamento e estorno trazidos da Vulto) |
 | usuario.tipo_conta | interna, cliente |
 | usuario.status_conta | pendente_ativacao, ativa, inativa |
 | usuario_permissao_excecao.efeito | acrescentar, retirar |
-| chamado.categoria | entrega, troca_devolucao, estorno, duvida, outros |
+| chamado.categoria | entrega, troca_devolucao, estorno, duvida, pagamento, outros |
+| chamado.canal_externo | whatsapp, instagram, email (só no atendimento migrado) |
 | chamado.status | aberto, em_andamento, concluido |
 | chamado.prioridade | baixa, media, alta |
 | chamado.motivo_encerramento | resolvido, desistencia, sem_resposta |
 | avaliacao.status | publicada, oculta |
 | denuncia_avaliacao.status | pendente, procedente, improcedente |
+| cliente_sem_conta.origem | migracao_vulto |
+| movimento_pontos.tipo | saldo_inicial, credito, resgate, estorno, ajuste, vencimento |
+| movimento_pontos.origem | migracao, plataforma |
+| saldo_pontos.categoria | bronze, prata, ouro |
 
 ### Como ler o diagrama
 
@@ -441,7 +463,7 @@ O modelo já foi pensado para não travar nela:
 
 - Funcionários da Vulto entram como contas internas comuns (a entrada decide pelo tipo de conta, não pelo domínio do e-mail).
 - Lojas e CDs da Vulto entram como novas unidades.
-- **A decidir:** incluir campo de marca/empresa em UNIDADE, PRODUTO e talvez USUARIO; como unir clientes que existam nas duas bases.
+- **Decidido na Entrega 3:** campo `marca` em UNIDADE e PRODUTO (P1; o USUARIO não ganhou marca); o cliente da Vulto entra como cliente sem conta e passa para a conta quando se cadastra com o mesmo CPF ou e-mail (P2, ADR 0016). As decisões estão no [registro de decisões da migração](../../migracao_vulto/registro_decisoes.md).
 
 ### Evoluções futuras (depois da Entrega 2)
 
