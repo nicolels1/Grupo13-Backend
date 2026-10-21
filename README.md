@@ -272,7 +272,7 @@ As fotos aparecem em `imagens` de cada produto, com a URL pública.
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
 | GET | `/vendas/pedidos`, `/vendas/pedidos/{id}` | qualquer permissão de vendas ou `atender_chamado` | pedidos, com filtros: status, canal, modalidade, unidade, código, `pronto_ha_mais_de_dias` e data de criação (`de`, `ate`; data sem hora vale o dia inteiro) |
-| POST | `/vendas/pedidos` | `registrar_venda_fisica` | venda na loja: nasce paga e entregue, baixa o estoque de loja física. CPF opcional (`cpf_nota`): com conta, liga o pedido; sem conta, fica guardado no pedido |
+| POST | `/vendas/pedidos` | `registrar_venda_fisica` | venda na loja: nasce paga e entregue, baixa o estoque de loja física. CPF opcional (`cpf_nota`): com conta, liga o pedido; de um cliente da Vulto que ainda não criou conta, liga a ele (e ele ganha os pontos); sem nenhum dos dois, fica guardado no pedido |
 | POST | `/vendas/pedidos/{id}/enviar` | `preparar_entregar_pedido` | entrega em casa paga → enviada |
 | POST | `/vendas/pedidos/{id}/pronto-retirada` | `preparar_entregar_pedido` | retirada paga → pronta (começa o prazo de 7 dias) |
 | POST | `/vendas/pedidos/{id}/entregar` | `preparar_entregar_pedido` | entrega o pedido enviado ou retirado (na retirada, confere o código) |
@@ -342,6 +342,8 @@ Vale para qualquer pedido entregue há no máximo 30 dias, com ou sem conta, e s
 ### Fidelidade
 
 Cada marca tem o seu programa de pontos (P10). O saldo, a categoria e o vencimento ficam no banco (trigger e pg_cron).
+
+Os pontos entram e saem sozinhos, pelo banco: o pedido de quem tem conta (ou é cliente sem conta da Vulto) ganha pontos quando os pagamentos aprovados cobrem o total, pela regra da marca da unidade, e cada estorno de dinheiro tira a mesma proporção dos pontos do pedido, sem deixar o saldo negativo se o cliente já os gastou. O pagamento migrado da Vulto não mexe nos pontos. A compra só com o CPF na nota ganha os pontos quando passa para a conta (no cadastro), pela data da compra: vale, vence e entra na fila de resgate como se tivesse sido creditada naquele dia, e não ganha nada se esses pontos já teriam vencido ou se a marca ainda não tinha programa de fidelidade.
 
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
