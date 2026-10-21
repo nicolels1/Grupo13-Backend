@@ -1108,6 +1108,114 @@ def tratar_fidelidade(origem: Path, saida: Saida) -> dict:
                 com_pedido=int(mov["pedido"].notna().sum()), sem_cliente=int(sem_cliente.sum()))
 
 
+# ---------- atendimento ----------
+
+FONTE_ATENDIMENTO = "atendimentos_export_whatsapp_insta.csv"
+FILA_DESDE = "2026-09-01"  # em aberto a partir daqui entra na fila; antes, foi abandonado (A4b)
+FALA = r"\[(Atendente|Cliente|Bot)\]:?"
+NOME_DO_BOT = "Bot"
+
+
+# P6: a conversa num campo só vira a primeira fala do cliente (a descrição) e as seguintes, [(quem, texto)]
+def falas(mensagem: str | None) -> tuple[str, list[tuple[str, str]]]:
+    partes = re.split(FALA, mensagem or "")
+    return partes[0].strip(), [(quem, texto.strip()) for quem, texto in zip(partes[1::2], partes[2::2])]
+
+
+# A3, A4a, A4b, P6, P9, J3, A1, A5–A7: um chamado por atendimento que migra, com a primeira fala do cliente
+# como descrição e as seguintes como mensagens já lidas. O cliente é o dono do pedido citado e, sem ele, o
+# do contato (J1a, com a K2); sem os dois, entra sem cliente. O estorno do V4 ganha o chamado do pedido (P7)
+def tratar_atendimento(origem: Path, saida: Saida) -> dict:
+    atendimentos = ler(origem, "atendimentos").replace("", None)
+    vendas = ler(origem, "banco_vendas").replace("", None)
+    categorias = de_para("categoria_chamado").set_index("tag")
+    situacao = de_para("status_chamado").set_index("valor_vulto")["situacao"]
+    canais = de_para("canal_atendimento").set_index("valor_vulto")["canal"]
+    atendentes = de_para("atendente").set_index("grafia")
+    contas = de_para("conta_interna").set_index("conta")["email"]
+    clientes = set(saida.tabelas["cliente_sem_conta"]["cpf"].dropna()) | \
+        set(saida.tabelas["cliente_sem_conta"]["email"].dropna())
+    pedidos = saida.tabelas["pedido"].set_index("codigo_venda")["cliente"]
+
+    _, _, comp = identidade_das_vendas(origem)
+    venda = r.venda_do_atendimento(atendimentos, vendas)
+    codigos = dict(zip(vendas["id"], map(r.codigo_venda, vendas["pedido_externo"], vendas["id"])))
+    chamados, mensagens = [], []
+
+    for i, a in atendimentos.iterrows():
+        if a["tags"] not in categorias.index or categorias.loc[a["tags"], "migra"] != "sim":
+            continue  # A3: spam e teste
+        chave = f"atd#{a['id']}"
+        cat = categorias.loc[a["tags"]]
+        pedido = codigos.get(venda.loc[i, "id_venda"])
+        pedido = pedido if pedido in pedidos.index else None
+        pelo_contato = comp.identidade(a["contato_tipo"], a["contato_valor"])
+        dono = next((c for c in (pedidos.get(pedido), pelo_contato) if isinstance(c, str) and c in clientes), None)
+        status_vulto = a["status"] if isinstance(a["status"], str) else "(vazio)"
+        if status_vulto not in situacao.index:
+            saida.pendente("chamado", FONTE_ATENDIMENTO, a["linha_origem"], "status", a["status"], "status sem tradução")
+            continue
+        aberto = situacao[status_vulto] == "em_aberto"
+        na_fila = aberto and a["data_hora"] >= FILA_DESDE
+        grafia = r.sem_acento(str(a["atendente"]).strip().lower())
+        atendente = atendentes.loc[grafia] if grafia in atendentes.index else None
+        if atendente is None and isinstance(a["atendente"], str):
+            saida.pendente("mensagem", FONTE_ATENDIMENTO, a["linha_origem"], "atendente", a["atendente"],
+                           "atendente sem tradução")
+        autor = contas[atendente["conta"]] if atendente is not None else CONTA_MIGRACAO
+        quem_falou = a["nome_contato"] if isinstance(a["nome_contato"], str) else a["contato_valor"]
+
+        descricao, seguintes = falas(a["mensagem"])
+        chamados.append(dict(
+            chave=chave, cliente=dono, pedido=pedido, categoria=cat["categoria"], assunto=cat["assunto"],
+            descricao=descricao,
+            status="aberto" if na_fila else "concluido",
+            motivo_encerramento=None if na_fila else ("sem_resposta" if aberto else "resolvido"),
+            responsavel=autor if not na_fila and atendente is not None and atendente["responsavel"] == "sim" else None,
+            canal_externo=canais.get(a["canal"]), contato_externo=a["contato_valor"],
+            criado_em=a["data_hora"], concluido_em=None if na_fila else a["data_hora"]))
+        saida.de_onde("chamado", chave, FONTE_ATENDIMENTO, a["linha_origem"], "P6")
+        for campo, valor, decisao in (("assunto", a["assunto"], "A4a"), ("status", a["status"], "A4b"),
+                                      ("canal", a["canal"], "P6")):
+            if isinstance(valor, str):
+                saida.de_onde("chamado", chave, FONTE_ATENDIMENTO, a["linha_origem"], decisao, campo, valor)
+        if a["canal"] not in canais.index:
+            saida.pendente("chamado", FONTE_ATENDIMENTO, a["linha_origem"], "canal", a["canal"], "canal sem tradução")
+
+        # P6: as falas seguintes, na ordem; o cliente sem autor, o bot e o atendente genérico na "Migração Vulto"
+        for n, (quem, texto) in enumerate(seguintes, start=1):
+            if quem == "Cliente":
+                autor_fala, nome = None, quem_falou or "Cliente"
+            elif quem == "Bot":
+                autor_fala, nome = CONTA_MIGRACAO, NOME_DO_BOT
+            else:
+                autor_fala, nome = autor, a["atendente"] if autor == CONTA_MIGRACAO else None
+            mensagens.append(dict(chave=f"{chave}#{n}", chamado=chave, autor=autor_fala, nome_autor_externo=nome,
+                                  conteudo=texto, interna=False, lida_em=a["data_hora"],
+                                  criado_em=a["data_hora"]))
+            saida.de_onde("mensagem", f"{chave}#{n}", FONTE_ATENDIMENTO, a["linha_origem"], "P6")
+
+    chamado = pd.DataFrame(chamados)
+    mensagem = pd.DataFrame(mensagens)
+    saida.tabela("chamado", chamado)
+    saida.tabela("mensagem", mensagem)
+
+    # P7: o estorno do V4 aponta para o chamado do pedido (o mais recente, quando há mais de um)
+    pagamento = saida.tabelas["pagamento"]
+    do_pedido = chamado.dropna(subset=["pedido"]).sort_values("criado_em").groupby("pedido")["chave"].last()
+    estorno_v4 = pagamento["chave"].isin({o["id_registro"] for o in saida.origem
+                                          if o["tabela"] == "pagamento" and o["decisao"] == "V4"})
+    pagamento["chamado"] = pagamento["pedido"].map(do_pedido).where(estorno_v4)
+    saida.tabela("pagamento", pagamento)
+
+    sem_cliente = chamado["cliente"].isna()
+    return dict(chamados=len(chamado), mensagens=len(mensagem), com_cliente=int((~sem_cliente).sum()),
+                sem_cliente=chamado[sem_cliente].groupby("categoria").size().to_dict(),
+                com_pedido=int(chamado["pedido"].notna().sum()), na_fila=int((chamado["status"] == "aberto").sum()),
+                motivo=chamado["motivo_encerramento"].value_counts().to_dict(),
+                estornos_com_chamado=int(pagamento["chamado"].notna().sum()), sem_descricao=int((chamado["descricao"] == "").sum()))
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--origem", type=Path, default=Path("staging_vulto"))
@@ -1122,6 +1230,7 @@ def main():
     vendas = tratar_vendas(args.origem, saida)
     estoque = tratar_estoque(args.origem, saida, vendas["original"])
     fidelidade = tratar_fidelidade(args.origem, saida)
+    atendimento = tratar_atendimento(args.origem, saida)
     saida.gravar(args.destino)
 
     print("clientes por origem:", por_origem.to_dict())
@@ -1138,6 +1247,7 @@ def main():
           f"{fidelidade['clientes']:,} clientes | saldos negativos: {fidelidade['negativos']} (K5f: {fidelidade['k5f']}) | "
           f"movimentos com pedido: {fidelidade['com_pedido']:,} | dono fora dos clientes: {fidelidade['sem_cliente']}")
     print(fidelidade["por_decisao"].to_string())
+    print("atendimento:", atendimento)
 
     for nome, df in saida.tabelas.items():
         print(f"{nome}: {len(df)} linhas")
