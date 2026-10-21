@@ -407,6 +407,8 @@ def test_pecas_batel_separa_quantidade_nome_cor_e_tamanho():
     assert r.pecas_batel("2x pochete nylon branco U + moletom zíper college azul marinho M") == [
         (2, "POCHETE NYLON", "BRA", "U"), (1, "MOLETOM ZIPER COLLEGE", "AZM", "M")]
 
+    assert r.vendedor("1", "rafa.pin", "2025-10-31") == "rafael.lima"  # presumido: dia seguinte ao último dele
+    assert r.vendedor("1", "Rafa", "2025-11-10") == "rafaela.couto"  # presumido: véspera do primeiro dela
 
 def test_pedido_original_pela_referencia_e_pelo_cliente_e_peca():
     lancamentos = pd.DataFrame({
