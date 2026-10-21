@@ -114,21 +114,21 @@ Por produto, a Savassi tem a maior margem: o total de cada modelo está certo, m
 
 ## 3. Passivo de pontos do Vulto+ em 01/10/2026
 
-**9.448.034 pontos ≈ R$ 653.817,40**, de 2.710 clientes com saldo.
+**9.441.236 pontos ≈ R$ 653.137,60**, de 2.710 clientes com saldo.
 
 | Parcela | Pontos | Valor do ponto | R$ |
 |---|---:|---:|---:|
-| Ganhos até fev/2025 | 3.628.314 | R$ 0,10 | 362.831,40 |
+| Ganhos até fev/2025 | 3.621.516 | R$ 0,10 | 362.151,60 |
 | Ganhos desde mar/2025 | 5.819.720 | R$ 0,05 | 290.986,00 |
-| **Total** | **9.448.034** | | **653.817,40** |
+| **Total** | **9.441.236** | | **653.137,60** |
 
-O valor do ponto é o da época em que ele foi ganho (K3), e o resgate gasta primeiro os pontos mais antigos (FIFO). O sistema da Vulto vale tudo a R$ 0,10 (R$ 944.803,40); se tudo valesse a regra nova, R$ 0,05, seriam R$ 472.401,70.
+O valor do ponto é o da época em que ele foi ganho (K3), e o resgate gasta primeiro os pontos mais antigos (FIFO). O sistema da Vulto vale tudo a R$ 0,10 (R$ 944.123,60); se tudo valesse a regra nova, R$ 0,05, seriam R$ 472.061,80.
 
 De onde vêm os pontos:
 
 | Decisão | Lançamentos | Pontos |
 |---|---:|---:|
-| Saldo da planilha em 01/01/2025, somando os cadastros do mesmo CPF e os ATIVOS da aba antiga (K5a, K1, K5d, K2) | 2.422 | 3.686.986 |
+| Saldo da planilha em 01/01/2025, somando os cadastros do mesmo CPF e os ATIVOS da aba antiga (K5a, K1, K5d, K2) | 2.422 | 3.680.188 |
 | Créditos do banco (C) | 11.384 | 6.951.483 |
 | Resgates do banco (D) | 562 | −472.900 |
 | Estornos do banco (E) | 101 | −103.618 |
@@ -137,9 +137,9 @@ De onde vêm os pontos:
 | Pontos de venda que não vale e bug do app sem correção (K6) | 658 | −862.858 |
 | Resgates anotados só na planilha (K7a) | 84 | −78.300 |
 | Saldos negativos zerados (K5f) | 4 | +2.050 |
-| **Passivo em 01/10/2026** | | **9.448.034** |
+| **Passivo em 01/10/2026** | | **9.441.236** |
 
-Os pontos creditados em telefone, celular sem DDD ou CPF digitado errado vão para o dono certo (J1c, J1d, K2); os 509 CPFs que só existem nos pontos entram como clientes sem conta (K8). O vencimento e o bônus Ouro valem só a partir de 01/10/2026 (K4a): se o vencimento de 12 meses tivesse sido aplicado, 4,87 milhões de pontos já teriam vencido.
+Os pontos creditados em telefone, celular sem DDD ou CPF digitado errado vão para o dono certo (J1c, J1d, K2); os 486 CPFs que só existem nos pontos entram como clientes sem conta (K8). O vencimento e o bônus Ouro valem só a partir de 01/10/2026 (K4a): se o vencimento de 12 meses tivesse sido aplicado, 4,86 milhões de pontos já teriam vencido.
 
 ### Margem de erro
 

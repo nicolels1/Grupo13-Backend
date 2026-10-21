@@ -434,7 +434,8 @@ def saldo_inicial(clientes: pd.DataFrame, antigos: pd.DataFrame, pendencias: pd.
     c["cpf"] = c["cpf"].fillna(corrigido)
     sem_dono = c.loc[c["cpf"].isna(), "pts"].sum()
     planilha = c.dropna(subset=["cpf"]).groupby("cpf")["pts"].sum()
-    so_antiga = antigos[~antigos["CPF/CNPJ"].isin(clientes["cpf"]) & (antigos["STATUS"] == "ATIVO")]
+    # com o CPF já corrigido: quem tem o CPF digitado errado na aba nova também está nas duas abas (K5c)
+    so_antiga = antigos[~antigos["CPF/CNPJ"].isin(c["cpf"]) & (antigos["STATUS"] == "ATIVO")]
     ativos = pd.to_numeric(so_antiga["PONTOS_2023"]).groupby(so_antiga["CPF/CNPJ"]).sum()
     return planilha.add(ativos, fill_value=0), sem_dono
 

@@ -191,6 +191,17 @@ def test_valorar_fifo_gasta_primeiro_o_ponto_antigo():
     assert (saldo["antigo"], saldo["novo"], saldo["pontos"]) == (0, 200, 200)
 
 
+def test_saldo_inicial_nao_soma_a_aba_antiga_de_quem_tem_o_cpf_corrigido():
+    # o ATIVO da aba antiga está na aba nova com o CPF digitado errado: vale só o saldo da aba nova (K5c)
+    clientes = pd.DataFrame({"linha_origem": ["Clientes!2"], "cpf": [None], "Pontos": ["108"]})
+    antigos = pd.DataFrame({"CPF/CNPJ": ["52998224725"], "PONTOS_2023": ["6798"], "STATUS": ["ATIVO"]})
+    pendencias = pd.DataFrame({"fonte": ["clientes"], "coluna": ["cpf"], "linha": ["Clientes!2"],
+                               "valor": ["52998224726"]})
+    saldo, sem_dono = r.saldo_inicial(clientes, antigos, pendencias, {"52998224725"})
+    assert saldo.to_dict() == {"52998224725": 108}
+    assert sem_dono == 0
+
+
 # ---------- estoque ----------
 
 @pytest.mark.parametrize(
