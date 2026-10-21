@@ -55,6 +55,97 @@ def precos_referencia(catalogo: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
     return c.groupby("chave")["preco"].max(), c.groupby(c["chave"].str[:6])["preco"].max()
 
 
+# Coleções do catálogo, da mais antiga para a mais nova, com a data em que o preço de cada uma passou a
+# valer no histórico de preço (C14, premissa). A aba antiga tem os preços de 2024; a Atemporais é revisada
+# em março (o reajuste das vendas começa em mar/2025, C8); a Inverno 25 recebe e vende a partir do fim de
+# mar/2025; a Verão 26 e a Inverno 26 valem a partir da primeira data de lançamento da planilha; a Verão 25,
+# anterior às vendas, fica com o mesmo dia da Verão 26 um ano antes. A ordem decide a coleção mais nova
+# (C1): nos 43 SKUs da Atemporais e da Verão 26, as lojas cobraram o da Verão 26 em 1.176 de 1.228 vendas
+ABA_ANTIGA = "2024 (aba antiga)"
+INICIO_COLECAO = {ABA_ANTIGA: "2024-01-01", "Verão 25": "2024-09-25", "Atemporais": "2025-03-01",
+                  "Inverno 25": "2025-03-25", "Verão 26": "2025-09-25", "Inverno 26": "2026-03-25"}
+# preço praticado nas lojas (C19) e "os últimos 3 meses" da C8: jul–set/2026; a C19 exige 3 vendas
+PRATICADO_DESDE, PRATICADO_ATE, VENDAS_DO_PRATICADO = "2026-07-01", "2026-10-01", 3
+SUFIXO_PECA_ANTIGA = "-A"  # SKU da peça antiga de um código reaproveitado (C2)
+
+
+# SKU sem o tamanho, com o tamanho só na coluna (C20): a grade inteira ("P/M/G/GG") vira uma linha por
+# tamanho e o tamanho único ("U") completa o SKU. Guarda o SKU escrito na planilha em sku_vulto
+def expandir_grade(catalogo: pd.DataFrame) -> pd.DataFrame:
+    c = catalogo.assign(sku_vulto=catalogo["sku"], grade=False)
+    sem_tamanho = c["sku"].map(sku_oficial).isna() & (c["tamanho"].fillna("") != "")
+    grade = c[sem_tamanho].assign(tamanho=c.loc[sem_tamanho, "tamanho"].str.split("/")).explode("tamanho")
+    grade = grade.assign(tamanho=grade["tamanho"].str.strip(), grade=True)
+    grade["sku"] = grade["sku"] + " " + grade["tamanho"]
+    return pd.concat([c[~sem_tamanho], grade], ignore_index=True)
+
+
+def digito_ean(base: str) -> str:
+    return str((10 - sum(int(d) * (3 if i % 2 else 1) for i, d in enumerate(base)) % 10) % 10)
+
+
+# EAN de fábrica que dá para usar (C12): 13 dígitos com o dígito verificador certo. O Excel cortou alguns
+# em notação científica (7890231000000): os zeros do fim não são o código, mesmo quando o dígito bate por acaso
+def ean_de_fabrica(ean) -> bool:
+    s = "" if pd.isna(ean) else str(ean).strip()
+    return bool(re.fullmatch(r"\d{13}", s)) and not s.endswith("000000") and s[12] == digito_ean(s[:12])
+
+
+def nome_normalizado(nome) -> str:
+    return re.sub(r"\s+", " ", sem_acento(str(nome)).upper().strip())
+
+
+# Código reaproveitado (C2): modelo cujo nome na aba antiga não aparece em nenhuma aba nova. Devolve
+# {modelo: nome da peça antiga}; as linhas da aba antiga desse modelo são da peça antiga
+def codigos_reaproveitados(catalogo: pd.DataFrame) -> dict:
+    c = catalogo.assign(modelo=catalogo["sku"].map(sku_oficial).str[:11], nome_n=catalogo["nome"].map(nome_normalizado))
+    c = c.dropna(subset=["modelo"])
+    antiga = c[c["colecao"] == ABA_ANTIGA].groupby("modelo")["nome_n"].agg(set)
+    novas = c[c["colecao"] != ABA_ANTIGA].groupby("modelo")["nome_n"].agg(set)
+    return {m: min(nomes) for m, nomes in antiga.items() if m in novas and not nomes & novas[m]}
+
+
+# Variante do item vendido: o SKU oficial e, no código reaproveitado, a peça pela descrição gravada no
+# item ("Moletom Careca Estonado MRR" é a peça antiga do VLT-MOL-001), nunca pela data (C2)
+def variante_vendida(sku_of, descricao, reaproveitados: dict):
+    if sku_of is None or pd.isna(sku_of):
+        return None
+    antigo = reaproveitados.get(sku_of[:11])
+    if antigo and nome_normalizado(descricao).startswith(antigo):
+        return sku_of + SUFIXO_PECA_ANTIGA
+    return sku_of
+
+
+# Itens vendidos em loja física, com a variante e o preço cobrado, para o preço praticado (C8, C19):
+# só venda (sem devolução), sem teste e sem os pedidos do app (que podem estar em centavos, V1)
+def vendas_em_loja(vendas: pd.DataFrame, itens: pd.DataFrame, reaproveitados: dict) -> pd.DataFrame:
+    v = vendas[vendas["loja_id"].astype(str).isin(LOJAS_FISICAS)]
+    v = v[[not eh_teste(*r) for r in zip(v["obs"], v["cliente_ref"], v["cliente_valor"], v["pedido_externo"])]]
+    v = v[~v["pedido_externo"].fillna("").str.startswith("APP-")]
+    it = itens.merge(v[["id", "criado_em"]], left_on="venda_id", right_on="id")
+    it = it.assign(q=pd.to_numeric(it["qtd"]), preco=pd.to_numeric(it["preco_unit"]),
+                   dia=it["criado_em"].map(dia_brasilia), sku_of=it["sku"].map(sku_oficial))
+    it = it[(it["q"] > 0) & (it["preco"] > 0) & it["sku_of"].notna()]
+    it["variante"] = [variante_vendida(s, d, reaproveitados) for s, d in zip(it["sku_of"], it["descricao"])]
+    return it[["variante", "dia", "preco", "q"]]
+
+
+# Preço mais cobrado de cada variante numa janela (o de mais peças; no empate, o maior) e quantas vendas
+def preco_mais_cobrado(vendidos: pd.DataFrame, desde: str, ate: str) -> pd.DataFrame:
+    j = vendidos[(vendidos["dia"] >= desde) & (vendidos["dia"] < ate)]
+    pecas = j.groupby(["variante", "preco"])["q"].sum().reset_index().sort_values(["variante", "q", "preco"])
+    mais = pecas.groupby("variante").tail(1).set_index("variante")
+    return mais.assign(vendas=j.groupby("variante").size())[["preco", "vendas"]]
+
+
+# Primeiro dia em que a loja física cobrou esse preço pela variante, a partir de uma data (data do preço
+# praticado no histórico, C19 e C8)
+def primeira_venda_ao_preco(vendidos: pd.DataFrame, variante: str, preco: float, desde: str) -> str | None:
+    d = vendidos.loc[(vendidos["variante"] == variante) & (vendidos["preco"].round(2) == round(preco, 2))
+                     & (vendidos["dia"] >= desde), "dia"]
+    return d.min() if len(d) else None
+
+
 # ---------- vendas: classificação ----------
 
 # Situação do pedido a partir das grafias do status (V13). Vazio só existe na loja física em
