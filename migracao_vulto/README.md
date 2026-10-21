@@ -113,7 +113,7 @@ Os padrões assumidos e as decisões de negócio que esta seção listava como p
 | Assunto | Decisões |
 |---|---|
 | Cliente: CPF, celular, e-mail e @ | J1a, J1b, J1c, J1d, K2, K9a |
-| SKU, cor, categoria e preço | J2, C1, C6, C7, C8, C13, C17, C18, C19 |
+| SKU, cor, categoria e preço | J2, C1, C6, C7, C8, C13, C14, C17, C18, C19, C20 |
 | Peça descontinuada, código reaproveitado, variante fora do catálogo | C2, C3, C4 |
 | Canal, loja e status da venda | V12, P3, V2, V3, V4, V5, V13, V19 |
 | Centavos do app, frete, desconto e teste | V1, V7, V18, V8 |

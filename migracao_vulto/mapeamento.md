@@ -66,7 +66,7 @@ Evidência: `banco_lojas`, `banco_funcionarios`, tabela `config` do vulto.db e `
 
 ## 2. Catálogo (Matias)
 
-Evidência: `notebooks/02_catalogo.ipynb`. Decisões: J2, C1–C19, P1, P8.
+Evidência: `notebooks/02_catalogo.ipynb`. Decisões: J2, C1–C20, P1, P8.
 
 | Vulto | Casa Lorenzi | Situação |
 |---|---|---|
@@ -74,13 +74,14 @@ Evidência: `notebooks/02_catalogo.ipynb`. Decisões: J2, C1–C19, P1, P8.
 | — | `produto.descricao_tecnica`, `descricao_cliente` (obrigatórias) | ✅ o nome nas duas descrições (C5) |
 | `catalogo.categoria` | `produto.id_categoria` → `categoria_produto` | ✅ pelo código de categoria do SKU, compartilhada com a Lorenzi (C18) |
 | `catalogo.sku`, `cor`, `tamanho` | `variante.sku`, `cor`, `tamanho` | ✅ SKU oficial longo (J2); cor pelo código do SKU com a tabela de letras (C7); mesma peça em dois formatos vira uma variante (C13) |
-| `catalogo.preco` | `variante.preco` | ✅ coleção mais nova (C1), mesmo modelo na aba nova para os SKUs da aba antiga (C8), preço praticado quando for maior (C19), colunas trocadas destrocadas (C17) |
+| `catalogo.preco` | `variante.preco` | ✅ coleção mais nova (C1), na ordem das datas da C14; os 47 SKUs só na aba antiga com o preço dela, que é o praticado (C8); preço praticado quando for maior, hoje nenhum (C19); colunas trocadas destrocadas (C17) |
 | aba da planilha (coleção: Verão 25, Inverno 25, Verão 26, Atemporais) | — | ❌ não vira coluna; serve para o preço e o histórico (C9) |
-| aba `PLANILHA ANTIGA NAO USAR` (297) | `variante`, `historico_preco` | ✅ cria os SKUs que não estão em outra aba (C8) |
+| aba `PLANILHA ANTIGA NAO USAR` (297) | `variante`, `historico_preco` | ✅ cria os 47 SKUs que não estão em outra aba (C8) |
 | preços das coleções antigas | `historico_preco` | ✅ na data de início de cada coleção (C14) |
 | `catalogo.descontinuado` | `variante.ativo` (falso só sem estoque; C3) + origem da migração | ✅ as 93 com só o SKU em vermelho também são descontinuadas (C3) |
 | `catalogo.revisar_preco` (fundo amarelo, 5) | — | ✅ migra com o preço da planilha e vai para a Marina (C10) |
-| variantes vendidas que não estão no catálogo (452) | `variante` criada a partir do modelo | ✅ criadas a partir do modelo (C4) |
+| variantes vendidas que não estão no catálogo (0 depois da J2) | `variante` criada a partir do modelo | ✅ criadas a partir do modelo quando houver (C4) |
+| linha com a grade de tamanhos (12 linhas, 46 variantes) | `variante` | ✅ uma variante por tamanho (C20) |
 | `catalogo.custo` | — | ❌ descartado; usado só para achar as colunas trocadas (C11, C17) |
 | `catalogo.ean` | `variante.ean` | ✅ coluna nova e busca do caixa (C12) |
 | — | `produto.marca` | ✅ coluna `marca` (P1) |
