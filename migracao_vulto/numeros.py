@@ -180,7 +180,7 @@ def calcular_estoque(origem: Path, destino: Path, vendas_classificadas: pd.DataF
     itens = pd.read_csv(origem / "banco_itens_venda.csv", dtype=str)
     catalogo = pd.read_csv(origem / "catalogo_produtos.csv", dtype=str)
 
-    e = estoque_na_data_base(vendas_classificadas, itens, entradas, contagem, estoque)
+    e = estoque_na_data_base(vendas_classificadas, itens, entradas, contagem, estoque, catalogo)
     vendidos, movimentos, contada, transito, datas, posicao = (
         e["vendidos"], e["movimentos"], e["contada"], e["transito"], e["datas"], e["posicao"])
 
