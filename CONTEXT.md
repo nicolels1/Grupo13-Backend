@@ -263,6 +263,10 @@ Urgência de um chamado, definida por quem o assume.
 Mensagem de um chamado visível só ao time, nunca ao cliente.
 _Evite_: nota, comentário
 
+**Atendimento externo**:
+Chamado migrado da Vulto, que atendia por WhatsApp, Instagram e e-mail fora da plataforma. Guarda o canal e o contato que a pessoa usou. A fala do cliente não tem autor (ele não tem usuário) e leva o nome de quem falou; fala sem autor é sempre do cliente do chamado, também depois que ele cria a conta.
+_Evite_: chamado antigo, conversa importada
+
 **Motivo de conclusão**:
 Por que um chamado foi concluído: resolvido, desistência ou sem resposta.
 
