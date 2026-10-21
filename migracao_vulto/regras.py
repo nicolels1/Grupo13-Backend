@@ -933,14 +933,18 @@ def a_um_erro(codigo: str) -> set:
 # catálogo tem, para criar a variante a partir dele (como a C4); a única variante a um erro de digitação
 # quando o código não lê ou o modelo não existe (VLT-CLA-003 é VLT-CAL-003, MOL071LP é MOL017LP); sem
 # variante única, "ILEGÍVEL" com o código original. Devolve (sku, como foi lido)
+def candidatos_a_um_erro(codigo, formas: dict) -> set:
+    compacto = sem_acento(str(codigo)).upper().replace("-", "").replace(" ", "").removeprefix("VLT")
+    return {formas[c] for c in a_um_erro(compacto) if c in formas}
+
+
 def peca_contada(codigo, variantes: set, formas: dict) -> tuple[str, str]:
     oficial = sku_oficial(codigo)
     if oficial in variantes:
         return oficial, "catálogo"
     if oficial and any(v.startswith(oficial[:12]) for v in variantes):
         return oficial, "modelo do catálogo"
-    compacto = sem_acento(str(codigo)).upper().replace("-", "").replace(" ", "").removeprefix("VLT")
-    candidatos = {formas[c] for c in a_um_erro(compacto) if c in formas}
+    candidatos = candidatos_a_um_erro(codigo, formas)
     if len(candidatos) == 1:
         return candidatos.pop(), "digitação corrigida"
     return f"ILEGÍVEL {codigo}", "ilegível"
@@ -954,6 +958,20 @@ def posicao_contada(contagem: pd.DataFrame, estoque: pd.DataFrame, itens_loja: p
     formas = formas_compactas(variantes)
     lido = [peca_contada(codigo, variantes, formas) for codigo in por_sku["codigo"]]
     por_sku["sku"], por_sku["leitura"] = [l[0] for l in lido], [l[1] for l in lido]
+    # E10: o código com mais de um candidato fica com o único que a loja tem no sistema e não contou
+    # (VLT-BE-R007-AZM-42: o 40 e o 44 estão na contagem, o 42 só no sistema)
+    sistema_loja = estoque.assign(sku=estoque["sku"].map(sku_oficial), q=pd.to_numeric(estoque["qtd"]))
+    sistema_loja = sistema_loja[sistema_loja["q"] > 0]
+    sistema_loja = set(zip(sistema_loja["loja_id"], sistema_loja["sku"]))
+    loja_da_unidade = {u: i for i, u in LOJAS_FISICAS.items()}
+    ilegivel = por_sku["leitura"] == "ilegível"
+    for i in por_sku.index[ilegivel]:
+        unidade = por_sku.at[i, "unidade"]
+        contadas = set(por_sku.loc[(por_sku["unidade"] == unidade) & ~ilegivel, "sku"])
+        candidatos = [v for v in candidatos_a_um_erro(por_sku.at[i, "codigo"], formas)
+                      if v not in contadas and (loja_da_unidade.get(unidade), v) in sistema_loja]
+        if len(candidatos) == 1:
+            por_sku.loc[i, ["sku", "leitura"]] = candidatos[0], "digitação corrigida pelo sistema"
     linhas = [por_sku[["unidade", "sku", "q", "linha_origem", "observacao", "codigo", "leitura"]]]
 
     savassi = LOJAS_FISICAS["3"]
@@ -970,23 +988,42 @@ def posicao_contada(contagem: pd.DataFrame, estoque: pd.DataFrame, itens_loja: p
     return pd.concat(linhas, ignore_index=True)
 
 
-# Itens vendidos que mexem no estoque: sem teste, cópia, cancelada (a saída e a volta se anulam, V17) e
-# aguardando (nunca saiu). Online sai do CD; o ship from store, da Pinheiros (V10). Devolução volta
-def itens_que_baixam(vendas: pd.DataFrame, itens: pd.DataFrame) -> pd.DataFrame:
-    v = vendas[~vendas["teste"] & ~vendas["copia"].astype(bool) & ~vendas["situacao"].isin(["cancelado", "aguardando"])
-               & ~vendas["relancamento_batel"]].copy()
+# Itens de vendas que mexem no estoque, com a venda e o item de origem. Online sai do CD; o ship from
+# store, da Pinheiros (V10). Devolução volta
+def _itens_movidos(v: pd.DataFrame, itens: pd.DataFrame) -> pd.DataFrame:
+    v = v.copy()
     sfs = v["obs"].fillna("").str.lower().str.contains("sfs|pinheiros")
     v["unidade_estoque"] = v["unidade"].where(~sfs, LOJAS_FISICAS["1"])
     v["dia"] = v["criado_em"].map(dia_brasilia)
-    it = itens.merge(v[["id", "unidade_estoque", "dia", "tipo", "canal"]], left_on="venda_id", right_on="id")
+    it = itens.merge(v[["id", "unidade_estoque", "dia", "tipo", "canal", "criado_em"]], left_on="venda_id",
+                     right_on="id")
     sinal = it["tipo"].map({"devolucao": 1, "venda": -1, "troca": -1})
     return pd.DataFrame({"unidade": it["unidade_estoque"], "sku": it["sku"].map(sku_oficial), "dia": it["dia"],
-                         "q": sinal * pd.to_numeric(it["qtd"]).abs(), "origem": "venda " + it["canal"]})
+                         "q": sinal * pd.to_numeric(it["qtd"]).abs(), "origem": "venda " + it["canal"],
+                         "venda_id": it["venda_id"], "tipo": it["tipo"], "criado_em": it["criado_em"],
+                         "linha_origem": it["linha_origem"]})
+
+
+def _vendas_do_estoque(vendas: pd.DataFrame) -> pd.Series:
+    return ~vendas["teste"] & ~vendas["copia"].astype(bool) & ~vendas["relancamento_batel"]
+
+
+# Itens vendidos que mexem no estoque: sem teste, cópia, cancelada (a saída e a volta se anulam, V17) e
+# aguardando (nunca saiu)
+def itens_que_baixam(vendas: pd.DataFrame, itens: pd.DataFrame) -> pd.DataFrame:
+    return _itens_movidos(vendas[_vendas_do_estoque(vendas) & ~vendas["situacao"].isin(["cancelado", "aguardando"])],
+                          itens)
+
+
+# Itens das vendas canceladas (V17): na plataforma, a peça sai na venda e volta no cancelamento
+def itens_cancelados(vendas: pd.DataFrame, itens: pd.DataFrame) -> pd.DataFrame:
+    return _itens_movidos(vendas[_vendas_do_estoque(vendas) & (vendas["situacao"] == "cancelado")], itens)
 
 
 # Movimentos de entrada e transferência (E4): fornecedor no CD ou na loja; saída do CD pareada com o
 # recebimento da loja (mesmo SKU e quantidade, até DIAS_PAREAMENTO dias); transferência entre lojas.
-# Envio sem recebimento entra na loja na data do envio, menos os dos últimos dias, que ficam em trânsito (E13)
+# Envio sem recebimento entra na loja na data do envio, menos os dos últimos dias, que ficam em trânsito (E13).
+# Cada movimento leva a linha de origem e, na transferência, a chave dela (as linhas do envio e do recebimento)
 def movimentos_de_entrada(entradas: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     e = entradas.assign(sku=entradas["sku"].map(sku_oficial), q=pd.to_numeric(entradas["qtd"]), dia=entradas["data"])
     unidade = e["loja_id"].map(LOJAS_FISICAS).fillna(CD)
@@ -1000,13 +1037,16 @@ def movimentos_de_entrada(entradas: pd.DataFrame) -> tuple[pd.DataFrame, pd.Data
     # fornecedor: o que entra com quantidade e não é transferência
     fornecedor = e[~eh_saida & ~do_cd & de_loja.isna() & e["q"].notna()]
     movs.append(pd.DataFrame({"unidade": unidade[fornecedor.index], "sku": fornecedor["sku"], "dia": fornecedor["dia"],
-                              "q": fornecedor["q"], "origem": "entrada de fornecedor"}))
+                              "q": fornecedor["q"], "origem": "entrada de fornecedor",
+                              "linha_origem": fornecedor["linha_origem"]}))
     # entre lojas: entra numa e sai da outra no mesmo dia
     entre = e[de_loja.notna()]
     movs.append(pd.DataFrame({"unidade": unidade[entre.index], "sku": entre["sku"], "dia": entre["dia"],
-                              "q": entre["q"], "origem": "transferência entre lojas"}))
+                              "q": entre["q"], "origem": "transferência entre lojas", "linha_origem": entre["linha_origem"],
+                              "transferencia": entre["linha_origem"]}))
     movs.append(pd.DataFrame({"unidade": de_loja[entre.index], "sku": entre["sku"], "dia": entre["dia"],
-                              "q": -entre["q"], "origem": "transferência entre lojas"}))
+                              "q": -entre["q"], "origem": "transferência entre lojas", "linha_origem": entre["linha_origem"],
+                              "transferencia": entre["linha_origem"]}))
 
     # CD → loja: pareia cada envio com um recebimento ainda livre, o mais próximo na data
     envios = e[eh_saida].assign(destino=saida[eh_saida].str[0], qtd_envio=saida[eh_saida].str[1])
@@ -1019,21 +1059,31 @@ def movimentos_de_entrada(entradas: pd.DataFrame) -> tuple[pd.DataFrame, pd.Data
         if candidatos:
             r = min(candidatos, key=lambda r: abs((pd.Timestamp(r.dia) - pd.Timestamp(envio.dia)).days))
             usados.add(r.Index)
-            transferencias.append((envio.sku, envio.destino, envio.qtd_envio, envio.dia, r.dia, "pareada"))
+            transferencias.append((envio.sku, envio.destino, envio.qtd_envio, envio.dia, r.dia, "pareada",
+                                   envio.linha_origem, r.linha_origem))
         elif envio.dia >= EM_TRANSITO_DESDE:
-            transito.append((envio.sku, envio.destino, envio.qtd_envio, envio.dia))
-            transferencias.append((envio.sku, envio.destino, envio.qtd_envio, envio.dia, None, "em trânsito"))
+            transito.append((envio.sku, envio.destino, envio.qtd_envio, envio.dia, envio.linha_origem))
+            transferencias.append((envio.sku, envio.destino, envio.qtd_envio, envio.dia, None, "em trânsito",
+                                   envio.linha_origem, None))
         else:
-            transferencias.append((envio.sku, envio.destino, envio.qtd_envio, envio.dia, envio.dia, "só o envio"))
+            transferencias.append((envio.sku, envio.destino, envio.qtd_envio, envio.dia, envio.dia, "só o envio",
+                                   envio.linha_origem, None))
     for r in recebidos[~recebidos.index.isin(usados)].itertuples():
-        transferencias.append((r.sku, r.destino, r.q, r.dia, r.dia, "só o recebimento"))
-    t = pd.DataFrame(transferencias, columns=["sku", "destino", "q", "dia_envio", "dia_recebimento", "forma"])
+        transferencias.append((r.sku, r.destino, r.q, r.dia, r.dia, "só o recebimento", None, r.linha_origem))
+    t = pd.DataFrame(transferencias, columns=["sku", "destino", "q", "dia_envio", "dia_recebimento", "forma",
+                                              "linha_envio", "linha_recebimento"])
+    t["transferencia"] = t["linha_envio"].fillna(t["linha_recebimento"])
     movs.append(pd.DataFrame({"unidade": CD, "sku": t["sku"], "dia": t["dia_envio"], "q": -t["q"],
-                              "origem": "transferência do CD para a loja (" + t["forma"] + ")"}))
+                              "origem": "transferência do CD para a loja (" + t["forma"] + ")",
+                              "linha_origem": t["linha_envio"].fillna(t["linha_recebimento"]),
+                              "transferencia": t["transferencia"]}))
     chegou = t[t["dia_recebimento"].notna()]
     movs.append(pd.DataFrame({"unidade": chegou["destino"], "sku": chegou["sku"], "dia": chegou["dia_recebimento"],
-                              "q": chegou["q"], "origem": "transferência do CD para a loja (" + chegou["forma"] + ")"}))
-    return pd.concat(movs, ignore_index=True), pd.DataFrame(transito, columns=["sku", "destino", "q", "dia_envio"])
+                              "q": chegou["q"], "origem": "transferência do CD para a loja (" + chegou["forma"] + ")",
+                              "linha_origem": chegou["linha_recebimento"].fillna(chegou["linha_envio"]),
+                              "transferencia": chegou["transferencia"]}))
+    return pd.concat(movs, ignore_index=True), pd.DataFrame(transito, columns=["sku", "destino", "q", "dia_envio",
+                                                                               "linha_origem"])
 
 
 # Posição de cada peça no fim de 30/09: a contada mais os movimentos depois da contagem. Nas lojas, a
@@ -1114,3 +1164,25 @@ def separar_canal(posicao: pd.DataFrame, vendidos: pd.DataFrame) -> pd.DataFrame
     separado = p[eh_pinheiros & (online > 0)].assign(canal="online", q=online[online > 0])
     p.loc[eh_pinheiros, "q"] = p.loc[eh_pinheiros, "q"] - online
     return pd.concat([p[p["q"] > 0], separado], ignore_index=True)
+
+
+# Saldo de cada peça em cada unidade no começo do histórico, 01/01/2025 (E2): a posição em 30/09 menos os
+# movimentos e mais os ajustes de saída que o histórico lançou. Somados, o saldo inicial, os movimentos e os
+# ajustes dão a posição. Devolve só as peças com saldo
+def saldo_inicial_estoque(posicao: pd.DataFrame, movimentos: pd.DataFrame, ajustes: pd.DataFrame) -> pd.Series:
+    chave = ["unidade", "sku"]
+    s = posicao.groupby(chave)["q"].sum().sub(movimentos.groupby(chave)["q"].sum(), fill_value=0) \
+        .add(ajustes.groupby(chave)["q"].sum(), fill_value=0).round()
+    return s[s > 0].astype(int)
+
+
+SAIDA_DO_MES = ("2026-09-01", "2026-09-30")  # os 30 dias antes da data base (E14)
+MINIMO_PISO = 2
+
+
+# Estoque mínimo do CD (E14): a saída de cada peça nos últimos 30 dias (vendas online e envios para as lojas;
+# a transferência anotada dos dois lados é um envio só, E4), com piso de 2. Peça sem saída fica sem mínimo.
+# As lojas ficam sem mínimo
+def estoque_minimo_cd(movimentos: pd.DataFrame) -> pd.Series:
+    m = movimentos[(movimentos["unidade"] == CD) & (movimentos["q"] < 0) & movimentos["dia"].between(*SAIDA_DO_MES)]
+    return m.groupby("sku")["q"].sum().abs().clip(lower=MINIMO_PISO).astype(int)
