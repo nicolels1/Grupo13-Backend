@@ -541,24 +541,74 @@ def saldo_inicial(clientes: pd.DataFrame, antigos: pd.DataFrame, pendencias: pd.
     return planilha.add(ativos, fill_value=0), sem_dono
 
 
-# Créditos que não valem e ainda não foram estornados (K6), com quanto falta estornar de cada um.
-# `vendas` já vem classificada por lancamentos_banco (situação, cópia, teste)
+MOTIVO_NAO_VALE = {"teste": "Venda de teste (V8)", "copia": "Pedido gravado duas vezes pelo app (V5)",
+                   "cancelado": "Venda cancelada (V19)", "aguardando": "Pagamento nunca aprovado (V3)",
+                   "estornado": "Venda estornada ou com chargeback (V4)"}
+MOTIVO_BUG_APP = "Bug do app de jun/2026: crédito sobre o valor em centavos (K6)"
+
+
+def _chave_pdv(cliente_ref, valor, loja_id, criado_em) -> tuple:
+    return cliente_ref, round(float(valor), 2), loja_id, str(criado_em)[:10]
+
+
+# Compras com crédito em venda que não vale (K6), com o motivo. `vendas` já vem classificada por
+# lancamentos_banco (situação, cópia, teste)
+def compras_que_nao_valem(compras: pd.DataFrame, vendas: pd.DataFrame) -> pd.Series:
+    v = vendas.dropna(subset=["compra_id"]).assign(cid=lambda d: d["compra_id"].str.removesuffix(".0"))
+    motivo = pd.Series(None, index=v.index, dtype=object)
+    estornada = v["situacao"].isin(["estornado", "chargeback"]) & (v["tipo"] != "devolucao")
+    for grupo, nao_vale in [("estornado", estornada), ("aguardando", v["situacao"] == "aguardando"),
+                            ("cancelado", v["situacao"] == "cancelado"), ("copia", v["copia"]), ("teste", v["teste"])]:
+        motivo[nao_vale] = MOTIVO_NAO_VALE[grupo]  # o último vale: teste > cópia > situação
+    invalidas = dict(zip(v.loc[motivo.notna(), "cid"], motivo.dropna()))
+    # loja física: a compra não aponta para a venda; liga a cancelada pelo cliente, valor, loja e dia
+    fis = vendas[vendas["loja_id"].isin(list(LOJAS_FISICAS)) & (vendas["situacao"] == "cancelado")]
+    chave_fis = set(map(_chave_pdv, fis["cliente_ref"], fis["total"], fis["loja_id"], fis["criado_em"]))
+    pdv = compras[compras["origem"] == "pdv"]
+    for cid, chave in zip(pdv["id"], map(_chave_pdv, pdv["cliente_ref"], pdv["valor"], pdv["loja_id"], pdv["criado_em"])):
+        if chave in chave_fis:
+            invalidas[cid] = MOTIVO_NAO_VALE["cancelado"]
+    return pd.Series(invalidas, dtype=object)
+
+
+# Venda de cada compra com pontos: o site e o app apontam para ela; a da loja física se acha pelo cliente,
+# valor, loja e dia, quando só uma bate. Devolve compra → id da venda
+def venda_da_compra(compras: pd.DataFrame, vendas: pd.DataFrame) -> pd.Series:
+    v = vendas.dropna(subset=["compra_id"])
+    online = pd.Series(v["id"].values, index=v["compra_id"].str.removesuffix(".0")).groupby(level=0).last()
+    fis = vendas[vendas["loja_id"].isin(list(LOJAS_FISICAS)) & vendas["cliente_ref"].notna()]
+    por_chave = pd.Series(fis["id"].values, index=list(map(_chave_pdv, fis["cliente_ref"], fis["total"], fis["loja_id"],
+                                                           fis["criado_em"])))
+    unica = por_chave[~por_chave.index.duplicated(keep=False)]
+    pdv = compras[compras["origem"] == "pdv"]
+    chaves = list(map(_chave_pdv, pdv["cliente_ref"], pdv["valor"], pdv["loja_id"], pdv["criado_em"]))
+    fisica = pd.Series([unica.get(c) for c in chaves], index=pdv["id"].values, dtype=object).dropna()
+    return pd.concat([online, fisica])
+
+
+# Correção do bug do app feita pela Vulto (AJ "correcao bug app"): cada uma tira o excesso de um crédito
+# inflado do mesmo CPF. Ligada a ele, sai dos pontos desse crédito (K3), e não dos mais antigos.
+# Devolve índice do ajuste → índice do crédito
+def credito_corrigido(p: pd.DataFrame, compras: pd.DataFrame) -> pd.Series:
+    comp = compras.assign(v=pd.to_numeric(compras["valor"])).set_index("id")
+    cred = p[p["tipo"] == "C"].assign(v=lambda d: d["compra"].map(comp["v"]), origem=lambda d: d["compra"].map(comp["origem"]))
+    inflado = cred[(cred["origem"] == "app") & (cred["v"] > 3000) & (cred["q"] / cred["v"] >= 0.9)]
+    excesso = inflado["q"] - (inflado["q"] / 100).round()
+    ligados = {}
+    for i, a in p[(p["tipo"] == "AJ") & p["obs"].fillna("").str.contains("bug")].iterrows():
+        bate = excesso[(inflado["cpf"] == a["cpf"]) & (excesso == -a["q"])]
+        if len(bate) == 1:
+            ligados[i] = bate.index[0]
+    return pd.Series(ligados, dtype=object)
+
+
+# Créditos que não valem e ainda não foram estornados (K6), com quanto falta estornar de cada um
 def creditos_a_estornar(p: pd.DataFrame, compras: pd.DataFrame, vendas: pd.DataFrame) -> pd.Series:
     comp = compras.assign(v=pd.to_numeric(compras["valor"])).set_index("id")
     cred = p[p["tipo"] == "C"].copy()
     cred["v"] = cred["compra"].map(comp["v"])
     cred["origem"] = cred["compra"].map(comp["origem"])
-
-    v = vendas.dropna(subset=["compra_id"]).assign(cid=lambda d: d["compra_id"].str.removesuffix(".0"))
-    nao_vale = v["teste"] | v["copia"] | v["situacao"].isin(["cancelado", "aguardando"]) | (
-        v["situacao"].isin(["estornado", "chargeback"]) & (v["tipo"] != "devolucao"))
-    invalidas = set(v.loc[nao_vale, "cid"])
-    # loja física: a compra não aponta para a venda; liga a cancelada pelo cliente, valor, loja e dia
-    fis = vendas[vendas["loja_id"].isin(list(LOJAS_FISICAS)) & (vendas["situacao"] == "cancelado")]
-    chave_fis = set(zip(fis["cliente_ref"], fis["total"].round(2), fis["loja_id"], fis["criado_em"].str[:10]))
-    for cid, linha in comp[comp["origem"] == "pdv"].iterrows():
-        if (linha["cliente_ref"], round(linha["v"], 2), linha["loja_id"], str(linha["criado_em"])[:10]) in chave_fis:
-            invalidas.add(cid)
+    invalidas = set(compras_que_nao_valem(compras, vendas).index)
 
     ja_estornado = p[p["tipo"] == "E"].groupby("compra")["q"].sum()  # E vem negativo
     # bug do app (jun/2026): crédito sobre o valor em centavos; vale 1% do crédito, como a Vulto corrigiu
@@ -616,25 +666,30 @@ def resgates_so_na_planilha(resgates: pd.DataFrame, pendencias: pd.DataFrame, p:
         return any(n == nome if " " in nome else n.split()[0] == nome for n in nomes.get(cpf, set()))
 
     sem = r[r["cliente_cpf"].isna()].copy()
-    achados = []
+    achados, confirmadas = [], []
     for nome, loja, desconto, dia in zip(sem["cliente_nome"].map(chave_busca), sem["loja"], sem["desconto"], sem["dia"]):
         candidatas = v[(v["loja_id"] == LOJA_DO_RESGATE.get(loja)) & ((v["dia"] - dia).dt.days.abs() <= 1)
                        & ((v["desconto"] - desconto).abs() < 0.01)]
-        cpfs = {c for c in candidatas["ref"].dropna() if confirma(nome, c)}
-        achados.append(next(iter(cpfs)) if len(cpfs) == 1 else None)
-    sem["cliente_cpf"] = achados
+        bate = candidatas[candidatas["ref"].map(lambda c: isinstance(c, str) and confirma(nome, c)).astype(bool)]
+        unico = bate["ref"].nunique() == 1
+        achados.append(bate["ref"].iloc[0] if unico else None)
+        confirmadas.append(bate["id"].iloc[-1] if unico else None)  # a venda que confirmou (P4)
+    sem["cliente_cpf"], sem["venda"] = achados, confirmadas
     return pd.concat([com_cpf.assign(regra="K7a com CPF"), sem.assign(regra="K7a sem CPF, pela venda")])
 
 
 # Valor em R$ do saldo de cada cliente pela K3, gastando primeiro os pontos mais antigos (FIFO).
-# Estorno e ajuste ligados a um crédito tiram da época desse crédito; o resgate segue o FIFO
+# Estorno e ajuste ligados a um crédito tiram da época desse crédito; o resgate segue o FIFO. Como no
+# trigger da plataforma, a entrada primeiro cobre o saldo negativo e só o resto fica com a época dela
 def valorar_fifo(movimentos: pd.DataFrame) -> pd.DataFrame:
     saldos = {}
     for cpf, d in movimentos.sort_values("quando", kind="stable").groupby("cpf"):
-        pote = {"antigo": 0.0, "novo": 0.0}
+        pote, divida = {"antigo": 0.0, "novo": 0.0}, 0.0
         for mov, epoca_mov, fifo in zip(d["mov"], d["epoca"], d["fifo"]):
             if mov >= 0:
-                pote[epoca_mov] += mov
+                cobre = min(mov, divida)
+                divida -= cobre
+                pote[epoca_mov] += mov - cobre
                 continue
             falta = -mov
             ordem = ["antigo", "novo"] if fifo else [epoca_mov] + [e for e in ("antigo", "novo") if e != epoca_mov]
@@ -642,7 +697,8 @@ def valorar_fifo(movimentos: pd.DataFrame) -> pd.DataFrame:
                 gasto = min(pote[qual], falta)
                 pote[qual] -= gasto
                 falta -= gasto
-            pote["novo"] -= falta  # o que sobrar deixa o saldo negativo (K5f trata depois)
+            divida += falta  # o que sobrar deixa o saldo negativo (K5f trata depois)
+        pote["novo"] -= divida
         saldos[cpf] = pote
     tabela = pd.DataFrame.from_dict(saldos, orient="index", columns=["antigo", "novo"])
     tabela["pontos"] = tabela["antigo"] + tabela["novo"]

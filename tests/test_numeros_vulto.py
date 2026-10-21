@@ -191,6 +191,19 @@ def test_valorar_fifo_gasta_primeiro_o_ponto_antigo():
     assert (saldo["antigo"], saldo["novo"], saldo["pontos"]) == (0, 200, 200)
 
 
+def test_valorar_fifo_entrada_cobre_primeiro_o_saldo_negativo():
+    # resgatou 800 com 500 no saldo; o crédito seguinte, ainda a R$ 0,10, só paga a dívida (como o trigger)
+    movimentos = pd.DataFrame({
+        "cpf": ["A"] * 4,
+        "mov": [500, -800, 290, 1000],
+        "quando": ["2025-01-01", "2025-02-25", "2025-02-26", "2025-07-01"],
+        "epoca": ["antigo", "antigo", "antigo", "novo"],
+        "fifo": [False, True, False, False],
+    })
+    saldo = r.valorar_fifo(movimentos).loc["A"]
+    assert (saldo["antigo"], saldo["novo"], saldo["pontos"]) == (0, 990, 990)
+
+
 def test_saldo_inicial_nao_soma_a_aba_antiga_de_quem_tem_o_cpf_corrigido():
     # o ATIVO da aba antiga está na aba nova com o CPF digitado errado: vale só o saldo da aba nova (K5c)
     clientes = pd.DataFrame({"linha_origem": ["Clientes!2"], "cpf": [None], "Pontos": ["108"]})
@@ -428,3 +441,38 @@ def test_par_na_planilha_pelo_cliente_e_depois_pelo_valor():
     relancamentos = pd.DataFrame({"id": ["10", "11"], "identidade": ["111", None], "corrigido": [100.0, 50.0]})
     planilha = pd.DataFrame({"linha_origem": ["M!4", "M!5"], "identidade": ["111", None], "valor": [99.0, 50.0]})
     assert r.par_na_planilha(relancamentos, planilha) == {"10": "M!4", "11": "M!5"}
+
+
+# ---------- fidelidade ----------
+
+def test_venda_da_compra_online_pelo_id_e_loja_fisica_so_quando_unica():
+    compras = pd.DataFrame({"id": ["1", "2", "3"], "origem": ["site", "pdv", "pdv"], "cliente_ref": [None, "111", "222"],
+                            "valor": ["100", "50", "80"], "loja_id": ["5", "1", "1"],
+                            "criado_em": ["2026-01-01 10:00:00+00:00"] * 3})
+    vendas = pd.DataFrame({"id": ["10", "20", "30", "31"], "compra_id": ["1.0", None, None, None],
+                           "cliente_ref": [None, "111", "222", "222"], "total": [100.0, 50.0, 80.0, 80.0],
+                           "loja_id": ["5", "1", "1", "1"], "criado_em": ["2026-01-01 10:00:00+00:00"] * 4})
+    # a compra 3 bate com duas vendas iguais: fica sem venda
+    assert r.venda_da_compra(compras, vendas).to_dict() == {"1": "10", "2": "20"}
+
+
+def test_credito_corrigido_liga_a_correcao_do_bug_ao_credito_inflado_do_mesmo_cpf():
+    compras = pd.DataFrame({"id": ["1", "2"], "valor": ["13990", "151940"], "origem": ["app", "app"]})
+    p = pd.DataFrame({"tipo": ["C", "C", "AJ", "AJ"], "cpf": ["A"] * 4, "compra": ["1", "2", None, None],
+                      "q": [13990, 151940, -150421, -13850], "obs": [None, None] + ["correcao bug app v3.4"] * 2})
+    assert r.credito_corrigido(p, compras).to_dict() == {2: 1, 3: 0}
+
+
+def test_passivo_do_extrato_como_o_trigger():
+    from migracao_vulto import tratar as t
+    mov = pd.DataFrame({
+        "cliente": ["A"] * 5,
+        "chave": ["pts#1", "pts#2", "pts#3", "pts#4", "pts#5"],
+        "pontos": [1000, 500, -300, -1100, 400],
+        "movimento_original": [None, None, "pts#2", None, None],  # o estorno sai do crédito de junho
+        "criado_em": ["2025-01-01 03:00:00+00:00", "2025-06-01 12:00:00+00:00", "2025-06-02 12:00:00+00:00",
+                      "2025-07-01 12:00:00+00:00", "2025-08-01 12:00:00+00:00"],
+    })
+    passivo = t.passivo_do_extrato(mov).loc["A"]
+    # o resgate de 1.100 leva os 1.000 antigos e 100 dos 200 de junho; os 400 de agosto entram inteiros
+    assert passivo["saldo"] == 500 and round(passivo["reais"], 2) == 25.0

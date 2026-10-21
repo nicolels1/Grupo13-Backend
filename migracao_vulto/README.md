@@ -8,7 +8,7 @@ Scripts que preparam os dados da Vulto (banco SQLite e planilhas do `vulto-legad
 |---|---|---|---|
 | 0. Original | `vulto-backend/data/` | Cópia congelada dos dados da Vulto. Nunca é alterada (o SQLite é aberto só para leitura). | — |
 | 1. Padronização automática | `staging_vulto/` | Formato de data, número, CPF, e-mail, telefone, texto, encoding e cabeçalho de planilha. Nenhuma regra de negócio. | **Feita** (`padronizar.py`) |
-| 2. Tratamento | `tratado_vulto/` | Padrões assumidos (de-para) e decisões de negócio, com log de cada valor alterado. | Em andamento (`tratar.py`: unidades, contas internas, catálogo e clientes) |
+| 2. Tratamento | `tratado_vulto/` | Padrões assumidos (de-para) e decisões de negócio, com log de cada valor alterado. | Em andamento (`tratar.py`: unidades, contas internas, catálogo, clientes, vendas, estoque e fidelidade) |
 | 3. Carga | banco da Lorenzi | Insere os dados tratados, guardando a origem de cada registro. | A fazer |
 | Os três números | `numeros_vulto/` | Faturamento, estoque e passivo de pontos, calculados do staging com as decisões do registro. Só agregados. | **Feito** (`numeros.py`, resultado em [`numeros.md`](numeros.md)) |
 

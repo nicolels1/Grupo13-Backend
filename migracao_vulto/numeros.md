@@ -113,15 +113,15 @@ Por produto, a Savassi tem a maior margem: o total de cada modelo está certo, m
 
 ## 3. Passivo de pontos do Vulto+ em 01/10/2026
 
-**9.441.236 pontos ≈ R$ 653.137,60**, de 2.710 clientes com saldo.
+**9.441.236 pontos ≈ R$ 653.123,10**, de 2.710 clientes com saldo.
 
 | Parcela | Pontos | Valor do ponto | R$ |
 |---|---:|---:|---:|
-| Ganhos até fev/2025 | 3.621.516 | R$ 0,10 | 362.151,60 |
-| Ganhos desde mar/2025 | 5.819.720 | R$ 0,05 | 290.986,00 |
-| **Total** | **9.441.236** | | **653.137,60** |
+| Ganhos até fev/2025 | 3.621.226 | R$ 0,10 | 362.122,60 |
+| Ganhos desde mar/2025 | 5.820.010 | R$ 0,05 | 291.000,50 |
+| **Total** | **9.441.236** | | **653.123,10** |
 
-O valor do ponto é o da época em que ele foi ganho (K3), e o resgate gasta primeiro os pontos mais antigos (FIFO). O sistema da Vulto vale tudo a R$ 0,10 (R$ 944.123,60); se tudo valesse a regra nova, R$ 0,05, seriam R$ 472.061,80.
+O valor do ponto é o da época em que ele foi ganho (K3), e o resgate gasta primeiro os pontos mais antigos (FIFO). O ponto que entra com o saldo negativo primeiro paga a dívida, como na plataforma (K5f). O sistema da Vulto vale tudo a R$ 0,10 (R$ 944.123,60); se tudo valesse a regra nova, R$ 0,05, seriam R$ 472.061,80.
 
 De onde vêm os pontos:
 
