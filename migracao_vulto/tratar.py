@@ -16,6 +16,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from migracao_vulto import regras as r
 from migracao_vulto.regras import de_para
 
 COLUNAS_ORIGEM = ["tabela", "id_registro", "fonte", "linha_origem", "campo", "valor_original", "decisao"]
@@ -97,6 +98,173 @@ def tratar_contas_internas(origem: Path, saida: Saida):
     saida.tabela("usuario", pd.DataFrame(linhas))
 
 
+# ---------- catálogo ----------
+
+FONTE_CATALOGO = "catalogo_vulto_2026_REVISADO_final.xlsx"
+# P8: o item vendido sem a peça identificada (DIVERSO, PRODUTO SEM CADASTRO) aponta para esta variante
+SKU_SEM_CADASTRO = "VLT-SEM-CADASTRO"
+NOME_SEM_CADASTRO = "Item sem cadastro Vulto"
+CATEGORIA_SEM_CADASTRO = "Sem cadastro Vulto"
+# C16: a mesma imagem da marca em todo produto, no bucket de fotos de produto; a carga sobe o arquivo
+IMAGEM_GENERICA = "vulto/sem-foto.png"
+
+
+# Estoque de cada variante em 01/10/2026 (posição em 30/09 mais o que está em trânsito, E13). No código
+# reaproveitado, o SKU que as duas peças usam fica com a nova e o que só a antiga tem fica com ela (C2)
+def estoque_por_variante(origem: Path, variantes: set) -> pd.Series:
+    vendas, itens = ler(origem, "banco_vendas"), ler(origem, "banco_itens_venda")
+    lancamentos = r.lancamentos_banco(vendas.replace("", None), itens.replace("", None),
+                                      ler(origem, "catalogo_produtos").replace("", None))
+    e = r.estoque_na_data_base(lancamentos[lancamentos["linha_origem"].astype(str).str.startswith("vendas#")],
+                               itens.replace("", None), ler(origem, "banco_entradas_estoque").replace("", None),
+                               ler(origem, "contagem_set26").replace("", None), ler(origem, "banco_estoque").replace("", None))
+    q = pd.concat([e["posicao"][["sku", "q"]], e["transito"][["sku", "q"]]]).groupby("sku")["q"].sum()
+    dono = {s: s if s in variantes else s + r.SUFIXO_PECA_ANTIGA for s in q.index}
+    return q.groupby(dono).sum()
+
+
+# Histórico de preço de uma variante: os preços em ordem de data, sem repetir o mesmo preço seguido.
+# O último é o preço da variante
+def historico(precos: list[tuple[str, float, str]]) -> list[dict]:
+    linhas, anterior = [], None
+    for data, preco, decisao in sorted(precos, key=lambda p: p[0]):
+        if anterior is None or round(preco, 2) != round(anterior, 2):
+            linhas.append(dict(preco_anterior=anterior, preco_novo=round(preco, 2), alterado_em=data, decisao=decisao))
+            anterior = preco
+    return linhas
+
+
+# J2, C1–C20: uma variante por SKU oficial (o curto e o com espaço da mesma peça se juntam, C13), agrupadas
+# em produtos pelo código do modelo (C6), com o preço da coleção mais nova e o histórico das outras
+def tratar_catalogo(origem: Path, saida: Saida):
+    bruto = ler(origem, "catalogo_produtos")
+    reaproveitados = r.codigos_reaproveitados(bruto)
+    c = r.expandir_grade(bruto)
+    c["sku_of"] = c["sku"].map(r.sku_oficial)
+    c["modelo"] = c["sku_of"].str[:11]
+    c["peca_antiga"] = c["modelo"].isin(reaproveitados) & (c["colecao"] == r.ABA_ANTIGA)
+    sufixo = c["peca_antiga"].map({True: r.SUFIXO_PECA_ANTIGA, False: ""})
+    c["variante"], c["produto"] = c["sku_of"] + sufixo, c["modelo"] + sufixo
+    c["data"] = c["colecao"].map(r.INICIO_COLECAO)
+    c["preco_n"], c["custo_n"] = pd.to_numeric(c["preco"]), pd.to_numeric(c["custo"])
+    # C17: custo maior que o preço e igual ao preço de outra linha do mesmo modelo é coluna trocada. O custo
+    # maior sem esse par (14112.00 num preço de 299.90) é custo sem a vírgula: o preço fica, e o custo não
+    # migra (C11)
+    precos_do_modelo = c.groupby("produto")["preco_n"].agg(lambda p: set(p.round(2)))
+    trocado = (c["custo_n"] > c["preco_n"]) & [round(custo, 2) in precos_do_modelo[p] for custo, p
+                                               in zip(c["custo_n"].fillna(-1), c["produto"])]
+    c.loc[trocado, ["preco_n", "custo_n"]] = c.loc[trocado, ["custo_n", "preco_n"]].values
+    c = c.sort_values(["data", "linha_origem"])
+
+    vendidos = r.vendas_em_loja(ler(origem, "banco_vendas"), ler(origem, "banco_itens_venda"), reaproveitados)
+    praticado = r.preco_mais_cobrado(vendidos, r.PRATICADO_DESDE, r.PRATICADO_ATE)
+    estoque = estoque_por_variante(origem, set(c["variante"]))
+    nome_cor = de_para("cor").set_index("codigo")["nome"]
+
+    variantes, historicos, para_marina = [], [], []
+    for v, linhas in c.groupby("variante", sort=False):
+        nova = linhas.iloc[-1]
+        precos = [(l.data, l.preco_n, "C1") for l in linhas.itertuples()]
+        if (linhas["colecao"] == r.ABA_ANTIGA).all() and not nova.peca_antiga:
+            # C8: só na aba antiga; vale o preço do mesmo modelo na coleção mais nova em que ele está
+            modelo = c[(c["produto"] == nova.produto) & (c["colecao"] != r.ABA_ANTIGA)]
+            if len(modelo):
+                ultima = modelo[modelo["data"] == modelo["data"].max()]
+                precos.append((ultima["data"].iloc[0], ultima["preco_n"].mode().max(), "C8"))
+            elif v in praticado.index:
+                p = praticado.loc[v, "preco"]
+                precos.append((r.primeira_venda_ao_preco(vendidos, v, p, nova.data), p, "C8"))
+            # sem o modelo em outra aba e sem venda em jul–set/2026, fica o preço da aba antiga: é o que as
+            # lojas cobram (nos 8 modelos, o mais cobrado desde mar/2025)
+        escolhido = sorted(precos, key=lambda p: p[0])[-1]
+        # C19: o preço mais cobrado nas lojas em jul–set/2026, se for maior que o escolhido
+        if v in praticado.index and praticado.loc[v, "vendas"] >= r.VENDAS_DO_PRATICADO \
+                and praticado.loc[v, "preco"] > escolhido[1] + 0.005:
+            p = praticado.loc[v, "preco"]
+            precos.append((r.primeira_venda_ao_preco(vendidos, v, p, escolhido[0]), p, "C19"))
+        hist = historico(precos)
+        preco = hist[-1]["preco_novo"]
+        historicos += [dict(sku=v, **h) for h in hist]
+
+        # C3: descontinuada pela marcação da coleção mais nova (linha toda ou só o SKU em vermelho); a peça
+        # antiga de um código reaproveitado saiu de linha. Com estoque, segue à venda até acabar
+        descontinuada = nova.peca_antiga or nova.descontinuado in ("True", "")
+        q = int(estoque.get(v, 0))
+        eans = [l.ean for l in linhas.iloc[::-1].itertuples() if r.ean_de_fabrica(l.ean)]
+        _, cat, num, cor, tam = nova.sku_of.split("-")
+        variantes.append(dict(sku=v, produto=nova.produto, ean=eans[0] if eans else None, cor=nome_cor[cor],
+                              tamanho=tam, preco=preco, ativo=not descontinuada or q > 0, estoque_01_10=q))
+
+        # origem de cada linha da planilha e o valor original do que mudou
+        for l in linhas.itertuples():
+            de_onde = lambda campo=None, valor=None, decisao="J2": saida.de_onde(
+                "variante", v, FONTE_CATALOGO, l.linha_origem, decisao, campo, valor)
+            de_onde(decisao="C20" if l.grade else ("C13" if len(linhas) > 1 else "J2"))
+            if l.sku_vulto != v:
+                de_onde("sku", l.sku_vulto, "C2" if l.peca_antiga else ("C20" if l.grade else "J2"))
+            if round(l.preco_n, 2) != preco or l.preco_n != pd.to_numeric(l.preco):
+                de_onde("preco", l.preco, "C17" if l.preco_n != pd.to_numeric(l.preco) else
+                        ("C8" if l.colecao == r.ABA_ANTIGA and (linhas["colecao"] == r.ABA_ANTIGA).all() else "C1"))
+            if l.ean and l.ean != (eans[0] if eans else None):
+                de_onde("ean", l.ean, "C12")
+            if l.cor != nome_cor[cor]:
+                de_onde("cor", l.cor, "C7")
+            if l.descontinuado in ("True", ""):
+                de_onde("descontinuado", "linha toda" if l.descontinuado == "True" else "só o SKU em vermelho", "C3")
+            if l.revisar_preco == "True":
+                para_marina.append(dict(sku=v, linha_origem=l.linha_origem, preco=preco, motivo="revisar preço (C10)",
+                                        decisao="C10"))
+        for l in linhas[trocado.loc[linhas.index]].itertuples():
+            para_marina.append(dict(sku=v, linha_origem=l.linha_origem, preco=l.preco_n,
+                                    motivo=f"preço e custo trocados na planilha: preço {l.preco}, custo {l.custo}",
+                                    decisao="C17"))
+
+    variante = pd.DataFrame(variantes)
+    # C12: o EAN não pode repetir entre variantes; o que repetir sai e o trigger gera o interno
+    repetido = variante["ean"].notna() & variante["ean"].duplicated(keep=False)
+    for l in variante[repetido].itertuples():
+        saida.pendente("variante", FONTE_CATALOGO, l.sku, "ean", l.ean, "EAN de fábrica em mais de uma variante (C12)")
+    variante.loc[repetido, "ean"] = None
+
+    # produtos: o nome da coleção mais nova, preferindo o que não está todo em maiúsculas (C6), e a
+    # categoria pelo código do SKU (C18); as duas descrições com o nome (C5)
+    categoria = de_para("categoria").set_index("codigo_sku")
+    produtos = []
+    for p, linhas in c.groupby("produto", sort=False):
+        nomes = [n for n in linhas["nome"].iloc[::-1] if not n.isupper()] or [linhas["nome"].iloc[-1].title()]
+        nome = nomes[0]
+        produtos.append(dict(codigo=p, nome=nome, categoria=categoria.loc[p[4:7], "categoria"], descricao_tecnica=nome,
+                             descricao_cliente=nome, marca="vulto",
+                             ativo=bool(variante.loc[variante["produto"] == p, "ativo"].any())))
+        saida.de_onde("produto", p, FONTE_CATALOGO, linhas["linha_origem"].iloc[-1], "C6")
+        for original in sorted(set(linhas["nome"]) - {nome}):
+            saida.de_onde("produto", p, FONTE_CATALOGO, linhas.loc[linhas["nome"] == original, "linha_origem"].iloc[0],
+                          "C6", "nome", original)
+        for original in sorted(set(linhas["categoria"]) - {""}):
+            saida.de_onde("produto", p, FONTE_CATALOGO,
+                          linhas.loc[linhas["categoria"] == original, "linha_origem"].iloc[0], "C18", "categoria", original)
+    produto = pd.DataFrame(produtos)
+
+    # P8: o produto e a variante genéricos, fora de venda, numa categoria própria e inativa
+    produto.loc[len(produto)] = dict(codigo=SKU_SEM_CADASTRO, nome=NOME_SEM_CADASTRO, categoria=CATEGORIA_SEM_CADASTRO,
+                                     descricao_tecnica=NOME_SEM_CADASTRO, descricao_cliente=NOME_SEM_CADASTRO,
+                                     marca="vulto", ativo=False)
+    variante.loc[len(variante)] = dict(sku=SKU_SEM_CADASTRO, produto=SKU_SEM_CADASTRO, ean=None, cor="Única",
+                                       tamanho="U", preco=0.0, ativo=False, estoque_01_10=0)
+    saida.de_onde("produto", SKU_SEM_CADASTRO, FONTE_DE_PARA, "P8", "P8")
+
+    # C18: só as categorias que a Lorenzi ainda não tem
+    novas = categoria.loc[categoria["na_lorenzi"] == "nova", "categoria"].tolist()
+    saida.tabela("categoria_produto", pd.DataFrame(
+        [dict(nome=n, ativo=True) for n in novas] + [dict(nome=CATEGORIA_SEM_CADASTRO, ativo=False)]))
+    saida.tabela("produto", produto)
+    saida.tabela("variante", variante)
+    saida.tabela("historico_preco", pd.DataFrame(historicos))
+    saida.tabela("imagem_produto", pd.DataFrame(
+        [dict(produto=p, cor=None, caminho_arquivo=IMAGEM_GENERICA, ordem=1) for p in produto["codigo"]]))
+    saida.tabela("lista_marina", pd.DataFrame(para_marina))
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--origem", type=Path, default=Path("staging_vulto"))
@@ -106,6 +274,7 @@ def main():
     saida = Saida()
     tratar_unidades(args.origem, saida)
     tratar_contas_internas(args.origem, saida)
+    tratar_catalogo(args.origem, saida)
     saida.gravar(args.destino)
 
     for nome, df in saida.tabelas.items():
