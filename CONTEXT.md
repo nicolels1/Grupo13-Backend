@@ -290,6 +290,28 @@ Sinalização de uma avaliação inadequada feita por outro cliente; uma por cli
 Retirada de uma avaliação do ar pela equipe, sempre com motivo.
 _Evite_: exclusão, remoção
 
+## Fidelidade
+
+**Programa de fidelidade**:
+Pontos que o cliente ganha ao comprar e troca por desconto. Cada marca tem o seu: o Vulto+ da Vulto e o da Casa Lorenzi, com saldos separados (os pontos de uma rede não se gastam na outra).
+_Evite_: plano, assinatura (não há mensalidade)
+
+**Regra de fidelidade**:
+Valor do ponto, pontos por real, dobro no online, bônus da categoria Ouro, validade e limites das categorias de uma marca, a partir de uma data. Regra nova vale da data dela em diante e nunca muda o ponto já ganho.
+
+**Movimento de pontos**:
+Lançamento do extrato do cliente: saldo inicial, crédito, resgate, estorno, ajuste ou vencimento. O saldo só muda por movimento, e o movimento nunca é alterado.
+_Evite_: transação, lançamento de pontos
+
+**Lote de pontos**:
+O que sobra de cada entrada de pontos, com o valor do ponto na data em que foi ganho e a data em que vence. O resgate gasta primeiro o lote mais antigo (FIFO), e o vencimento leva só o que sobrou no lote.
+
+**Categoria**:
+Bronze, Prata ou Ouro, pelos pontos ganhos no ano. Sobe na hora em que o cliente passa do limite e só cai na virada do ano, pelos pontos do ano que fechou.
+
+**Passivo de pontos**:
+Quanto a marca deve aos clientes em pontos: o que sobra nos lotes, cada ponto pelo valor da época em que foi ganho.
+
 ## Migração da Vulto
 
 **Origem da migração**:

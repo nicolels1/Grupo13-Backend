@@ -209,7 +209,8 @@ O que a plataforma ganhou para receber a Vulto (cada item cita a decisão do reg
 - **pagamento migrado** (P7): método `nao_informado` e origem `migracao`, aceitos só no pagamento e no estorno migrados; o estorno de um pagamento sem método sai pelo mesmo método, sem gateway;
 - **prazo de troca do pedido migrado** (V13): o pedido online da Vulto, sem data de entrega, conta os 30 dias do pagamento;
 - **atendimento externo** (P6): o chamado migrado guarda o canal (`whatsapp`, `instagram` ou `email`) e o contato de quem escreveu; a fala do cliente entra sem autor, com o nome de quem falou, e conta como do cliente nas mensagens, nas não lidas e na primeira resposta da Visão Geral;
-- **categoria `pagamento`** no chamado (A4a), também para os chamados novos.
+- **categoria `pagamento`** no chamado (A4a), também para os chamados novos;
+- **fidelidade** (P5, K3, K4a, K4c): regras por marca com data, extrato de pontos que nunca muda, saldo e categoria por cliente em cada marca e lotes com o valor da época e o vencimento; o trigger aplica o FIFO, sobe a categoria e vira o ano, e o pg_cron vence os pontos (todo dia) e vira o ano de quem não teve movimento (1º de janeiro). A Lorenzi começa com a mesma regra da Vulto, a partir de 01/10/2026.
 
 Próximos passos, fora da Entrega 3:
 
