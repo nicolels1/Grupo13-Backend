@@ -217,18 +217,18 @@ def por_marca(resumo: list[dict]) -> dict[str, list[dict]]:
     return grupos
 
 
+# um frete só para o carrinho, mesmo com as duas marcas: o frete grátis conta o valor de todas as peças (ADR 0017)
 def resumo_carrinho(db: Session, itens: list[dict]) -> dict:
     resumo = itens_a_venda(db, itens)
     valor_itens = _valor(resumo)
     marcas = []
     for marca, da_marca in por_marca(resumo).items():
-        valor = _valor(da_marca)
         candidatas_da_marca = unidades_com_tudo(db, quantidades(da_marca))
         marcas.append({
-            "marca": marca, "valor_itens": valor, "frete_entrega": calcular_frete(valor, "entrega"),
+            "marca": marca, "valor_itens": _valor(da_marca),
             "entrega_disponivel": escolher_unidade_entrega(candidatas_da_marca, "", "") is not None,
         })
-    frete = sum((m["frete_entrega"] for m in marcas), Decimal("0.00"))
+    frete = calcular_frete(valor_itens, "entrega")
     # retirada: uma loja com tudo (com duas marcas não há, cada loja vende só a sua)
     candidatas = unidades_com_tudo(db, quantidades(itens))
     return {
@@ -241,13 +241,14 @@ def resumo_carrinho(db: Session, itens: list[dict]) -> dict:
 
 
 # reserva as peças na unidade e grava o pedido aguardando pagamento (sem commit: quem chama decide).
-# Na compra do site (ADR 0017) o pedido leva a compra e o prazo da reserva dela
+# Na compra do site (ADR 0017) o pedido leva a compra, o prazo da reserva dela e a sua parte do frete da compra
 def criar_pedido(db: Session, cliente: Usuario, id_unidade: int, modalidade: str, resumo: list[dict],
                  endereco=None, pontos_resgate: int | None = None, id_compra: int | None = None,
-                 reserva_expira_em: datetime | None = None) -> Pedido:
+                 reserva_expira_em: datetime | None = None, frete: Decimal | None = None) -> Pedido:
     reservar(db, id_unidade, quantidades(resumo))
     valor_itens = _valor(resumo)
-    frete = calcular_frete(valor_itens, modalidade)
+    if frete is None:
+        frete = calcular_frete(valor_itens, modalidade)
     pedido = Pedido(
         codigo_venda=novo_codigo_venda(), id_cliente=cliente.id_usuario, id_unidade=id_unidade, id_compra=id_compra,
         canal="online", canal_venda="site", modalidade=modalidade, status="aguardando_pagamento",

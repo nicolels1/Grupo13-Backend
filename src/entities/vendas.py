@@ -201,7 +201,7 @@ class CompraSaida(BaseModel):
     codigo_compra: str
     status: Literal["aguardando_pagamento", "pago", "cancelado"]
     valor_itens: Valor
-    valor_frete: Valor = Field(description="Soma do frete de cada pedido")
+    valor_frete: Valor = Field(description="O frete da compra, um só, repartido entre os pedidos pelo valor das peças")
     valor_desconto: Valor = Field(description="Pontos usados como desconto, somando as marcas")
     valor_total: Valor = Field(description="O que é cobrado: a soma dos pedidos")
     reserva_expira_em: datetime = Field(description="A reserva das peças de todos os pedidos vence junto")
@@ -226,11 +226,10 @@ class ItemResumo(BaseModel):
     subtotal: Valor
 
 
-# cada marca vira um pedido próprio, saindo de uma unidade dela (ADR 0017)
+# cada marca vira um pedido próprio, saindo de uma unidade dela (ADR 0017); o frete é um só, da compra
 class ResumoMarca(BaseModel):
     marca: Marca
     valor_itens: Valor
-    frete_entrega: Valor = Field(description="Frete do pedido desta marca; grátis a partir do valor mínimo")
     entrega_disponivel: bool = Field(description="Algum CD ou loja que despacha desta marca tem todos os itens dela")
 
 
@@ -245,10 +244,11 @@ class ResumoCarrinho(BaseModel):
     itens: list[ItemResumo]
     valor_itens: Valor
     frete_entrega: Valor = Field(
-        description="Soma do frete de cada marca; grátis a partir do valor mínimo; zero na retirada"
+        description="Um frete só para o carrinho, mesmo com as duas marcas; grátis a partir do valor mínimo; zero na "
+                    "retirada"
     )
     frete_gratis_a_partir_de: Valor = Field(
-        description="Valor mínimo em itens de uma marca para o frete dela sair grátis (a loja mostra quanto falta)"
+        description="Valor mínimo em itens do carrinho inteiro para o frete sair grátis (a loja mostra quanto falta)"
     )
     total_entrega: Valor
     total_retirada: Valor

@@ -1,5 +1,5 @@
 import secrets
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal
 
 from sqlalchemy.orm import Session
 
@@ -21,6 +21,16 @@ ZERO = Decimal("0.00")
 
 def novo_codigo_compra() -> str:
     return "CP" + "".join(secrets.choice(pedidos.ALFABETO_DO_CODIGO) for _ in range(8))
+
+
+# o frete da compra é um só; cada pedido leva a parte proporcional ao valor das suas peças, para o faturamento
+# de cada marca fechar com o que o cliente pagou. Os centavos que sobram do arredondamento ficam no último
+def ratear_frete(frete: Decimal, valores: list[Decimal]) -> list[Decimal]:
+    total = sum(valores, ZERO)
+    if frete == 0 or total == 0:
+        return [ZERO for _ in valores]
+    partes = [(frete * valor / total).quantize(Decimal("0.01"), ROUND_DOWN) for valor in valores[:-1]]
+    return partes + [frete - sum(partes, ZERO)]
 
 
 # ---------- montagem da resposta ----------
@@ -70,7 +80,7 @@ def _cancelar(db: Session, compra: Compra, da_compra: list[Pedido], motivo: str,
 
 # escolhe a unidade de cada marca, reserva as peças por 15 minutos e cria a compra com um pedido por marca,
 # tudo na mesma transação: se uma marca não tem as peças, nada é reservado. Com as duas marcas, só entrega em
-# casa: cada loja vende só a sua. Cada marca tem o seu programa de pontos, então os pontos de cada uma viram
+# casa: cada loja vende só a sua. O frete é um só, pelo valor de todas as peças, repartido entre os pedidos. Cada marca tem o seu programa de pontos, então os pontos de cada uma viram
 # desconto no pedido dela, com as regras de sempre (mínimo, saldo e desconto menor que as peças da marca)
 def checkout(db: Session, cliente: Usuario, dados: dict) -> dict:
     resumo = pedidos.itens_a_venda(db, dados["itens"])
@@ -98,6 +108,8 @@ def checkout(db: Session, cliente: Usuario, dados: dict) -> dict:
             raise RegraDeNegocio(f"Peças da {NOMES_DAS_MARCAS[marca]}: {erro}") from erro
         escolhidas.append((marca, unidade["id_unidade"], endereco, da_marca))
 
+    valores = [sum((i["subtotal"] for i in da_marca), ZERO) for _, _, _, da_marca in escolhidas]
+    fretes = ratear_frete(pedidos.calcular_frete(sum(valores, ZERO), dados["modalidade"]), valores)
     expira_em = pedidos.agora() + pedidos.RESERVA
     compra = Compra(codigo_compra=novo_codigo_compra(), id_cliente=cliente.id_usuario, status="aguardando_pagamento",
                     valor_total=ZERO, reserva_expira_em=expira_em)
@@ -105,8 +117,8 @@ def checkout(db: Session, cliente: Usuario, dados: dict) -> dict:
     db.flush()
     criados = [
         pedidos.criar_pedido(db, cliente, id_unidade, dados["modalidade"], da_marca, endereco,
-                             pontos.get(marca), compra.id_compra, expira_em)
-        for marca, id_unidade, endereco, da_marca in escolhidas
+                             pontos.get(marca), compra.id_compra, expira_em, frete)
+        for (marca, id_unidade, endereco, da_marca), frete in zip(escolhidas, fretes)
     ]
     compra.valor_total = sum((p.valor_total for p in criados), ZERO)
     db.commit()
