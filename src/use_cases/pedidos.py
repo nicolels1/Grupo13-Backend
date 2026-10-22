@@ -96,7 +96,8 @@ def itens_a_venda(db: Session, itens: list[dict]) -> list[dict]:
         if not variante.ativo or not produto.ativo:
             raise RegraDeNegocio(f"{produto.nome} ({variante.cor} / {variante.tamanho}) não está à venda")
         resultado.append({
-            "id_variante": variante.id_variante, "sku": variante.sku, "produto": produto.nome, "cor": variante.cor,
+            "id_variante": variante.id_variante, "sku": variante.sku, "produto": produto.nome, "marca": produto.marca,
+            "cor": variante.cor,
             "tamanho": variante.tamanho, "quantidade": item["quantidade"], "preco_unitario": variante.preco,
             "subtotal": variante.preco * item["quantidade"],
         })
@@ -204,27 +205,73 @@ def reserva_vencida(pedido: Pedido) -> bool:
 
 # ---------- plataforma do cliente ----------
 
+def _valor(itens: list[dict]) -> Decimal:
+    return sum((i["subtotal"] for i in itens), Decimal("0.00"))
+
+
+# o carrinho do site junta as duas marcas; cada unidade só guarda a sua, então cada marca sai num pedido (ADR 0017)
+def por_marca(resumo: list[dict]) -> dict[str, list[dict]]:
+    grupos: dict[str, list[dict]] = {}
+    for item in resumo:
+        grupos.setdefault(item["marca"], []).append(item)
+    return grupos
+
+
 def resumo_carrinho(db: Session, itens: list[dict]) -> dict:
     resumo = itens_a_venda(db, itens)
-    valor_itens = sum((i["subtotal"] for i in resumo), Decimal("0.00"))
+    valor_itens = _valor(resumo)
+    marcas = []
+    for marca, da_marca in por_marca(resumo).items():
+        valor = _valor(da_marca)
+        candidatas_da_marca = unidades_com_tudo(db, quantidades(da_marca))
+        marcas.append({
+            "marca": marca, "valor_itens": valor, "frete_entrega": calcular_frete(valor, "entrega"),
+            "entrega_disponivel": escolher_unidade_entrega(candidatas_da_marca, "", "") is not None,
+        })
+    frete = sum((m["frete_entrega"] for m in marcas), Decimal("0.00"))
+    # retirada: uma loja com tudo (com duas marcas não há, cada loja vende só a sua)
     candidatas = unidades_com_tudo(db, quantidades(itens))
-    frete = calcular_frete(valor_itens, "entrega")
     return {
         "itens": resumo, "valor_itens": valor_itens, "frete_entrega": frete,
         "frete_gratis_a_partir_de": FRETE_GRATIS_A_PARTIR_DE,
         "total_entrega": valor_itens + frete, "total_retirada": valor_itens,
-        "entrega_disponivel": escolher_unidade_entrega(candidatas, "", "") is not None,
-        "lojas_retirada": lojas_para_retirada(candidatas),
+        "entrega_disponivel": all(m["entrega_disponivel"] for m in marcas),
+        "lojas_retirada": lojas_para_retirada(candidatas), "marcas": marcas,
     }
 
 
-# checkout: escolhe a unidade, reserva as peças no estoque online por 15 minutos e cria o pedido
-# aguardando pagamento; o estoque só baixa quando o pagamento é aprovado (ADR 0002)
-def checkout(db: Session, cliente: Usuario, dados: dict) -> dict:
-    resumo = itens_a_venda(db, dados["itens"])
-    pedidas = quantidades(dados["itens"])
-    candidatas = unidades_com_tudo(db, pedidas)
+# reserva as peças na unidade e grava o pedido aguardando pagamento (sem commit: quem chama decide).
+# Na compra do site (ADR 0017) o pedido leva a compra e o prazo da reserva dela
+def criar_pedido(db: Session, cliente: Usuario, id_unidade: int, modalidade: str, resumo: list[dict],
+                 endereco=None, pontos_resgate: int | None = None, id_compra: int | None = None,
+                 reserva_expira_em: datetime | None = None) -> Pedido:
+    reservar(db, id_unidade, quantidades(resumo))
+    valor_itens = _valor(resumo)
+    frete = calcular_frete(valor_itens, modalidade)
+    pedido = Pedido(
+        codigo_venda=novo_codigo_venda(), id_cliente=cliente.id_usuario, id_unidade=id_unidade, id_compra=id_compra,
+        canal="online", canal_venda="site", modalidade=modalidade, status="aguardando_pagamento",
+        valor_frete=frete, valor_total=valor_itens + frete, reserva_expira_em=reserva_expira_em or agora() + RESERVA,
+    )
+    db.add(pedido)
+    db.flush()
+    # pontos como desconto: separados agora, voltam se a reserva vencer ou o pedido for cancelado (trigger)
+    if pontos_resgate:
+        marca = unidade_repository.buscar_unidade(db, id_unidade).marca
+        fidelidade.resgatar(db, pedido, marca, pontos_resgate, valor_itens)
+    db.add_all(ItemPedido(id_pedido=pedido.id_pedido, id_variante=i["id_variante"], quantidade=i["quantidade"],
+                          preco_unitario=i["preco_unitario"]) for i in resumo)
+    if endereco is not None:
+        db.add(EnderecoEntrega(id_pedido=pedido.id_pedido, **{
+            campo: getattr(endereco, campo) for campo in ("rua", "numero", "complemento", "bairro", "cidade", "uf", "cep")
+        }))
+    return pedido
 
+
+# a unidade do checkout: na entrega, a melhor com tudo para o endereço; na retirada, a loja escolhida, se
+# tiver tudo. Devolve a unidade e o endereço (vazio na retirada)
+def unidade_do_checkout(db: Session, cliente: Usuario, dados: dict, pedidas: dict[int, int]) -> tuple[dict, object]:
+    candidatas = unidades_com_tudo(db, pedidas)
     endereco = None
     if dados["modalidade"] == "entrega":
         endereco = enderecos.do_cliente(db, cliente, dados["id_endereco"])
@@ -240,29 +287,24 @@ def checkout(db: Session, cliente: Usuario, dados: dict) -> dict:
         unidade = next((u for u in candidatas if u["id_unidade"] == loja.id_unidade), None)
         if unidade is None:
             raise RegraDeNegocio("Essa loja não tem todos os itens para retirada agora")
+    return unidade, endereco
 
-    reservar(db, unidade["id_unidade"], pedidas)
-    valor_itens = sum((i["subtotal"] for i in resumo), Decimal("0.00"))
-    frete = calcular_frete(valor_itens, dados["modalidade"])
-    pedido = Pedido(
-        codigo_venda=novo_codigo_venda(), id_cliente=cliente.id_usuario, id_unidade=unidade["id_unidade"],
-        canal="online", canal_venda="site", modalidade=dados["modalidade"], status="aguardando_pagamento",
-        valor_frete=frete, valor_total=valor_itens + frete, reserva_expira_em=agora() + RESERVA,
-    )
-    db.add(pedido)
-    db.flush()
-    # pontos como desconto: separados agora, voltam se a reserva vencer ou o pedido for cancelado (trigger)
-    if dados.get("pontos_resgate"):
-        marca = unidade_repository.buscar_unidade(db, unidade["id_unidade"]).marca
-        fidelidade.resgatar(db, pedido, marca, dados["pontos_resgate"], valor_itens)
-    db.add_all(ItemPedido(id_pedido=pedido.id_pedido, id_variante=i["id_variante"], quantidade=i["quantidade"],
-                          preco_unitario=i["preco_unitario"]) for i in resumo)
-    if endereco is not None:
-        db.add(EnderecoEntrega(id_pedido=pedido.id_pedido, **{
-            campo: getattr(endereco, campo) for campo in ("rua", "numero", "complemento", "bairro", "cidade", "uf", "cep")
-        }))
+
+# checkout: escolhe a unidade, reserva as peças no estoque online por 15 minutos e cria o pedido
+# aguardando pagamento; o estoque só baixa quando o pagamento é aprovado (ADR 0002)
+def checkout(db: Session, cliente: Usuario, dados: dict) -> dict:
+    resumo = itens_a_venda(db, dados["itens"])
+    unidade, endereco = unidade_do_checkout(db, cliente, dados, quantidades(dados["itens"]))
+    pedido = criar_pedido(db, cliente, unidade["id_unidade"], dados["modalidade"], resumo, endereco,
+                          dados.get("pontos_resgate"))
     db.commit()
     return detalhar(db, pedido.id_pedido)
+
+
+# pedido da compra do site paga e cancela pela compra, junto com os outros pedidos dela (ADR 0017)
+def _fora_de_compra(pedido: Pedido) -> None:
+    if pedido.id_compra is not None:
+        raise RegraDeNegocio("Este pedido faz parte de uma compra do site: pague ou cancele pela compra")
 
 
 # pedido de outra pessoa responde como inexistente: trocar o número na URL não revela nada
@@ -285,6 +327,7 @@ def detalhar_do_cliente(db: Session, cliente: Usuario, id_pedido: int) -> dict:
 # cobrança do valor que falta, no gateway simulado; trocar de método recusa a cobrança anterior
 def criar_cobranca(db: Session, cliente: Usuario, id_pedido: int, metodo: str) -> dict:
     pedido = do_cliente(db, cliente, id_pedido, travar=True)
+    _fora_de_compra(pedido)
     if pedido.status != "aguardando_pagamento":
         raise RegraDeNegocio("Este pedido não está aguardando pagamento")
     if reserva_vencida(pedido):
@@ -335,6 +378,7 @@ def cancelar_pelo_cliente(db: Session, cliente: Usuario, id_pedido: int) -> dict
     pedido = do_cliente(db, cliente, id_pedido, travar=True)
     if pedido.status != "aguardando_pagamento":
         raise RegraDeNegocio("Só dá para cancelar antes do pagamento; depois, abra um chamado")
+    _fora_de_compra(pedido)
     lancamentos = repo.pagamentos_dos_pedidos(db, [id_pedido])[id_pedido]
     cancelar_aguardando(db, pedido, lancamentos, "cliente", id_cancelado_por=cliente.id_usuario)
     db.commit()
