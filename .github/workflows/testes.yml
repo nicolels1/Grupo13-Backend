@@ -22,7 +22,7 @@ jobs:
           python-version: "3.14.3"
           cache: pip
 
-      - run: pip install -r requirements.txt
+      - run: pip install -r requirements-dev.txt
 
       # a migração da Vulto tem requirements próprios (pandas); sem eles, os testes dela são pulados
       - run: pip install -r migracao_vulto/requirements.txt

@@ -78,6 +78,8 @@ scripts/            # criar_admin, carregar_demo e conferir_banco
 migracao_vulto/     # migração dos dados da Vulto: scripts, notebooks e registro de decisões
 tests/              # testes do pytest
 docs/               # case, ADRs
+requirements.txt    # dependências da API (o que o Render instala)
+requirements-dev.txt  # as da API mais as de teste (pytest), para quem desenvolve e para o CI
 ```
 
 Caminho de uma requisição:
@@ -155,8 +157,8 @@ Os comandos rodam na raiz do repositório (a pasta que contém `src/`).
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1        # macOS/Linux: source .venv/bin/activate
 
-# 2. Instalar as dependências
-pip install -r requirements.txt
+# 2. Instalar as dependências (as da API e as de teste; o Render instala só o requirements.txt)
+pip install -r requirements-dev.txt
 
 # 3. Criar o .env a partir do exemplo e preencher as variáveis
 Copy-Item .env.example .env         # macOS/Linux: cp .env.example .env
@@ -425,7 +427,7 @@ Erros de restrição do banco (CHECK, UNIQUE, FK e triggers) viram 4xx com mensa
 
 ## Testes
 
-Os testes ficam em `tests/` e não precisam de banco, internet nem `.env`: o banco e o Supabase são substituídos por versões falsas (`tests/conftest.py` e `tests/apoio.py`).
+Os testes ficam em `tests/` e não precisam de banco, internet nem `.env`: o banco e o Supabase são substituídos por versões falsas (`tests/conftest.py` e `tests/apoio.py`). O pytest vem do `requirements-dev.txt`; os testes da migração da Vulto precisam também do `migracao_vulto/requirements.txt` (pandas) e, sem ele, são pulados.
 
 ```powershell
 pytest            # roda todos os testes
@@ -534,4 +536,4 @@ A API é publicada no Render a cada merge na `main`.
 | 401 `Token ausente` / `Token inválido` | header `Authorization` não enviado, token expirado ou de outro projeto |
 | 422 `A reserva de 15 minutos venceu` | o cliente demorou para pagar; o pedido é cancelado e é preciso fazer outro |
 | 503 `Não foi possível guardar o arquivo` | Storage fora do ar ou buckets não criados (rode `alembic upgrade head`) |
-| `Form data requires "python-multipart" to be installed` | dependências desatualizadas: rode `pip install -r requirements.txt` |
+| `Form data requires "python-multipart" to be installed` | dependências desatualizadas: rode `pip install -r requirements-dev.txt` |

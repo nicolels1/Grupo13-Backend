@@ -1,0 +1,3 @@
+# o que a API usa, mais o que só quem desenvolve precisa (testes); o Render instala só o requirements.txt
+-r requirements.txt
+pytest==9.1.1
