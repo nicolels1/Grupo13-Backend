@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
-from src.dependencies.permissoes import exige_permissao
-from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Marca, Pagina
+from src.dependencies.permissoes import exige_permissao, marca_permitida
+from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Pagina
 from src.entities.transferencias import (
     TransferenciaCancelar, TransferenciaCriar, TransferenciaEnviar, TransferenciaReceber, TransferenciaSaida,
 )
@@ -27,7 +27,7 @@ ERROS = {
 def listar(
     status_: Status | None = Query(default=None, alias="status"),
     id_unidade: int | None = Query(default=None, description="Transferências que saem ou chegam nesta unidade"),
-    marca: Marca | None = Query(default=None, description="Só as unidades dessa marca. Vazio: as duas marcas"),
+    marca: str | None = Depends(marca_permitida),
     limit: int = Query(LIMITE_PADRAO, ge=1, le=LIMITE_MAXIMO),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),

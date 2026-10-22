@@ -245,10 +245,12 @@ def test_quem_gerencia_fidelidade_ve_os_pontos(banco):
 
 # ---------- rota ----------
 
-def test_rota_deixa_ausente_a_secao_que_a_conta_nao_ve(api, banco):
+def test_rota_deixa_ausente_a_secao_que_a_conta_nao_ve(api, banco, monkeypatch):
     banco.permissoes = {"atender_chamado"}
-    # permitido=False: a conta não é Admin (o cliente de teste trata como Admin por padrão)
-    corpo = api(SessaoFalsa(), usuario=conta(), permitido=False).get("/visao-geral/resumo").json()
+    # permitido=False: a conta não é Admin (o cliente de teste trata como Admin por padrão); vê as duas marcas
+    cliente = api(SessaoFalsa(), usuario=conta(), permitido=False)
+    monkeypatch.setattr(permissao_repository, "codigos_do_modelo", lambda db, i: {"ver_marca_lorenzi", "ver_marca_vulto"})
+    corpo = cliente.get("/visao-geral/resumo").json()
     assert "chamados" in corpo and "vendas_por_dia" not in corpo and "rede_agora" not in corpo
     assert "pontos" not in corpo
 

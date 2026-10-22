@@ -1,9 +1,12 @@
 from sqlalchemy.orm import Session
 
 from src.repositories import permissao_repository as repo
+from src.use_cases.erros import SemPermissao
 
 # permissões da Gestão: só o Admin tem; nem modelo comum nem exceção concedem
 PERMISSOES_SO_ADMIN = {"gerenciar_contas", "gerenciar_modelos_acesso", "gerenciar_unidades"}
+# que marca a pessoa vê nas listas da equipe: o Admin dá uma, a outra ou as duas
+PERMISSOES_DE_MARCA = {"ver_marca_lorenzi": "lorenzi", "ver_marca_vulto": "vulto"}
 
 
 def tem_permissao(
@@ -59,3 +62,18 @@ def usuario_tem_permissao(db: Session, usuario, *codigos: str) -> bool:
         )
         for codigo in codigos
     )
+
+
+def marcas_visiveis(db: Session, usuario) -> set[str]:
+    return {marca for codigo, marca in PERMISSOES_DE_MARCA.items() if usuario_tem_permissao(db, usuario, codigo)}
+
+
+# a marca pedida, se a pessoa a vê; sem pedir, a única que ela vê, ou None quando vê as duas
+def marca_da_consulta(visiveis: set[str], pedida: str | None) -> str | None:
+    if pedida is not None:
+        if pedida not in visiveis:
+            raise SemPermissao(f"Sem acesso à marca {pedida}")
+        return pedida
+    if not visiveis:
+        raise SemPermissao("Sem acesso a nenhuma marca")
+    return next(iter(visiveis)) if len(visiveis) == 1 else None

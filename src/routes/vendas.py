@@ -4,9 +4,9 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
-from src.dependencies.permissoes import exige_permissao
+from src.dependencies.permissoes import exige_permissao, marca_permitida
 from src.dependencies.supabase import get_supabase_admin
-from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Marca, Pagina, campos_alterados
+from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Pagina, campos_alterados
 from src.entities.vendas import (
     CancelamentoEquipe, ClienteComConta, ClienteCorrigido, ClienteCorrigir, ClienteResumo, ClienteSemContaSaida, Entrega,
     Modalidade,
@@ -45,7 +45,7 @@ def listar(
     codigo_venda: str | None = Query(None, max_length=20),
     id_cliente: uuid.UUID | None = Query(None, description="Pedidos de um cliente com conta"),
     id_cliente_sem_conta: int | None = Query(None, description="Pedidos de um cliente da Vulto sem conta"),
-    marca: Marca | None = Query(None, description="Pedidos das unidades dessa marca. Vazio: as duas marcas"),
+    marca: str | None = Depends(marca_permitida),
     pronto_ha_mais_de_dias: int | None = Query(
         None, ge=0, description="Retiradas prontas há mais de N dias (risco de vencer)",
     ),

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
-from src.dependencies.permissoes import exige_cliente, exige_permissao
+from src.dependencies.permissoes import exige_cliente, exige_permissao, marca_permitida
 from src.dependencies.supabase import get_storage
 from src.entities.atendimento import (
     Categoria, ChamadoAlterar, ChamadoConcluir, ChamadoCriar, ChamadoSaida, HistoricoSaida,
@@ -13,7 +13,7 @@ from src.entities.atendimento import (
     TrocaCriar,
 )
 from src.entities.arquivos import AnexoLink
-from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Lista, Marca, Pagina, campos_alterados
+from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Lista, Pagina, campos_alterados
 from src.models.contas import Usuario
 from src.entities.vendas import PedidoSaida
 from src.use_cases import atendimento, devolucoes
@@ -128,9 +128,7 @@ def fila(
     id_unidade: int | None = None,
     id_cliente: uuid.UUID | None = Query(None, description="Chamados de um cliente com conta"),
     id_cliente_sem_conta: int | None = Query(None, description="Chamados de um cliente da Vulto sem conta"),
-    marca: Marca | None = Query(
-        None, description="Ligados a unidade, pedido ou peça dessa marca. Vazio: as duas, com as dúvidas gerais",
-    ),
+    marca: str | None = Depends(marca_permitida),
     paginacao: dict = Depends(_paginacao),
     usuario: Usuario = Depends(ATENDER),
     db: Session = Depends(get_db),

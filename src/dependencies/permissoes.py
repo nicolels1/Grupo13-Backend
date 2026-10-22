@@ -1,14 +1,15 @@
 import logging
 import uuid
 
-from fastapi import Depends, Header, HTTPException
+from fastapi import Depends, Header, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
 from src.dependencies.auth import get_current_user
+from src.entities.comum import Marca
 from src.models.contas import Usuario
 from src.repositories import permissao_repository as repo
-from src.use_cases.permissoes import usuario_tem_permissao
+from src.use_cases.permissoes import marca_da_consulta, marcas_visiveis, usuario_tem_permissao
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,16 @@ def exige_permissao(*codigos: str):
         return usuario
 
     return dependencia
+
+
+# filtro ?marca= das listas da equipe: só a marca que a pessoa vê (ver_marca_lorenzi, ver_marca_vulto);
+# sem pedir, quem vê uma marca só recebe essa, e quem vê as duas recebe tudo (None)
+def marca_permitida(
+    marca: Marca | None = Query(None, description="lorenzi ou vulto. Vazio: as marcas que a pessoa vê"),
+    usuario: Usuario = Depends(get_usuario_ativo),
+    db: Session = Depends(get_db),
+) -> str | None:
+    return marca_da_consulta(marcas_visiveis(db, usuario), marca)
 
 
 # rotas da plataforma do cliente: conta interna usa a conta pessoal de cliente para comprar

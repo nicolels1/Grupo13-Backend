@@ -338,13 +338,15 @@ def test_periodo_no_horario_de_brasilia_e_igual_no_select_e_no_group_by(granular
 
 @pytest.fixture
 def client(monkeypatch, banco):
-    def logar(codigos):
+    # quem testa vê as duas marcas, a não ser que a lista de marcas diga outra coisa
+    def logar(codigos, marcas=("lorenzi", "vulto")):
         usuario = SimpleNamespace(
             id_usuario=USUARIO.id_usuario, tipo_conta="interna", id_modelo_acesso=2, status_conta="ativa"
         )
         app.dependency_overrides[get_usuario_ativo] = lambda: usuario
         monkeypatch.setattr(permissao_repository, "modelo_eh_admin", lambda db, i: False)
-        monkeypatch.setattr(permissao_repository, "codigos_do_modelo", lambda db, i: set(codigos))
+        monkeypatch.setattr(permissao_repository, "codigos_do_modelo",
+                            lambda db, i: set(codigos) | {f"ver_marca_{m}" for m in marcas})
         monkeypatch.setattr(permissao_repository, "excecoes_do_usuario", lambda db, i: {})
         return TestClient(app)
 
@@ -471,3 +473,19 @@ def test_marca_pela_api(client, monkeypatch, rota, funcao, vazia):
     assert client({"movimentar_estoque"}).get(f"{rota}{separador}marca=vulto").status_code == 200
     assert client({"movimentar_estoque"}).get(f"{rota}{separador}marca=outra").status_code == 422
     assert len(filtros) == 1 and filtros[0]["marca"] == "vulto"
+
+
+# quem vê uma marca só recebe essa sem pedir e não consegue pedir a outra
+def test_quem_ve_uma_marca_so_lista_essa(client, monkeypatch):
+    filtros = []
+    monkeypatch.setattr(estoque_repository, "listar_estoque", lambda db, limit, offset, **f: filtros.append(f) or ([], 0))
+    so_vulto = client({"movimentar_estoque"}, marcas=("vulto",))
+
+    assert so_vulto.get("/estoque").status_code == 200
+    assert so_vulto.get("/estoque?marca=vulto").status_code == 200
+    assert so_vulto.get("/estoque?marca=lorenzi").status_code == 403
+    assert [f["marca"] for f in filtros] == ["vulto", "vulto"]
+
+
+def test_sem_nenhuma_marca_nao_ve_as_listas(client):
+    assert client({"movimentar_estoque"}, marcas=()).get("/estoque").status_code == 403

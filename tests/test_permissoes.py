@@ -8,7 +8,8 @@ from fastapi.testclient import TestClient
 from src.database.session import get_db
 from src.dependencies import permissoes
 from src.dependencies.auth import get_current_user
-from src.use_cases.permissoes import tem_permissao
+from src.use_cases.erros import SemPermissao
+from src.use_cases.permissoes import marca_da_consulta, tem_permissao
 
 USER_ID = uuid.UUID("11111111-1111-1111-1111-111111111111")
 MODELO_ESTOQUISTA = 2
@@ -186,3 +187,21 @@ def test_conta_inativa_nao_chega_a_checar_permissao(client, banco):
 
     assert resposta.status_code == 403
     assert resposta.json()["detail"] == "Conta não está ativa"
+
+
+# ---------- marca que a pessoa vê nas listas ----------
+
+def test_quem_ve_as_duas_marcas_escolhe_ou_ve_tudo():
+    assert marca_da_consulta({"lorenzi", "vulto"}, None) is None
+    assert marca_da_consulta({"lorenzi", "vulto"}, "vulto") == "vulto"
+
+
+def test_quem_ve_uma_marca_fica_nela():
+    assert marca_da_consulta({"lorenzi"}, None) == "lorenzi"
+    with pytest.raises(SemPermissao, match="marca vulto"):
+        marca_da_consulta({"lorenzi"}, "vulto")
+
+
+def test_sem_marca_nenhuma_nao_ve_lista():
+    with pytest.raises(SemPermissao, match="nenhuma marca"):
+        marca_da_consulta(set(), None)

@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
-from src.dependencies.permissoes import exige_permissao
-from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Lista, Marca, Pagina
+from src.dependencies.permissoes import exige_permissao, marca_permitida
+from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Lista, Pagina
 from src.entities.estoque import (
     Canal, Divergencia, EmTransitoItem, EstoqueHistoricoItem, EstoqueItem, Evolucao, Granularidade, MovimentacaoItem,
     MovimentacaoSaida, NovaMovimentacao, NovaRealocacao, NovoMinimo,
@@ -18,7 +18,6 @@ VER_ESTOQUE = exige_permissao(
     "movimentar_estoque", "definir_estoque_minimo", "solicitar_transferencia", "enviar_transferencia",
     "receber_transferencia",
 )
-FILTRO_MARCA = "Só as unidades dessa marca. Vazio: as duas marcas"
 ERROS_COMUNS = {401: {"description": "Sem login válido"}, 403: {"description": "Sem permissão"}}
 ERROS_DE_ESCRITA = {
     **ERROS_COMUNS,
@@ -40,7 +39,7 @@ def listar_estoque(
         None, description="Parte do SKU ou do nome do produto, ou o código de barras (EAN) inteiro"
     ),
     abaixo_minimo: bool | None = Query(None, description="Só as linhas abaixo (true) ou não abaixo (false) do mínimo"),
-    marca: Marca | None = Query(None, description=FILTRO_MARCA),
+    marca: str | None = Depends(marca_permitida),
     paginacao: dict = Depends(_paginacao),
     _: Usuario = Depends(VER_ESTOQUE),
     db: Session = Depends(get_db),
@@ -58,7 +57,7 @@ def estoque_em(
     id_variante: int | None = None,
     canal: Canal | None = None,
     busca: str | None = None,
-    marca: Marca | None = Query(None, description=FILTRO_MARCA),
+    marca: str | None = Depends(marca_permitida),
     paginacao: dict = Depends(_paginacao),
     _: Usuario = Depends(VER_ESTOQUE),
     db: Session = Depends(get_db),
@@ -79,7 +78,7 @@ def em_transito(
     id_variante: int | None = None,
     id_unidade: int | None = Query(None, description="Transferências que saem ou chegam nesta unidade"),
     busca: str | None = None,
-    marca: Marca | None = Query(None, description=FILTRO_MARCA),
+    marca: str | None = Depends(marca_permitida),
     _: Usuario = Depends(VER_ESTOQUE),
     db: Session = Depends(get_db),
 ):
@@ -131,7 +130,7 @@ def listar_movimentacoes(
     de: str | None = Query(None, description="AAAA-MM-DD ou AAAA-MM-DDTHH:MM"),
     ate: str | None = Query(None, description="AAAA-MM-DD (fim do dia) ou AAAA-MM-DDTHH:MM"),
     busca: str | None = None,
-    marca: Marca | None = Query(None, description=FILTRO_MARCA),
+    marca: str | None = Depends(marca_permitida),
     paginacao: dict = Depends(_paginacao),
     _: Usuario = Depends(VER_ESTOQUE),
     db: Session = Depends(get_db),

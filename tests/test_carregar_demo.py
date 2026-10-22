@@ -1,7 +1,9 @@
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
+from typing import get_args
 
 from scripts import carregar_demo as demo
+from src.entities.modelos_acesso import CodigoPermissao
 from src.utils.cpf import cpf_valido
 
 AGORA = datetime(2026, 10, 6, 15, 0, tzinfo=timezone.utc)
@@ -31,6 +33,7 @@ def test_modelos_seguem_a_tabela_do_case_sem_gestao():
     for codigos in demo.MODELOS.values():
         assert set(codigos) <= CODIGOS
         assert not set(codigos) & GESTAO
+    assert set(demo.MARCAS) <= set(get_args(CodigoPermissao))
 
 
 def test_clientes_tem_cpf_valido_e_unico():
