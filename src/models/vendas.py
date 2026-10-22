@@ -8,6 +8,44 @@ from sqlalchemy.orm import Mapped, mapped_column
 from src.database.base import Base
 
 
+# compra do site: o cliente paga uma vez só e cada marca sai num pedido próprio (ADR 0017). Guarda a
+# cobrança única do gateway simulado; aprovada, cada pedido ganha o seu pagamento
+class Compra(Base):
+    __tablename__ = "compra"
+
+    id_compra: Mapped[int] = mapped_column(primary_key=True)
+    codigo_compra: Mapped[str] = mapped_column(String(20), unique=True)
+    id_cliente: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("usuario.id_usuario", ondelete="RESTRICT"))
+    status: Mapped[str] = mapped_column(String(30))
+    valor_total: Mapped[Decimal] = mapped_column(Numeric(10, 2))  # a soma dos pedidos, o que é cobrado
+    reserva_expira_em: Mapped[datetime] = mapped_column(DateTime(timezone=True))  # a mesma dos pedidos
+    # a cobrança única: trocar de método gera outra transação no gateway simulado
+    metodo: Mapped[str | None] = mapped_column(String(20))
+    id_transacao_gateway: Mapped[str | None] = mapped_column(String(100), unique=True)
+    status_cobranca: Mapped[str | None] = mapped_column(String(20))
+    pago_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancelado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    atualizado_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        CheckConstraint("status IN ('aguardando_pagamento', 'pago', 'cancelado')", name="status_valido"),
+        CheckConstraint("metodo IN ('pix', 'cartao_credito', 'cartao_debito')", name="metodo_valido"),
+        CheckConstraint("status_cobranca IN ('pendente', 'aprovado', 'recusado')", name="status_cobranca_valido"),
+        CheckConstraint("num_nonnulls(metodo, id_transacao_gateway, status_cobranca) IN (0, 3)",
+                        name="cobranca_completa"),
+        CheckConstraint(
+            "(status = 'pago') = (status_cobranca IS NOT DISTINCT FROM 'aprovado' AND pago_em IS NOT NULL)",
+            name="pago_exige_cobranca_aprovada",
+        ),
+        CheckConstraint("(status = 'cancelado') = (cancelado_em IS NOT NULL)", name="cancelado_tem_data"),
+        CheckConstraint("valor_total >= 0", name="valor_nao_negativo"),
+        Index("ix_compra_id_cliente", "id_cliente"),
+    )
+
+
 class Pedido(Base):
     __tablename__ = "pedido"
 
@@ -21,6 +59,8 @@ class Pedido(Base):
         ForeignKey("cliente_sem_conta.id_cliente_sem_conta", ondelete="RESTRICT")
     )
     id_unidade: Mapped[int] = mapped_column(ForeignKey("unidade.id_unidade", ondelete="RESTRICT"))
+    # compra do site a que o pedido pertence (ADR 0017); vazio na loja, na migração e no checkout de um pedido só
+    id_compra: Mapped[int | None] = mapped_column(ForeignKey("compra.id_compra", ondelete="RESTRICT"))
     id_registrado_por: Mapped[uuid.UUID | None] = mapped_column(  # funcionário da venda física
         Uuid, ForeignKey("usuario.id_usuario", ondelete="RESTRICT")
     )
@@ -96,6 +136,8 @@ class Pedido(Base):
         Index("ix_pedido_criado_em", "criado_em"),
         # pedidos que passam para a conta no cadastro
         Index("ix_pedido_id_cliente_sem_conta", "id_cliente_sem_conta"),
+        # pedidos de cada compra do site
+        Index("ix_pedido_id_compra", "id_compra"),
     )
 
 

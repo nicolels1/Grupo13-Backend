@@ -7,7 +7,7 @@ from src.models.contas import Usuario
 from src.models.vendas import ItemPedido, Pagamento, Pedido
 from src.repositories import cliente_sem_conta_repository, estoque_repository, unidade_repository, usuario_repository
 from src.repositories import pedido_repository as repo
-from src.use_cases import fidelidade, pagamentos
+from src.use_cases import compras, fidelidade, pagamentos
 from src.use_cases.erros import RecursoNaoEncontrado, RegraDeNegocio
 from src.use_cases.estoque import conferir_disponivel, interpretar_momento
 from src.use_cases.pedidos import (
@@ -139,6 +139,11 @@ def entregar(db: Session, id_pedido: int, codigo_venda: str | None) -> dict:
 # antes do envio: sem pagamento, libera a reserva; já pago, estorna tudo e as peças voltam ao estoque
 # online. Enviado ou entregue não se cancela: vira troca ou devolução pelo atendimento
 def cancelar(db: Session, usuario: Usuario, id_pedido: int, justificativa: str) -> dict:
+    # pedido de compra do site ainda sem pagamento: a compra inteira cancela, travada antes dos pedidos (ADR 0017)
+    pedido = buscar(db, id_pedido)
+    if pedido.id_compra is not None and pedido.status == "aguardando_pagamento" \
+            and compras.cancelar_pela_equipe(db, pedido.id_compra, usuario.id_usuario, justificativa):
+        return detalhar(db, id_pedido)
     pedido = buscar(db, id_pedido, travar=True)
     _exigir(pedido, ("aguardando_pagamento", "pago", "pronto_para_retirada"), "cancelar")
     lancamentos = repo.pagamentos_dos_pedidos(db, [id_pedido])[id_pedido]

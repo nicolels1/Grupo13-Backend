@@ -24,6 +24,7 @@ from src.models.estoque import (  # noqa: F401
     Unidade,
 )
 from src.models.vendas import (  # noqa: F401
+    Compra,
     EnderecoCliente,
     EnderecoEntrega,
     ItemPedido,

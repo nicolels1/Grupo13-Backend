@@ -1,11 +1,11 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from src.entities.comum import sem_espacos
+from src.entities.comum import Marca, sem_espacos
 from src.entities.contas import PADRAO_EMAIL, _validar_cpf as _cpf
 
 Modalidade = Literal["entrega", "retirada"]
@@ -34,13 +34,10 @@ class Carrinho(BaseModel):
 
 
 # entrega em casa usa um endereço salvo (o pedido guarda a cópia); retirada, uma loja escolhida
-class Checkout(Carrinho):
+class _Destino(Carrinho):
     modalidade: Modalidade
     id_endereco: int | None = Field(default=None, description="Obrigatório na entrega")
     id_unidade_retirada: int | None = Field(default=None, description="Obrigatório na retirada")
-    pontos_resgate: int | None = Field(
-        default=None, gt=0, description="Pontos usados como desconto (GET /fidelidade/resgate mostra quanto valem)"
-    )
 
     @model_validator(mode="after")
     def destino_da_modalidade(self):
@@ -49,6 +46,21 @@ class Checkout(Carrinho):
         if self.modalidade == "retirada" and self.id_unidade_retirada is None:
             raise ValueError("Retirada precisa de id_unidade_retirada")
         return self
+
+
+class Checkout(_Destino):
+    pontos_resgate: int | None = Field(
+        default=None, gt=0, description="Pontos usados como desconto (GET /fidelidade/resgate mostra quanto valem)"
+    )
+
+
+# compra do site (ADR 0017): os pontos de cada marca viram desconto no pedido dela
+class CheckoutCompra(_Destino):
+    pontos_por_marca: dict[Marca, Annotated[int, Field(gt=0)]] = Field(
+        default_factory=dict,
+        description="Pontos usados como desconto em cada marca, como {\"lorenzi\": 200}. Cada marca usa os pontos "
+                    "dela no pedido dela (GET /fidelidade/resgate mostra quanto valem)",
+    )
 
 
 class CobrancaCriar(BaseModel):
@@ -153,6 +165,9 @@ class PedidoSaida(BaseModel):
     cliente: str | None
     id_unidade: int
     unidade: str
+    id_compra: int | None = Field(
+        description="Compra do site a que o pedido pertence (paga e cancela pela compra); vazio fora dela"
+    )
     id_registrado_por: uuid.UUID | None
     cpf_nota: str | None = Field(description="CPF informado na venda física")
     canal: str = Field(description="Canal do estoque: loja_fisica ou online")
@@ -180,15 +195,43 @@ class PedidoSaida(BaseModel):
     endereco_entrega: EnderecoEntregaSaida | None
 
 
+# compra do site: um checkout e uma cobrança para o cliente, um pedido por marca por dentro (ADR 0017)
+class CompraSaida(BaseModel):
+    id_compra: int
+    codigo_compra: str
+    status: Literal["aguardando_pagamento", "pago", "cancelado"]
+    valor_itens: Valor
+    valor_frete: Valor = Field(description="Soma do frete de cada pedido")
+    valor_desconto: Valor = Field(description="Pontos usados como desconto, somando as marcas")
+    valor_total: Valor = Field(description="O que é cobrado: a soma dos pedidos")
+    reserva_expira_em: datetime = Field(description="A reserva das peças de todos os pedidos vence junto")
+    metodo: MetodoOnline | None = Field(description="Método da cobrança; vazio antes de pedir a cobrança")
+    id_transacao_gateway: str | None = Field(description="Transação da cobrança no gateway simulado")
+    status_cobranca: Literal["pendente", "aprovado", "recusado"] | None
+    pago_em: datetime | None
+    cancelado_em: datetime | None
+    criado_em: datetime
+    pedidos: list[PedidoSaida] = Field(description="Um pedido por marca, cada um saindo de uma unidade dela")
+
+
 class ItemResumo(BaseModel):
     id_variante: int
     sku: str
     produto: str
+    marca: Marca = Field(description="Marca do produto: o carrinho do site junta as duas e o pedido sai por marca")
     cor: str
     tamanho: str
     quantidade: int
     preco_unitario: Valor
     subtotal: Valor
+
+
+# cada marca vira um pedido próprio, saindo de uma unidade dela (ADR 0017)
+class ResumoMarca(BaseModel):
+    marca: Marca
+    valor_itens: Valor
+    frete_entrega: Valor = Field(description="Frete do pedido desta marca; grátis a partir do valor mínimo")
+    entrega_disponivel: bool = Field(description="Algum CD ou loja que despacha desta marca tem todos os itens dela")
 
 
 class LojaRetirada(BaseModel):
@@ -201,14 +244,21 @@ class LojaRetirada(BaseModel):
 class ResumoCarrinho(BaseModel):
     itens: list[ItemResumo]
     valor_itens: Valor
-    frete_entrega: Valor = Field(description="Grátis a partir do valor mínimo; zero na retirada")
+    frete_entrega: Valor = Field(
+        description="Soma do frete de cada marca; grátis a partir do valor mínimo; zero na retirada"
+    )
     frete_gratis_a_partir_de: Valor = Field(
-        description="Valor mínimo em itens para o frete da entrega sair grátis (para a loja mostrar quanto falta)"
+        description="Valor mínimo em itens de uma marca para o frete dela sair grátis (a loja mostra quanto falta)"
     )
     total_entrega: Valor
     total_retirada: Valor
-    entrega_disponivel: bool = Field(description="Algum CD ou loja que despacha tem todos os itens")
-    lojas_retirada: list[LojaRetirada] = Field(description="Lojas com todos os itens no estoque online")
+    entrega_disponivel: bool = Field(
+        description="Cada marca do carrinho tem um CD ou loja que despacha com todos os itens dela"
+    )
+    lojas_retirada: list[LojaRetirada] = Field(
+        description="Lojas com todos os itens no estoque online (vazia com duas marcas: cada loja vende só a sua)"
+    )
+    marcas: list[ResumoMarca] = Field(description="Uma linha por marca do carrinho: cada uma vira um pedido")
 
 
 # ---------- clientes no caixa ----------
