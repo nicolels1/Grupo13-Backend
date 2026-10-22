@@ -7,9 +7,9 @@ import pytest
 
 from src.models.catalogo import Produto, Variante
 from src.utils.ean import ean_interno
-from src.models.vendas import EnderecoCliente, EnderecoEntrega, ItemPedido, Pagamento, Pedido
+from src.models.vendas import Compra, EnderecoCliente, EnderecoEntrega, ItemPedido, Pagamento, Pedido
 from src.repositories import endereco_repository, estoque_repository, unidade_repository, usuario_repository
-from src.repositories import catalogo_repository, cliente_sem_conta_repository, pedido_repository
+from src.repositories import catalogo_repository, cliente_sem_conta_repository, compra_repository, pedido_repository
 from tests.apoio import SessaoComTrigger, funcionario
 
 ID_CLIENTE = uuid.UUID("44444444-4444-4444-4444-444444444444")
@@ -38,7 +38,7 @@ def _linha_do_item(item, estado):
 
 
 class SessaoVendas(SessaoComTrigger):
-    """Guarda pedidos, itens, pagamentos e endereços como o banco guardaria. As sessões do mesmo
+    """Guarda compras, pedidos, itens, pagamentos e endereços como o banco guardaria. As sessões do mesmo
     banco usam um contador de ids só, para dois pedidos nunca terem o mesmo número."""
 
     def __init__(self, banco):
@@ -49,7 +49,9 @@ class SessaoVendas(SessaoComTrigger):
     def flush(self):
         super().flush()
         for objeto in self.adicionados:
-            if isinstance(objeto, Pedido):
+            if isinstance(objeto, Compra):
+                self.banco.compras[objeto.id_compra] = objeto
+            elif isinstance(objeto, Pedido):
                 self.banco.pedidos[objeto.id_pedido] = objeto
             elif isinstance(objeto, ItemPedido) and objeto not in self.banco.itens:
                 self.banco.itens.append(objeto)
@@ -83,6 +85,7 @@ def banco(monkeypatch):
             LOJA_FECHADA: _unidade(LOJA_FECHADA, "Loja Fechada", "loja", True, "São Paulo", "SP", ativo=False),
         },
         saldos={},
+        compras={},
         pedidos={},
         itens=[],
         pagamentos=[],
@@ -129,6 +132,14 @@ def banco(monkeypatch):
     m(r, "enderecos_dos_pedidos", lambda db, ids: {i: estado.enderecos_entrega[i] for i in ids
                                                    if i in estado.enderecos_entrega})
     m(r, "itens_do_pedido", lambda db, i: [x for x in estado.itens if x.id_pedido == i])
+
+    def pedidos_da_compra(db, id_compra, travar=False):
+        return sorted((p for p in estado.pedidos.values() if p.id_compra == id_compra), key=lambda p: p.id_pedido)
+
+    m(compra_repository, "buscar_compra", lambda db, i, travar=False: estado.compras.get(i))
+    m(compra_repository, "pedidos_da_compra", pedidos_da_compra)
+    m(compra_repository, "pedidos_com_nomes", lambda db, i: [
+        pedido_com_nomes(db, p.id_pedido) for p in pedidos_da_compra(db, i)])
     m(estoque_repository, "travar_estoque", lambda db, v, u, canais: {
         c: estado.saldos[(v, u, c)] for c in canais if (v, u, c) in estado.saldos})
     m(estoque_repository, "marcas_das_variantes", lambda db, ids: {
@@ -147,3 +158,26 @@ def com_estoque(banco, variante, unidade, canal, quantidade, reservada=0):
 def saldo(banco, variante, unidade, canal="online"):
     linha = banco.saldos[(variante, unidade, canal)]
     return linha.quantidade, linha.quantidade_reservada
+
+
+# ---------- as duas marcas no carrinho do site (ADR 0017) ----------
+
+JAQUETA = 20
+CD_VULTO = 30
+DUAS_MARCAS = [{"id_variante": CAMISA, "quantidade": 1}, {"id_variante": JAQUETA, "quantidade": 1}]
+
+
+@pytest.fixture
+def com_vulto(banco):
+    jaqueta = Produto(id_produto=2, id_categoria=1, nome="Jaqueta", descricao_tecnica="t", descricao_cliente="c",
+                      marca="vulto", ativo=True)
+    banco.variantes[JAQUETA] = (Variante(id_variante=JAQUETA, id_produto=2, sku="JAQ-M", cor="Preta", tamanho="M",
+                                         ean=ean_interno(JAQUETA), preco=Decimal("350.00"), ativo=True), jaqueta)
+    banco.unidades[CD_VULTO] = SimpleNamespace(id_unidade=CD_VULTO, nome="CD Cajamar", tipo="cd", despacha_online=True,
+                                               cidade="Cajamar", uf="SP", ativo=True, marca="vulto")
+    return banco
+
+
+def com_as_duas_no_estoque(banco):
+    com_estoque(banco, CAMISA, CD, "online", 5)
+    com_estoque(banco, JAQUETA, CD_VULTO, "online", 5)
