@@ -200,7 +200,7 @@ A pasta [`migracao_vulto/`](migracao_vulto/) leva os dados da Vulto (banco SQLit
 
 O que a plataforma ganhou para receber a Vulto (cada item cita a decisão do registro):
 
-- **marca** (`lorenzi` ou `vulto`) na unidade e no produto (P1); a vitrine filtra por marca, e a marca só se corrige enquanto não há movimentação nem venda;
+- **marca** (`lorenzi` ou `vulto`) na unidade e no produto (P1); a vitrine filtra por marca, e a marca só se corrige enquanto não há movimentação nem venda. Cada unidade só guarda peças da própria marca: entrada, estoque inicial, mínimo, transferência (só entre unidades da mesma marca), troca e devolução recusam a peça da outra. O Admin decide que marca cada pessoa da equipe vê com as permissões `ver_marca_lorenzi` e `ver_marca_vulto` (no modelo ou como exceção): nas listas de estoque, transferências, pedidos, chamados e na Visão Geral, quem vê uma marca só recebe essa e não consegue pedir a outra (403). Os modelos que existiam antes ganharam as duas;
 - **EAN** (código de barras) obrigatório na variante (C12): o de fábrica ou um código interno gerado pelo banco (prefixo 20); o caixa acha a peça pelo leitor;
 - **cliente sem conta** (P2, [ADR 0016](docs/adr/0016-cliente-sem-conta-da-migracao.md)): pedidos e chamados de quem nunca criou conta, que passam para a conta quando a pessoa se cadastra com o mesmo CPF ou e-mail;
 - **origem da migração** (P4): de onde veio cada registro migrado e o que a migração mudou nele, com a decisão aplicada;
@@ -275,7 +275,7 @@ As fotos aparecem em `imagens` de cada produto, com a URL pública.
 
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
-| GET | `/vendas/pedidos`, `/vendas/pedidos/{id}` | qualquer permissão de vendas ou `atender_chamado` | pedidos, com filtros: status, canal, modalidade, unidade, código, `pronto_ha_mais_de_dias` e data de criação (`de`, `ate`; data sem hora vale o dia inteiro) |
+| GET | `/vendas/pedidos`, `/vendas/pedidos/{id}` | qualquer permissão de vendas ou `atender_chamado` | pedidos, com filtros: status, canal, modalidade, unidade, `marca` (a da unidade), código, `pronto_ha_mais_de_dias` e data de criação (`de`, `ate`; data sem hora vale o dia inteiro) |
 | POST | `/vendas/pedidos` | `registrar_venda_fisica` | venda na loja: nasce paga e entregue, baixa o estoque de loja física. CPF opcional (`cpf_nota`): com conta, liga o pedido; de um cliente da Vulto que ainda não criou conta, liga a ele (e ele ganha os pontos); sem nenhum dos dois, fica guardado no pedido. `pontos_resgate` usa os pontos desse cliente como desconto, e os pagamentos fecham com o total menos o desconto |
 | POST | `/vendas/pedidos/{id}/enviar` | `preparar_entregar_pedido` | entrega em casa paga → enviada |
 | POST | `/vendas/pedidos/{id}/pronto-retirada` | `preparar_entregar_pedido` | retirada paga → pronta (começa o prazo de 7 dias) |
@@ -288,7 +288,7 @@ As fotos aparecem em `imagens` de cada produto, com a URL pública.
 
 ### Estoque
 
-A leitura exige alguma permissão da área (movimentar estoque, definir mínimo ou qualquer uma de transferência).
+A leitura exige alguma permissão da área (movimentar estoque, definir mínimo ou qualquer uma de transferência). As listas de estoque, histórico, em trânsito e movimentações aceitam `?marca=lorenzi|vulto` (a marca da unidade), dentro das marcas que a pessoa vê.
 
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
@@ -306,7 +306,7 @@ A leitura exige alguma permissão da área (movimentar estoque, definir mínimo 
 
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
-| GET | `/transferencias`, `/transferencias/{id}` | qualquer permissão de transferência | lista e detalhe |
+| GET | `/transferencias`, `/transferencias/{id}` | qualquer permissão de transferência | lista e detalhe; a lista filtra por `status`, `id_unidade` e `marca` |
 | POST | `/transferencias` | `solicitar_transferencia` | solicita |
 | POST | `/transferencias/{id}/enviar` | `enviar_transferencia` | envia (saída na origem) |
 | POST | `/transferencias/{id}/receber` | `receber_transferencia` | recebe (entrada no destino) |
@@ -319,7 +319,7 @@ A leitura exige alguma permissão da área (movimentar estoque, definir mínimo 
 | POST, GET | `/chamados` | cliente | abre chamado e lista os próprios |
 | GET | `/chamados/{id}` | cliente | detalhe do próprio chamado |
 | GET, POST | `/chamados/{id}/mensagens` | cliente | mensagens (sem as internas) e resposta |
-| GET | `/atendimento/chamados` | `atender_chamado` | fila, com filtros: sem responsável, meus, com mensagem nova… |
+| GET | `/atendimento/chamados` | `atender_chamado` | fila, com filtros: sem responsável, meus, com mensagem nova, `marca`… |
 | GET, PATCH | `/atendimento/chamados/{id}` | `atender_chamado` | detalhe; o responsável define a prioridade ou repassa o chamado |
 | GET | `/atendimento/equipe` | `atender_chamado` | contas ativas que atendem chamados, por nome: para quem dá para repassar |
 | POST | `/atendimento/chamados/{id}/assumir` | `atender_chamado` | assume o chamado |
@@ -457,7 +457,7 @@ A API é publicada no Render a cada merge na `main`.
   - `pontos` (o que cada marca deve em pontos hoje, o mesmo de `GET /fidelidade/passivo`): `gerenciar_fidelidade` ou Admin;
   - `rede_agora` (cobertura em dias, ruptura online, vendas de 14 dias com variação, ticket médio, `por_marca` com Casa Lorenzi × Vulto lado a lado, mediana da primeira resposta, avaliações e retiradas perto de vencer) e `por_unidade`: só Admin. `rede_agora` ignora o filtro de unidade.
 
-  As vendas vêm por canal da venda (P3): `loja` e `site` sempre, e `app` só quando o período tem venda pelo app, que existe só no histórico da Vulto. Filtros opcionais: `marca=lorenzi|vulto` vale para todas as seções (o chamado é da marca pela unidade, pelo pedido ou pela peça ligados a ele); `referencia=AAAA-MM-DD` faz as janelas de 7, 14, 30 e 90 dias terminarem nesse dia, por exemplo `2026-09-30` para ver o histórico da Vulto, enquanto saldo, ruptura, chamados abertos, retiradas e pontos continuam sendo de agora. Os dias são no horário de Brasília. Os blocos de pendências continuam sendo o `total` de uma lista com filtro: `GET /atendimento/chamados?sem_responsavel=true`, `?meus=true&status=em_andamento` e `?com_mensagem_nova=true`; `GET /estoque?abaixo_minimo=true`; `GET /transferencias?status=enviada` e `?status=solicitada` com `id_unidade` (o frontend separa as que chegam das que saem); `GET /vendas/pedidos?status=pago` e `?pronto_ha_mais_de_dias=5`; `GET /moderacao/denuncias`.
+  As vendas vêm por canal da venda (P3): `loja` e `site` sempre, e `app` só quando o período tem venda pelo app, que existe só no histórico da Vulto. Filtros opcionais: `marca=lorenzi|vulto` vale para todas as seções (o chamado é da marca pela unidade, pelo pedido ou pela peça ligados a ele, e o migrado do atendimento da Vulto é da Vulto; o mesmo filtro da fila do Atendimento); `referencia=AAAA-MM-DD` faz as janelas de 7, 14, 30 e 90 dias terminarem nesse dia, por exemplo `2026-09-30` para ver o histórico da Vulto, enquanto saldo, ruptura, chamados abertos, retiradas e pontos continuam sendo de agora. Os dias são no horário de Brasília. Os blocos de pendências continuam sendo o `total` de uma lista com filtro: `GET /atendimento/chamados?sem_responsavel=true`, `?meus=true&status=em_andamento` e `?com_mensagem_nova=true`; `GET /estoque?abaixo_minimo=true`; `GET /transferencias?status=enviada` e `?status=solicitada` com `id_unidade` (o frontend separa as que chegam das que saem); `GET /vendas/pedidos?status=pago` e `?pronto_ha_mais_de_dias=5`; `GET /moderacao/denuncias`.
 - **Os 3 números da Vulto:** o faturamento da plataforma vem de `GET /visao-geral/faturamento?de=2025-01-01&ate=2026-09-30&marca=vulto`, uma linha por mês, unidade e canal (site e app saem do CD Cajamar); o estoque, de `GET /estoque/historico?em=2026-09-30` e `GET /estoque/em-transito`; o passivo, de `GET /fidelidade/passivo?em=2026-09-30`. Os três com `2026-09-30` dão a posição no fim de 30/09, a data-base de 01/10/2026.
 - **Vendas de hoje (Caixa):** `GET /vendas/pedidos?de=<hoje>&ate=<hoje>&id_unidade=<loja>`, com a data no formato `AAAA-MM-DD`.
 - **Compra online:** `POST /carrinho` mostra frete e lojas; `POST /pedidos` reserva por 15 minutos; `POST /pedidos/{id}/pagamentos` cria a cobrança e `POST /pagamentos/{id}/simular` faz o papel do gateway. Reserva vencida cancela o pedido sozinha.
