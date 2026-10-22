@@ -11,7 +11,7 @@ from src.use_cases import compras, fidelidade, pedidos, vendas
 from src.use_cases.erros import Conflito, RecursoNaoEncontrado, RegraDeNegocio
 from tests.apoio import SessaoFalsa, api, funcionario  # noqa: F401
 from tests.apoio_vendas import (  # noqa: F401
-    CAMISA, CD, CD_VULTO, DUAS_MARCAS, ID_OUTRO, JAQUETA, LOJA_SP, SessaoVendas, banco, cliente,
+    BONE, CAMISA, CD, CD_VULTO, DUAS_MARCAS, ID_OUTRO, JAQUETA, LOJA_SP, SessaoVendas, banco, cliente,
     com_as_duas_no_estoque, com_estoque, com_vulto, saldo,
 )
 
@@ -77,11 +77,11 @@ def test_checkout_cria_a_compra_com_um_pedido_por_marca(com_vulto):
     compra = compra_das_duas(com_vulto)
 
     assert compra["status"] == "aguardando_pagamento" and compra["status_cobranca"] is None
-    # a Casa Lorenzi (R$ 100) paga frete; a Vulto (R$ 350) passa do mínimo e sai grátis
+    # um frete só, pelas duas marcas juntas: R$ 450 em peças passam do mínimo e o frete sai grátis
     assert (compra["valor_itens"], compra["valor_frete"], compra["valor_total"]) == (
-        Decimal("450.00"), Decimal("19.90"), Decimal("469.90"))
+        Decimal("450.00"), Decimal("0.00"), Decimal("450.00"))
     assert [(p["id_unidade"], p["valor_total"]) for p in compra["pedidos"]] == [
-        (CD, Decimal("119.90")), (CD_VULTO, Decimal("350.00")),
+        (CD, Decimal("100.00")), (CD_VULTO, Decimal("350.00")),
     ]
     # os dois pedidos são da compra, vencem junto com ela e guardam o endereço
     assert all(p["id_compra"] == compra["id_compra"] for p in compra["pedidos"])
@@ -90,6 +90,33 @@ def test_checkout_cria_a_compra_com_um_pedido_por_marca(com_vulto):
     # cada pedido reserva só as peças da sua marca, na sua unidade
     assert saldo(com_vulto, CAMISA, CD) == (5, 1) and saldo(com_vulto, JAQUETA, CD_VULTO) == (5, 1)
     assert compra["codigo_compra"].startswith("CP")
+
+
+# abaixo do mínimo, o cliente paga um frete só; cada pedido leva a parte do valor das suas peças
+def test_um_frete_so_repartido_entre_os_pedidos(com_vulto):
+    com_estoque(com_vulto, CAMISA, CD, "online", 5)
+    com_estoque(com_vulto, BONE, CD_VULTO, "online", 5)
+    itens = [{"id_variante": CAMISA, "quantidade": 1}, {"id_variante": BONE, "quantidade": 1}]
+
+    compra = compras.checkout(SessaoVendas(com_vulto), cliente(), entrega(itens))
+
+    assert (compra["valor_itens"], compra["valor_frete"], compra["valor_total"]) == (
+        Decimal("180.00"), Decimal("19.90"), Decimal("199.90"))
+    # R$ 100 de R$ 180 em peças levam 11,05 do frete; os centavos que sobram ficam no último pedido
+    assert [(p["id_unidade"], p["valor_frete"], p["valor_total"]) for p in compra["pedidos"]] == [
+        (CD, Decimal("11.05"), Decimal("111.05")), (CD_VULTO, Decimal("8.85"), Decimal("88.85")),
+    ]
+
+
+def test_ratear_frete():
+    assert compras.ratear_frete(Decimal("19.90"), [Decimal("100.00"), Decimal("80.00")]) == [
+        Decimal("11.05"), Decimal("8.85")]
+    assert compras.ratear_frete(Decimal("19.90"), [Decimal("100.00")]) == [Decimal("19.90")]
+    assert compras.ratear_frete(Decimal("0.00"), [Decimal("100.00"), Decimal("350.00")]) == [
+        Decimal("0.00"), Decimal("0.00")]
+    # três partes iguais: a soma sempre fecha com o frete
+    partes = compras.ratear_frete(Decimal("10.00"), [Decimal("1"), Decimal("1"), Decimal("1")])
+    assert partes == [Decimal("3.33"), Decimal("3.33"), Decimal("3.34")] and sum(partes) == Decimal("10.00")
 
 
 def test_compra_de_uma_marca_pode_retirar_na_loja(com_vulto):
@@ -124,14 +151,14 @@ def test_cada_marca_usa_os_seus_pontos_no_pedido_dela(com_vulto, pontos):
         (CD, "lorenzi", 200, Decimal("100.00")), (CD_VULTO, "vulto", 1000, Decimal("350.00")),
     ]
     assert [(p["id_unidade"], p["valor_desconto"], p["valor_total"]) for p in compra["pedidos"]] == [
-        (CD, Decimal("20.00"), Decimal("99.90")), (CD_VULTO, Decimal("100.00"), Decimal("250.00")),
+        (CD, Decimal("20.00"), Decimal("80.00")), (CD_VULTO, Decimal("100.00"), Decimal("250.00")),
     ]
-    assert (compra["valor_desconto"], compra["valor_total"]) == (Decimal("120.00"), Decimal("349.90"))
+    assert (compra["valor_desconto"], compra["valor_total"]) == (Decimal("120.00"), Decimal("330.00"))
 
     # a cobrança única é o total já com os dois descontos, e cada pedido recebe o valor dele
     compras.criar_cobranca(SessaoVendas(com_vulto), cliente(), compra["id_compra"], "pix")
     compras.responder_cobranca(SessaoVendas(com_vulto), cliente(), compra["id_compra"], True)
-    assert [p.valor for p in com_vulto.pagamentos] == [Decimal("99.90"), Decimal("250.00")]
+    assert [p.valor for p in com_vulto.pagamentos] == [Decimal("80.00"), Decimal("250.00")]
 
 
 def test_pontos_de_marca_fora_do_carrinho(com_vulto, pontos):
@@ -233,7 +260,7 @@ def test_aprovada_paga_os_dois_pedidos_e_baixa_o_estoque(com_vulto):
     assert all(p["status"] == "pago" and p["valor_pago"] == p["valor_total"] for p in paga["pedidos"])
     # um pagamento aprovado por pedido, com o valor dele: o trigger de pontos credita cada marca uma vez
     assert [(p.id_pedido, p.tipo, p.status, p.metodo, p.valor, p.origem) for p in com_vulto.pagamentos] == [
-        (paga["pedidos"][0]["id_pedido"], "pagamento", "aprovado", "cartao_credito", Decimal("119.90"), None),
+        (paga["pedidos"][0]["id_pedido"], "pagamento", "aprovado", "cartao_credito", Decimal("100.00"), None),
         (paga["pedidos"][1]["id_pedido"], "pagamento", "aprovado", "cartao_credito", Decimal("350.00"), None),
     ]
     assert len({p.id_transacao_gateway for p in com_vulto.pagamentos}) == 2
@@ -337,7 +364,7 @@ def test_equipe_cancela_um_pedido_pago_da_compra(com_vulto):
     assert com_vulto.pedidos[vulto["id_pedido"]].status == "pago"
     assert com_vulto.compras[compra["id_compra"]].status == "pago"
     estornos = [p for p in com_vulto.pagamentos if p.tipo == "estorno"]
-    assert [(p.id_pedido, p.valor) for p in estornos] == [(lorenzi["id_pedido"], Decimal("119.90"))]
+    assert [(p.id_pedido, p.valor) for p in estornos] == [(lorenzi["id_pedido"], Decimal("100.00"))]
     assert saldo(com_vulto, CAMISA, CD) == (5, 0) and saldo(com_vulto, JAQUETA, CD_VULTO) == (4, 0)
 
 

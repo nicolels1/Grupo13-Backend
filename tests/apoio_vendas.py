@@ -163,6 +163,7 @@ def saldo(banco, variante, unidade, canal="online"):
 # ---------- as duas marcas no carrinho do site (ADR 0017) ----------
 
 JAQUETA = 20
+BONE = 21
 CD_VULTO = 30
 DUAS_MARCAS = [{"id_variante": CAMISA, "quantidade": 1}, {"id_variante": JAQUETA, "quantidade": 1}]
 
@@ -173,6 +174,8 @@ def com_vulto(banco):
                       marca="vulto", ativo=True)
     banco.variantes[JAQUETA] = (Variante(id_variante=JAQUETA, id_produto=2, sku="JAQ-M", cor="Preta", tamanho="M",
                                          ean=ean_interno(JAQUETA), preco=Decimal("350.00"), ativo=True), jaqueta)
+    banco.variantes[BONE] = (Variante(id_variante=BONE, id_produto=2, sku="BON-U", cor="Preto", tamanho="U",
+                                      ean=ean_interno(BONE), preco=Decimal("80.00"), ativo=True), jaqueta)
     banco.unidades[CD_VULTO] = SimpleNamespace(id_unidade=CD_VULTO, nome="CD Cajamar", tipo="cd", despacha_online=True,
                                                cidade="Cajamar", uf="SP", ativo=True, marca="vulto")
     return banco
