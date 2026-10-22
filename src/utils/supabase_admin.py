@@ -56,6 +56,15 @@ class SupabaseAdmin:
         )
         return uuid.UUID(resposta.json()["id"])
 
+    # login sem senha conhecida e já bloqueado: conta inativa que só guarda o histórico (funcionários da Vulto, P9).
+    # Para voltar a entrar, um admin reativa a conta e a pessoa define a senha pela recuperação
+    def criar_login_bloqueado(self, email: str) -> uuid.UUID:
+        resposta = _enviar(
+            "POST", self.base, headers=self.headers,
+            json={"email": email, "email_confirm": True, "ban_duration": BLOQUEIO},
+        )
+        return uuid.UUID(resposta.json()["id"])
+
     # marca o e-mail como confirmado (login criado antes e nunca confirmado não consegue entrar)
     def confirmar_email(self, id_usuario: uuid.UUID) -> None:
         _enviar("PUT", f"{self.base}/{id_usuario}", headers=self.headers, json={"email_confirm": True})
