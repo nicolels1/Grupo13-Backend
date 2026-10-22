@@ -198,9 +198,11 @@ def test_passivo_num_momento_passado():
             dict(id=3, quando="2026-09-20 12:00:00.000000"),  # devolução de 100 do resgate
             dict(id=4, quando="2026-10-05 12:00:00.000000"),  # resgate de 200, depois do momento
             dict(id=5, quando="2026-10-03 12:00:00.000000"),  # crédito depois do momento
+            dict(id=6, quando="2026-09-01 12:00:00.000000"),  # crédito de 400 que pagou 150 de saldo negativo (K5f)
         ])
         c.execute(text("INSERT INTO lote_pontos VALUES (:id, 'vulto', :valor, :pontos, :restante)"), [
-            dict(id=1, valor=0.10, pontos=1000, restante=600), dict(id=5, valor=0.05, pontos=500, restante=500)])
+            dict(id=1, valor=0.10, pontos=1000, restante=600), dict(id=5, valor=0.05, pontos=500, restante=500),
+            dict(id=6, valor=0.05, pontos=400, restante=250)])
         c.execute(text("INSERT INTO consumo_pontos VALUES (:id, :movimento, 1, :pontos)"), [
             dict(id=1, movimento=2, pontos=300), dict(id=2, movimento=3, pontos=-100),
             dict(id=3, movimento=4, pontos=200)])
@@ -209,8 +211,8 @@ def test_passivo_num_momento_passado():
         agora = fidelidade_repository.passivo_por_valor(db)
         em_30_09 = fidelidade_repository.passivo_por_valor(db, datetime(2026, 9, 30, 23, 59))
 
-    assert [(l["valor_ponto"], l["pontos"]) for l in agora] == [(Decimal("0.10"), 600), (Decimal("0.05"), 500)]
-    assert [(l["valor_ponto"], l["pontos"]) for l in em_30_09] == [(Decimal("0.10"), 800)]
+    assert [(l["valor_ponto"], l["pontos"]) for l in agora] == [(Decimal("0.10"), 600), (Decimal("0.05"), 750)]
+    assert [(l["valor_ponto"], l["pontos"]) for l in em_30_09] == [(Decimal("0.10"), 800), (Decimal("0.05"), 250)]
 
 
 # o extrato da conta traz também o histórico de quando a pessoa era cliente sem conta (P2)

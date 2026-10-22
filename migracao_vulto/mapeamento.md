@@ -239,7 +239,7 @@ Sugestão ainda não registrada como decisão: filtro `marca` em `GET /produtos`
 | P8 | Produto e variante genéricos "Item sem cadastro Vulto", inativos e sem estoque |
 | U1 | 5 unidades com o endereço "A confirmar"; a Pinheiros como loja despachante (`despacha_online`) |
 | E7 | Estoque `online` da Pinheiros, separado da contagem |
-| C16 | Imagem genérica da marca Vulto em cada produto |
+| C16 | Produtos sem foto: a vitrine mostra o bloco na cor da peça (nada a carregar) |
 | C18 | Categorias que a Lorenzi não tem (ex.: Tricô) |
 | C2 | Produto da peça antiga, com SKU de sufixo, nos 6 códigos reaproveitados |
 | E14 | Estoque mínimo do CD: a saída de cada peça nos últimos 30 dias, com piso 2 |

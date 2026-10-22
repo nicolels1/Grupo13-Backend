@@ -114,8 +114,6 @@ ILEGIVEL = "ILEGÍVEL "  # prefixo da peça contada sem variante única (E10)
 COR_ILEGIVEL = "A identificar"
 NOME_SEM_CADASTRO = "Item sem cadastro Vulto"
 CATEGORIA_SEM_CADASTRO = "Sem cadastro Vulto"
-# C16: a mesma imagem da marca em todo produto, no bucket de fotos de produto; a carga sobe o arquivo
-IMAGEM_GENERICA = "vulto/sem-foto.png"
 
 
 # Vendas classificadas do banco e o estoque na data base (E2, E4, E5, E10, E13), calculados uma vez para o
@@ -310,8 +308,6 @@ def tratar_catalogo(origem: Path, saida: Saida):
     saida.tabela("produto", produto)
     saida.tabela("variante", variante)
     saida.tabela("historico_preco", pd.DataFrame(historicos))
-    saida.tabela("imagem_produto", pd.DataFrame(
-        [dict(produto=p, cor=None, caminho_arquivo=IMAGEM_GENERICA, ordem=1) for p in produto["codigo"]]))
     saida.tabela("lista_marina", pd.DataFrame(para_marina))
 
 
@@ -528,6 +524,7 @@ def tratar_vendas(origem: Path, saida: Saida) -> dict:
     l["identidade"] = l["id"].map(identidade)
     l["dia"] = l["criado_em"].map(r.dia_brasilia)
     pedidos, linhas_itens, pagamentos = [], [], []
+    metodo_do_pagamento = {}
 
     def cliente(chave, tabela, fonte, linha):
         if isinstance(chave, str) and chave not in clientes:
@@ -540,12 +537,16 @@ def tratar_vendas(origem: Path, saida: Saida) -> dict:
         pagamentos.append(dict(chave=chave, pedido=codigo, tipo="pagamento", pagamento_original=None, origem="migracao",
                                metodo=metodo, valor=valor, status="aprovado", criado_em=quando))
         saida.de_onde("pagamento", chave, fonte, linha, "P7")
+        metodo_do_pagamento[chave] = metodo
         return chave
 
-    def estornar(codigo, original, valor, quando, metodo, fonte, linha, decisao, n=1):
+    # o estorno volta pelo método do pagamento original (regra da plataforma, P7): a devolução de uma venda
+    # da Batel, que tem o método real, não fica com o "não informado" do banco
+    def estornar(codigo, original, valor, quando, fonte, linha, decisao, n=1):
         chave = f"{codigo}#estorno{n}"
         pagamentos.append(dict(chave=chave, pedido=codigo, tipo="estorno", pagamento_original=original,
-                               origem="migracao", metodo=metodo, valor=valor, status="aprovado", criado_em=quando))
+                               origem="migracao", metodo=metodo_do_pagamento[original], valor=valor,
+                               status="aprovado", criado_em=quando))
         saida.de_onde("pagamento", chave, fonte, linha, decisao)
 
     migra = l[(l["tipo"] == "venda") & ~l["motivo"].isin(NAO_MIGRA)]
@@ -610,7 +611,7 @@ def tratar_vendas(origem: Path, saida: Saida) -> dict:
         if not cancelado:
             original = pagar(codigo, v.corrigido, v.criado_em, METODO["(vazio)"], FONTE_BANCO, v.linha_origem)
             if v.situacao in ("estornado", "chargeback"):
-                estornar(codigo, original, v.corrigido, v.criado_em, METODO["(vazio)"], FONTE_BANCO, v.linha_origem, "V4")
+                estornar(codigo, original, v.corrigido, v.criado_em, FONTE_BANCO, v.linha_origem, "V4")
 
     # V5: a cópia do pedido fica na origem do pedido que migrou
     for v in l[l["motivo"] == "V5 cópia do pedido"].itertuples():
@@ -665,7 +666,7 @@ def tratar_vendas(origem: Path, saida: Saida) -> dict:
             metodo = METODO[b.PGTO.strip().lower()]
             original = pagar(codigo, valor, quando, metodo, FONTE_BATEL, b.linha_origem)
             if "estorn" in obs:
-                estornar(codigo, original, valor, quando, metodo, FONTE_BATEL, b.linha_origem, "V4")
+                estornar(codigo, original, valor, quando, FONTE_BATEL, b.linha_origem, "V4")
 
     # V6: a devolução vira estorno no pagamento do pedido original. Sem original pela regra, vale a exceção:
     # o relançamento citado na obs ou a compra da mesma peça na mesma loja (r.compras_possiveis); o
@@ -715,8 +716,8 @@ def tratar_vendas(origem: Path, saida: Saida) -> dict:
         estornado[codigo] += valor
         n_estornos[codigo] += 1
         original[d.id] = codigo
-        estornar(codigo, f"{codigo}#pagamento", valor, d.criado_em, METODO["(vazio)"], FONTE_BANCO, d.linha_origem,
-                 "V6", n_estornos[codigo])
+        estornar(codigo, f"{codigo}#pagamento", valor, d.criado_em, FONTE_BANCO, d.linha_origem, "V6",
+                 n_estornos[codigo])
         saida.de_onde("pagamento", f"{codigo}#estorno{n_estornos[codigo]}", FONTE_BANCO, d.linha_origem, "V6",
                       "pedido_original", regra)
         itens_valor = p.loc[codigo, "valor_total"] - p.loc[codigo, "valor_frete"]

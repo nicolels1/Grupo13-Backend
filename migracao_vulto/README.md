@@ -9,7 +9,7 @@ Scripts que preparam os dados da Vulto (banco SQLite e planilhas do `vulto-legad
 | 0. Original | `vulto-backend/data/` | Cópia congelada dos dados da Vulto. Nunca é alterada (o SQLite é aberto só para leitura). | — |
 | 1. Padronização automática | `staging_vulto/` | Formato de data, número, CPF, e-mail, telefone, texto, encoding e cabeçalho de planilha. Nenhuma regra de negócio. | **Feita** (`padronizar.py`) |
 | 2. Tratamento | `tratado_vulto/` | Padrões assumidos (de-para) e decisões de negócio: um CSV por tabela da plataforma, mais a origem de cada registro e cada valor alterado. | **Feito** (`tratar.py`: unidades, contas internas, catálogo, clientes, vendas, estoque, fidelidade e atendimento) |
-| 3. Carga | banco da Lorenzi | Insere os dados tratados, guardando a origem de cada registro. | A fazer |
+| 3. Carga | banco da Lorenzi | Insere os dados tratados numa transação só, guardando a origem de cada registro, e confere os três números calculados pelo banco. | **Pronta** (`carregar.py`; o ensaio chega nos três números do `numeros.md`; a carga definitiva é com `--confirmar`) |
 | Os três números | `numeros_vulto/` | Faturamento, estoque e passivo de pontos, calculados do staging com as decisões do registro. Só agregados. | **Feito** (`numeros.py`, resultado em [`numeros.md`](numeros.md)) |
 
 Cada etapa lê a pasta da anterior e regrava a sua do zero; regra nova entra no script e tudo roda de novo (não se cria um CSV por alteração). Os de-para da etapa 2 ficam em CSVs pequenos em `de_para/`, versionados no git, e cada valor alterado vai para um único `origem_migracao.csv`, com a decisão que o mudou.
@@ -33,7 +33,11 @@ pip install -r migracao_vulto/requirements.txt
 python -m migracao_vulto.padronizar --destino staging_vulto
 python -m migracao_vulto.tratar --origem staging_vulto --destino tratado_vulto
 python -m migracao_vulto.numeros --origem staging_vulto --destino numeros_vulto
+python -m migracao_vulto.carregar --origem tratado_vulto              # ensaio: carrega, confere e desfaz
+python -m migracao_vulto.carregar --origem tratado_vulto --confirmar  # carga definitiva
 ```
+
+A carga usa a conexão direta (`DATABASE_URL_DIRECT`, a mesma das migrations) e, na definitiva, também `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY`.
 
 O `tratar.py` imprime no fim os três números calculados a partir das tabelas tratadas; eles devem ser iguais aos do [`numeros.md`](numeros.md).
 
@@ -48,6 +52,7 @@ Sem `VULTO_DATA_DIR`, informe a pasta no comando: `--origem ../vulto-backend/dat
 - `regras.py`: as regras das decisões do registro (SKU, situação e canal da venda, centavos do app, Batel, dono dos pontos, saldo inicial, estornos, FIFO, posição contada e histórico do estoque). Usadas pelo `numeros.py` e pelo `tratar.py`, para que os números e a carga sigam a mesma regra. Os testes estão em `tests/test_regras_vulto.py`.
 - `tratar.py`: a etapa 2. Monta cada tabela da plataforma a partir do staging, com as regras do `regras.py` e as traduções do `de_para/`, e grava também `origem_migracao.csv` e `pendencias.csv`.
 - `de_para/`: as tabelas de tradução da Vulto para a Lorenzi, em CSV, cada linha com a decisão que a justifica. Unidades, cores e status da venda (lidas pelo `regras.py`); contas internas, vendedor e atendente (P9); método de pagamento da Batel; consentimento e loja de cadastro do Vulto+ (a categoria não tem de-para: sai da regra, K4c); categoria do catálogo; canal, categoria e status do atendimento. Valor que não está na tabela não é traduzido no chute. O teste `tests/test_de_para_vulto.py` confere a estrutura.
+- `carregar.py`: a etapa 3. Troca as chaves naturais pelos ids, grava tudo com COPY numa transação e confere os três números pelas consultas da plataforma. Os testes estão em `tests/test_carregar_vulto.py`.
 - `numeros.py`: calcula os três números da Entrega 3 (faturamento com a comparação com o relatório da Vulto, estoque em 01/10/2026 com o histórico desde jan/2025, passivo de pontos) a partir do staging, com as regras do `regras.py`.
 - [`numeros.md`](numeros.md): os três números, como chegamos neles e a margem de erro de cada um.
 - `notebooks/`: análise exploratória (entender as fontes e testar regras antes de irem para os scripts). Ver o [README da pasta](notebooks/README.md).
@@ -99,19 +104,21 @@ Pendências por motivo (o que não dá para padronizar sem decidir ou que não d
 | atendimento | `contato` | telefone sem DDD | 124 |
 | catálogo | `descontinuado` | só a célula do SKU em vermelho, resto da linha normal | 93 |
 
-## O que a carga (etapa 3) precisa respeitar
+## Como a carga (etapa 3) funciona
 
-O `tratado_vulto/` já passa nas regras do banco (CHECK, chaves e triggers). A carga só precisa:
+O `tratado_vulto/` já passa nas regras do banco (CHECK, chaves e triggers). A carga:
 
-- **Trocar a chave natural pelo id**, na ordem das ligações: unidade, usuário, catálogo, cliente sem conta, pedido, pagamento, transferência, movimentação de estoque, movimento de pontos, chamado e mensagem. O cliente é achado pelo CPF ou, de quem não tem CPF, pelo e-mail.
-- **Deixar fora do INSERT a coluna vazia que o banco preenche:** `cliente_sem_conta.criado_em` (120 clientes só da aba antiga) e `variante.ean` (49 peças, o trigger gera o código).
-- **Não gravar o saldo do estoque direto:** o banco recusa ([ADR 0005](../docs/adr/0005-saldo-atualizado-por-trigger.md)). O saldo nasce das movimentações, inseridas na ordem da coluna `ordem`; o `estoque.csv` serve para conferir o saldo e para gravar só o `estoque_minimo` depois.
-- **Inserir os movimentos de pontos na ordem da coluna `ordem`:** o trigger do saldo exige ordem de data.
-- **Contar com os pagamentos com `origem = migracao`:** os triggers não creditam nem estornam pontos por eles; os pontos vêm só do `movimento_pontos`.
-- **Gravar o `origem_migracao` por último**, com o id que o banco deu a cada registro no lugar da chave natural.
-- **Não carregar** o `pendencias.csv` nem o `lista_marina.csv` (peças para a Marina revisar o preço, C10 e C17): são listas para a equipe. O `pendencias.csv` não é trabalho por fazer: é o que ficou de fora por uma decisão do registro, linha a linha (19 movimentos de pontos do CPF de teste e do `00000000000`, V8 e K2; 2 resgates sem cliente, K7a e K7c).
+- **Roda numa transação só.** O ensaio (o padrão) carrega, confere e desfaz (ROLLBACK): nada fica gravado, e as sequências dos ids voltam para onde estavam. A carga definitiva (`--confirmar`) só grava (COMMIT) se os três números baterem; se não baterem, desfaz tudo. Se a Vulto já está no banco (unidade da marca `vulto`), não começa.
+- **Cria as 17 contas internas da Vulto (P9) no Supabase Auth sem senha conhecida e bloqueadas**, porque a conta da plataforma é o login do Auth (ADR 0008). Elas só guardam quem vendeu, atendeu e lançou o estoque; para alguém voltar a entrar, um admin reativa a conta e a pessoa define a senha pela recuperação. No ensaio, as contas entram direto em `auth.users`, dentro da transação, e somem no ROLLBACK. Os clientes da Vulto não ganham conta: entram como cliente sem conta (P2) e se ligam à conta quando se cadastrarem com o CPF.
+- **Troca a chave natural pelo id**, na ordem das ligações: unidade, conta, catálogo (as categorias que a Lorenzi já tem são achadas pelo nome), cliente sem conta, pedido, item, chamado, mensagem, pagamento, transferência, movimentação de estoque e movimento de pontos. Os ids são reservados na sequência de cada tabela antes do COPY, e chave sem registro para a carga (nada é ligado no chute). O cliente é achado pelo CPF ou, de quem não tem CPF, pelo e-mail.
+- **Deixa vazia a coluna que o banco preenche:** `cliente_sem_conta.criado_em` (120 clientes só da aba antiga) e `variante.ean` (49 peças, o trigger gera o código).
+- **Não grava o saldo do estoque direto:** o banco recusa ([ADR 0005](../docs/adr/0005-saldo-atualizado-por-trigger.md)). O saldo nasce das movimentações, inseridas na ordem da coluna `ordem`; o `estoque.csv` serve para conferir o saldo (os 3.541 batem) e para gravar só o `estoque_minimo` depois.
+- **Insere os movimentos de pontos na ordem da coluna `ordem`** (o trigger do saldo exige ordem de data) e o pagamento original antes do estorno (o estorno sai pelo mesmo método, P7).
+- **Conta com os pagamentos com `origem = migracao`:** os triggers não creditam nem estornam pontos por eles; os pontos vêm só do `movimento_pontos`.
+- **Grava o `origem_migracao` por último**, com o id que o banco deu a cada registro no lugar da chave natural.
+- **Não carrega** o `pendencias.csv` nem o `lista_marina.csv` (peças para a Marina revisar o preço, C10 e C17): são listas para a equipe. O `pendencias.csv` não é trabalho por fazer: é o que ficou de fora por uma decisão do registro, linha a linha (19 movimentos de pontos do CPF de teste e do `00000000000`, V8 e K2; 2 resgates sem cliente, K7a e K7c).
 
-No fim, os três números calculados a partir do banco devem ser iguais aos do [`numeros.md`](numeros.md).
+No fim, a carga calcula os três números pelas mesmas consultas da plataforma (faturamento da visão geral, histórico e trânsito do estoque, passivo por data) e compara com os do [`numeros.md`](numeros.md). O ensaio de 21/10/2026 levou cerca de um minuto e chegou nos quatro valores: R$ 6.438.443,35; 15.233 peças; 9.436.136 pontos e R$ 652.718,10.
 
 ## Onde cada decisão entra no código
 

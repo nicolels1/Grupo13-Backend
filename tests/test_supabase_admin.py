@@ -39,6 +39,19 @@ def test_criar_login_nasce_confirmado(requisicoes):
     assert kwargs["json"]["email_confirm"] is True
 
 
+# conta interna da Vulto (P9): nasce bloqueada e sem senha, só para guardar o histórico
+def test_criar_login_bloqueado_nao_manda_senha(requisicoes):
+    id_login = uuid.uuid4()
+    enviadas = requisicoes(httpx2.Response(200, json={"id": str(id_login)}))
+
+    resultado = SupabaseAdmin(URL, "chave").criar_login_bloqueado("julia01@vulto.example")
+
+    _, _, kwargs = enviadas[0]
+    assert resultado == id_login
+    assert "password" not in kwargs["json"]
+    assert kwargs["json"]["ban_duration"] == supabase_admin.BLOQUEIO
+
+
 def test_erro_do_supabase_traz_status_codigo_e_mensagem(requisicoes):
     requisicoes(httpx2.Response(422, json={"code": 422, "error_code": "email_exists", "msg": "already registered"}))
 
