@@ -65,7 +65,7 @@ src/
 ├── config/         # settings.py (variáveis do .env) e logs.py (logs com id da requisição)
 ├── database/       # base.py (Base dos models) e session.py (engine, sessão e get_db)
 ├── entities/       # schemas Pydantic de entrada e saída de cada área
-├── models/         # tabelas SQLAlchemy (35 tabelas: as 27 do modelo de dados, os destaques do carrossel, as 2 da migração da Vulto e as 5 da fidelidade)
+├── models/         # tabelas SQLAlchemy (36 tabelas: as 27 do modelo de dados, os destaques do carrossel, as 2 da migração da Vulto, as 5 da fidelidade e a compra do site)
 ├── repositories/   # única camada que consulta e grava no banco
 ├── use_cases/      # regras de negócio
 ├── routes/         # rotas FastAPI, uma por área
@@ -142,7 +142,7 @@ O histórico de estoque é calculado somando as movimentações até a data pedi
   - o que é criado fora antes da gravação (login no Auth, arquivo no Storage) é desfeito se a gravação falhar (`apagar_login`, `arquivos.desfazer_envio`);
   - o que muda algo fora depois da gravação (bloquear login, apagar arquivo antigo) vem depois do commit; se falhar, o banco volta ao valor anterior (`usuarios.alterar`) ou o problema fica registrado no log.
 
-O modelo de dados completo (27 tabelas e valores aceitos) está na seção 7 do [case](docs/case/Casa_Lorenzi_Case_Completo.md). Depois dele entraram a tabela `destaque` (slides do carrossel do topo da página inicial, migration `91a5ddfd1a16`), para a equipe trocar o carrossel pelo interno em vez de pelo código, e as 7 tabelas da Entrega 3: `cliente_sem_conta` e `origem_migracao` (migração da Vulto) e `regra_fidelidade`, `movimento_pontos`, `saldo_pontos`, `lote_pontos` e `consumo_pontos` (fidelidade). Comandos do Alembic, passo a passo para mudar o banco e as regras das migrations estão no [ALEMBIC_GUIDE.md](ALEMBIC_GUIDE.md).
+O modelo de dados completo (36 tabelas e valores aceitos) está na seção 7 do [case](docs/case/Casa_Lorenzi_Case_Completo.md): as 27 do modelo da Entrega 2, a tabela `destaque` (slides do carrossel do topo da página inicial, migration `91a5ddfd1a16`), para a equipe trocar o carrossel pelo interno em vez de pelo código, as 7 tabelas da Entrega 3, `cliente_sem_conta` e `origem_migracao` (migração da Vulto) e `regra_fidelidade`, `movimento_pontos`, `saldo_pontos`, `lote_pontos` e `consumo_pontos` (fidelidade), e a `compra` (carrinho único das duas marcas, com `pedido.id_compra`, migration `8834803e1dc8`, [ADR 0017](docs/adr/0017-carrinho-unico-um-pedido-por-marca.md)). Comandos do Alembic, passo a passo para mudar o banco e as regras das migrations estão no [ALEMBIC_GUIDE.md](ALEMBIC_GUIDE.md).
 
 ## Como rodar localmente
 
@@ -220,8 +220,7 @@ Próximos passos, fora da Entrega 3:
 - **notificações por e-mail e consentimento na conta:** a plataforma não manda e-mail da loja. O consentimento de mensagem dos clientes da Vulto está guardado (K9b); antes de qualquer campanha, a conta da Lorenzi também precisa perguntar o consentimento;
 - **EAN das 9 peças da Vulto cortado pelo Excel:** entram com o código interno; a loja corrige lendo a etiqueta (`PATCH /variantes/{id}`);
 - **programa de pontos único da rede:** hoje cada marca tem o seu saldo (P10); se a diretoria quiser unificar, basta uma regra que valha para a rede, sem refazer o histórico;
-- **pontos na junção de contas:** quando a correção de CPF junta duas contas, os pedidos passam para a conta certa, mas os pontos da conta errada não; levar os pontos exige registrar qual conta foi juntada a qual;
-- **telas da fidelidade no front:** regras (`gerenciar_fidelidade`), "meus pontos" e extrato, consulta da equipe, passivo e o campo `pontos_resgate` no caixa e no checkout; o `tiposApi.ts` precisa ser gerado de novo (permissão nova, categoria `pagamento` e `id_autor` vazio na mensagem).
+- **pontos na junção de contas:** quando a correção de CPF junta duas contas, os pedidos passam para a conta certa, mas os pontos da conta errada não; levar os pontos exige registrar qual conta foi juntada a qual.
 
 ## Rotas
 
@@ -481,12 +480,15 @@ A API é publicada no Render a cada merge na `main`.
 - estoque: saldo por unidade e canal, movimentações, realocação, estoque mínimo, histórico em qualquer data, peças em trânsito, gráfico de evolução e conferência de divergências;
 - transferências com as etapas solicitada → enviada → recebida e cancelamento;
 - vendas: carrinho com frete, checkout com reserva de 15 minutos, pagamento por gateway simulado, venda física com CPF na nota opcional, preparo, envio, retirada, entrega, cancelamento com estorno, reivindicação de compra e endereços salvos;
+- compra do site: um carrinho e uma cobrança para a Casa Lorenzi e a Vulto, com um pedido por marca, frete único repartido entre os pedidos e pontos de cada marca no pedido dela (ADR 0017);
+- fidelidade: regras por marca com data, extrato que nunca muda, saldo e categoria por cliente e marca, pontos com o valor da época e vencimento, crédito e estorno automáticos pelo banco, resgate no checkout e no caixa e passivo em qualquer data;
 - atendimento: chamados do cliente, fila da equipe, assumir, prioridade, mensagens internas, anexos, conclusão, histórico, troca, devolução e estorno;
 - balcão: troca e devolução na loja sem chamado, para pedidos com ou sem conta, busca do pedido por código, número ou CPF e consulta de peça só de leitura;
 - avaliações: nota, texto e fotos, edição por 7 dias, voto útil, denúncia e moderação;
 - Visão Geral: resumo com vendas por dia, mais vendidas, chamados, números da rede e linha por unidade, conforme as permissões da conta;
-- migração da Vulto (plataforma): marca na unidade e no produto, EAN na variante, cliente sem conta, origem da migração, canal de venda, desconto e pagamento migrado no pedido, atendimento externo e categoria pagamento no chamado;
-- banco com 35 tabelas, triggers, RLS, usuário restrito e prazos automáticos pelo pg_cron; testes automatizados com CI.
+- migração da Vulto (plataforma): marca na unidade e no produto, permissões de marca por pessoa da equipe, EAN na variante, cliente sem conta, origem da migração, canal de venda, desconto e pagamento migrado no pedido, atendimento externo e categoria pagamento no chamado;
+- migração da Vulto (dados): carga definitiva feita em 21/10/2026, com os três números conferidos no banco ([`migracao_vulto/`](migracao_vulto/README.md));
+- banco com 36 tabelas, triggers, RLS, usuário restrito e prazos automáticos pelo pg_cron; testes automatizados com CI.
 
 **Fora do escopo desta entrega:** gateway de pagamento real (ADR 0011) e as evoluções da seção 9 do [case](docs/case/Casa_Lorenzi_Case_Completo.md).
 
