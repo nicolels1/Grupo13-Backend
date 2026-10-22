@@ -148,8 +148,8 @@ def listar_movimentacoes(
     return _pagina(*repo.listar_movimentacoes(db, limit, offset, **filtros), limit, offset)
 
 
-def listar_divergencias(db: Session) -> list:
-    return repo.listar_divergencias(db)
+def listar_divergencias(db: Session, marca: str | None = None) -> list:
+    return repo.listar_divergencias(db, marca)
 
 
 # data sem hora vale o fim do dia (ou o começo, no início de um intervalo) no horário de

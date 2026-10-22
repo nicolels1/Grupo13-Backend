@@ -8,10 +8,12 @@ from src.models.atendimento import Chamado
 from src.models.contas import Usuario
 from src.models.estoque import Unidade
 from src.models.vendas import Pedido
-from src.repositories import atendimento_repository, estoque_repository, migracao_repository, unidade_repository
+from src.repositories import (
+    atendimento_repository, estoque_repository, marca_repository, migracao_repository, unidade_repository,
+)
 from src.repositories import pedido_repository as repo
 from src.use_cases import pagamentos
-from src.use_cases.erros import RecursoNaoEncontrado, RegraDeNegocio
+from src.use_cases.erros import RecursoNaoEncontrado, RegraDeNegocio, SemPermissao
 from src.use_cases.estoque import conferir_disponivel, conferir_marca
 from src.use_cases.pedidos import agora, buscar, detalhar, pagina, quantidades
 from src.utils.cpf import cpf_valido, normalizar_cpf
@@ -193,19 +195,23 @@ def registrar_estorno(db: Session, usuario: Usuario, id_chamado: int, id_pagamen
 
 # o pedido é achado pelo código da venda (notinha), pelo número do pedido ou pelo CPF; pelo CPF,
 # vêm os pedidos entregues nos últimos 30 dias, pelo CPF da conta ou pelo CPF na nota
-def buscar_no_balcao(db: Session, codigo_venda: str | None, id_pedido: int | None, cpf: str | None) -> list:
+# marca: a que a pessoa vê (None: as duas); pelo código ou número, o pedido da outra marca não aparece
+def buscar_no_balcao(db: Session, codigo_venda: str | None, id_pedido: int | None, cpf: str | None,
+                     marca: str | None = None) -> list:
     if sum(valor is not None for valor in (codigo_venda, id_pedido, cpf)) != 1:
         raise RegraDeNegocio("Informe um só: código da venda, número do pedido ou CPF")
     if cpf is not None:
         cpf = normalizar_cpf(cpf)
         if not cpf_valido(cpf):
             raise RegraDeNegocio("CPF inválido")
-        return pagina(db, 50, 0, cpf=cpf, status="entregue", entregue_desde=agora() - PRAZO)["items"]
+        return pagina(db, 50, 0, cpf=cpf, status="entregue", entregue_desde=agora() - PRAZO, marca=marca)["items"]
     if codigo_venda is not None:
         pedido = repo.pedido_por_codigo(db, codigo_venda.strip())
         if pedido is None:
             raise RecursoNaoEncontrado("Pedido não encontrado")
         id_pedido = pedido.id_pedido
+    if marca is not None and marca_repository.do_pedido(db, id_pedido) - {marca}:
+        raise SemPermissao("Pedido de uma marca que você não vê")
     return [detalhar(db, id_pedido)]
 
 

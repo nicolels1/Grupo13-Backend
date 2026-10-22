@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
-from src.dependencies.permissoes import exige_cliente, exige_permissao
+from src.dependencies.permissoes import exige_cliente, exige_permissao, marca_permitida, marcas_vistas
 from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Lista, Marca, Pagina
 from src.entities.fidelidade import (
     MovimentoPontosSaida, PassivoSaida, PontosDoCliente, RegraCriar, RegraSaida, ResgateSimulado,
@@ -12,6 +12,7 @@ from src.entities.fidelidade import (
 from src.models.contas import Usuario
 from src.use_cases import fidelidade
 from src.use_cases.erros import RegraDeNegocio
+from src.use_cases.permissoes import conferir_marca
 from src.utils.cpf import cpf_valido, normalizar_cpf
 
 router = APIRouter(prefix="/fidelidade", tags=["fidelidade"])
@@ -24,7 +25,7 @@ GERENCIAR = exige_permissao("gerenciar_fidelidade")
     description="Regras de cada marca, da mais nova para a mais antiga; `vigente` marca a que vale hoje.",
 )
 def listar_regras(
-    marca: Marca | None = Query(None), db: Session = Depends(get_db), usuario: Usuario = Depends(GERENCIAR),
+    marca: str | None = Depends(marca_permitida), db: Session = Depends(get_db), usuario: Usuario = Depends(GERENCIAR),
 ):
     return {"items": fidelidade.listar_regras(db, marca)}
 
@@ -34,7 +35,11 @@ def listar_regras(
     description="Cria a regra de uma marca a partir de uma data futura. Vale dali em diante e nunca muda um "
                 "ponto já ganho; uma regra que ainda não começou se corrige com outra para a mesma data.",
 )
-def criar_regra(dados: RegraCriar, db: Session = Depends(get_db), usuario: Usuario = Depends(GERENCIAR)):
+def criar_regra(
+    dados: RegraCriar, db: Session = Depends(get_db), usuario: Usuario = Depends(GERENCIAR),
+    vistas: set[str] = Depends(marcas_vistas),
+):
+    conferir_marca(vistas, {dados.marca})
     return fidelidade.criar_regra(db, usuario.id_usuario, dados.model_dump())
 
 
@@ -56,8 +61,9 @@ def simular_resgate(
 )
 def simular_resgate_no_caixa(
     cpf: str, marca: Marca, pontos: int = Query(gt=0), db: Session = Depends(get_db),
-    usuario: Usuario = Depends(exige_permissao("registrar_venda_fisica")),
+    usuario: Usuario = Depends(exige_permissao("registrar_venda_fisica")), vistas: set[str] = Depends(marcas_vistas),
 ):
+    conferir_marca(vistas, {marca})
     cpf = normalizar_cpf(cpf)
     if not cpf_valido(cpf):
         raise RegraDeNegocio("CPF inválido")
@@ -90,17 +96,18 @@ def meu_extrato(
             description="Saldo de um cliente com conta (`id_cliente`) ou da Vulto sem conta (`id_cliente_sem_conta`).")
 def pontos_de_um_cliente(
     id_cliente: uuid.UUID | None = Query(None), id_cliente_sem_conta: int | None = Query(None),
-    db: Session = Depends(get_db), usuario: Usuario = Depends(CONSULTAR),
+    db: Session = Depends(get_db), usuario: Usuario = Depends(CONSULTAR), vistas: set[str] = Depends(marcas_vistas),
 ):
     _um_cliente(id_cliente, id_cliente_sem_conta)
-    return fidelidade.pontos_do_cliente(db, id_cliente, id_cliente_sem_conta)
+    pontos = fidelidade.pontos_do_cliente(db, id_cliente, id_cliente_sem_conta)
+    return {"saldos": [saldo for saldo in pontos["saldos"] if saldo["marca"] in vistas]}
 
 
 @router.get("/clientes/pontos/extrato", response_model=Pagina[MovimentoPontosSaida],
             description="Extrato de um cliente, como o cliente vê.")
 def extrato_de_um_cliente(
     id_cliente: uuid.UUID | None = Query(None), id_cliente_sem_conta: int | None = Query(None),
-    marca: Marca | None = Query(None), limit: int = Query(LIMITE_PADRAO, ge=1, le=LIMITE_MAXIMO),
+    marca: str | None = Depends(marca_permitida), limit: int = Query(LIMITE_PADRAO, ge=1, le=LIMITE_MAXIMO),
     offset: int = Query(0, ge=0), db: Session = Depends(get_db), usuario: Usuario = Depends(CONSULTAR),
 ):
     _um_cliente(id_cliente, id_cliente_sem_conta)
@@ -112,9 +119,9 @@ def extrato_de_um_cliente(
 def passivo(
     em: str | None = Query(None, description="AAAA-MM-DD (fim do dia) ou AAAA-MM-DDTHH:MM, no horário de Brasília. "
                                              "Ex.: 2026-09-30 para a posição em 01/10. Padrão: agora"),
-    db: Session = Depends(get_db), usuario: Usuario = Depends(GERENCIAR),
+    db: Session = Depends(get_db), usuario: Usuario = Depends(GERENCIAR), vistas: set[str] = Depends(marcas_vistas),
 ):
-    return {"items": fidelidade.passivo(db, em)}
+    return {"items": [marca for marca in fidelidade.passivo(db, em) if marca["marca"] in vistas]}
 
 
 def _um_cliente(id_cliente, id_cliente_sem_conta) -> None:

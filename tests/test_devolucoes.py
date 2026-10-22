@@ -287,7 +287,9 @@ def test_busca_exige_um_filtro_so(entregue):
 def _vendedor_api(api, monkeypatch, codigos):
     cliente_api = api(SessaoFalsa(), usuario=funcionario())
     monkeypatch.setattr(permissao_repository, "modelo_eh_admin", lambda db, i: False)
-    monkeypatch.setattr(permissao_repository, "codigos_do_modelo", lambda db, i: set(codigos))
+    # vê as duas marcas: o teste é da permissão do balcão
+    monkeypatch.setattr(permissao_repository, "codigos_do_modelo",
+                        lambda db, i: set(codigos) | {"ver_marca_lorenzi", "ver_marca_vulto"})
     return cliente_api
 
 

@@ -2,14 +2,16 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
-from src.dependencies.permissoes import exige_permissao, marca_permitida
+from src.dependencies.permissoes import exige_permissao, marca_da_variante, marca_permitida
 from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Lista, Pagina
 from src.entities.estoque import (
     Canal, Divergencia, EmTransitoItem, EstoqueHistoricoItem, EstoqueItem, Evolucao, Granularidade, MovimentacaoItem,
     MovimentacaoSaida, NovaMovimentacao, NovaRealocacao, NovoMinimo,
 )
 from src.models.contas import Usuario
+from src.repositories import marca_repository
 from src.use_cases import estoque
+from src.use_cases.permissoes import exigir_marca
 
 router = APIRouter(tags=["estoque"])
 
@@ -87,7 +89,9 @@ def em_transito(
     )}
 
 
-@router.get("/estoque/evolucao", response_model=Evolucao, responses=ERROS_COMUNS)
+# a variante vem na query (id_variante): a marca dela é conferida como a de um registro pelo id
+@router.get("/estoque/evolucao", dependencies=[Depends(marca_da_variante)], response_model=Evolucao,
+            responses=ERROS_COMUNS)
 def evolucao(
     id_variante: int,
     id_unidade: int | None = Query(None, description="Vazio: soma de todas as unidades"),
@@ -106,8 +110,10 @@ def evolucao(
     responses=ERROS_COMUNS,
     description="Linhas em que o saldo não bate com a soma das movimentações. Deve vir sempre vazia (ADR 0005).",
 )
-def divergencias(_: Usuario = Depends(VER_ESTOQUE), db: Session = Depends(get_db)):
-    return estoque.listar_divergencias(db)
+def divergencias(
+    marca: str | None = Depends(marca_permitida), _: Usuario = Depends(VER_ESTOQUE), db: Session = Depends(get_db),
+):
+    return estoque.listar_divergencias(db, marca)
 
 
 @router.put("/estoque/minimo", response_model=EstoqueItem, responses=ERROS_DE_ESCRITA)
@@ -116,6 +122,7 @@ def definir_minimo(
     usuario: Usuario = Depends(exige_permissao("definir_estoque_minimo")),
     db: Session = Depends(get_db),
 ):
+    exigir_marca(db, usuario, marca_repository.da_unidade(db, dados.id_unidade))
     return estoque.definir_minimo(
         db, usuario, dados.id_variante, dados.id_unidade, dados.canal, dados.estoque_minimo
     )
@@ -152,6 +159,7 @@ def registrar_movimentacao(
     usuario: Usuario = Depends(exige_permissao("movimentar_estoque")),
     db: Session = Depends(get_db),
 ):
+    exigir_marca(db, usuario, marca_repository.da_unidade(db, dados.id_unidade))
     return estoque.registrar_movimentacao(
         db, usuario, dados.id_variante, dados.id_unidade, dados.canal, dados.tipo, dados.quantidade, dados.motivo
     )
@@ -169,4 +177,5 @@ def realocar(
     usuario: Usuario = Depends(exige_permissao("movimentar_estoque")),
     db: Session = Depends(get_db),
 ):
+    exigir_marca(db, usuario, marca_repository.da_unidade(db, dados.id_unidade))
     return estoque.realocar(db, usuario, dados.id_variante, dados.id_unidade, dados.canal_origem, dados.quantidade)

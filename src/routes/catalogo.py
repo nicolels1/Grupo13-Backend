@@ -2,7 +2,9 @@ from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile,
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
-from src.dependencies.permissoes import exige_permissao, get_usuario_opcional
+from src.dependencies.permissoes import (
+    exige_permissao, get_usuario_opcional, marca_da_imagem, marca_da_variante, marca_do_produto,
+)
 from src.dependencies.supabase import get_storage
 from src.entities.catalogo import (
     CategoriaAlterar, CategoriaCriar, CategoriaSaida, HistoricoPrecoSaida, ImagemAlterar, ImagemSaida,
@@ -13,10 +15,16 @@ from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Lista, Marca, campo
 from src.models.contas import Usuario
 from src.repositories import catalogo_repository
 from src.use_cases import catalogo
+from src.use_cases.permissoes import exigir_marca
 from src.utils.supabase_storage import SupabaseStorage
 from src.utils.upload import ler_upload
 
 router = APIRouter(tags=["catalogo"])
+
+# detalhe e escrita só de registro de uma marca que a pessoa vê (ver_marca_lorenzi, ver_marca_vulto)
+MARCA_DO_PRODUTO = Depends(marca_do_produto)
+MARCA_DA_VARIANTE = Depends(marca_da_variante)
+MARCA_DA_IMAGEM = Depends(marca_da_imagem)
 
 ERROS_CATEGORIA = {404: {"description": "Categoria não encontrada"}, 409: {"description": "Categoria já existe"}}
 
@@ -169,21 +177,32 @@ def criar_produto(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(exige_permissao("gerenciar_catalogo")),
 ):
+    exigir_marca(db, usuario, {dados.marca})
     return catalogo.criar_produto(db, usuario.id_usuario, dados.model_dump())
 
 
-@router.patch("/produtos/{id_produto}", response_model=ProdutoSaida, responses=ERROS_PRODUTO)
+@router.patch(
+    "/produtos/{id_produto}",
+    dependencies=[MARCA_DO_PRODUTO],
+    response_model=ProdutoSaida,
+    responses=ERROS_PRODUTO,
+)
 def alterar_produto(
     id_produto: int,
     dados: ProdutoAlterar,
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(exige_permissao("gerenciar_catalogo")),
 ):
-    return catalogo.alterar_produto(db, id_produto, campos_alterados(dados))
+    campos = campos_alterados(dados)
+    # passar o produto para a outra marca exige ver as duas
+    if campos.get("marca") is not None:
+        exigir_marca(db, usuario, {campos["marca"]})
+    return catalogo.alterar_produto(db, id_produto, campos)
 
 
 @router.post(
     "/produtos/{id_produto}/variantes",
+    dependencies=[MARCA_DO_PRODUTO],
     status_code=status.HTTP_201_CREATED,
     response_model=VarianteSaida,
     responses=ERROS_PRODUTO,
@@ -197,7 +216,12 @@ def adicionar_variante(
     return catalogo.adicionar_variante(db, id_produto, usuario.id_usuario, dados.model_dump())
 
 
-@router.patch("/variantes/{id_variante}", response_model=VarianteSaida, responses=ERROS_PRODUTO)
+@router.patch(
+    "/variantes/{id_variante}",
+    dependencies=[MARCA_DA_VARIANTE],
+    response_model=VarianteSaida,
+    responses=ERROS_PRODUTO,
+)
 def alterar_variante(
     id_variante: int,
     dados: VarianteAlterar,
@@ -210,6 +234,7 @@ def alterar_variante(
 # histórico completo, mais recente primeiro; com `em`, só o preço que valia naquela data
 @router.get(
     "/variantes/{id_variante}/historico-preco",
+    dependencies=[MARCA_DA_VARIANTE],
     response_model=Lista[HistoricoPrecoSaida],
     responses={404: {"description": "Variante não encontrada"}},
 )
@@ -235,6 +260,7 @@ ERROS_FOTO = {
 
 @router.post(
     "/produtos/{id_produto}/imagens",
+    dependencies=[MARCA_DO_PRODUTO],
     status_code=status.HTTP_201_CREATED,
     response_model=ImagemSaida,
     responses=ERROS_FOTO,
@@ -253,7 +279,7 @@ def adicionar_imagem(
     return catalogo.adicionar_imagem(db, storage, id_produto, ler_upload(arquivo), cor or None, ordem)
 
 
-@router.patch("/imagens/{id_imagem}", response_model=ImagemSaida, responses=ERROS_FOTO)
+@router.patch("/imagens/{id_imagem}", dependencies=[MARCA_DA_IMAGEM], response_model=ImagemSaida, responses=ERROS_FOTO)
 def alterar_imagem(
     id_imagem: int,
     dados: ImagemAlterar,
@@ -264,7 +290,10 @@ def alterar_imagem(
 
 
 @router.delete(
-    "/imagens/{id_imagem}", status_code=status.HTTP_204_NO_CONTENT, responses=ERROS_FOTO,
+    "/imagens/{id_imagem}",
+    dependencies=[MARCA_DA_IMAGEM],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=ERROS_FOTO,
     description="Apaga a foto do produto e o arquivo no Storage. As outras mantêm a ordem.",
 )
 def remover_imagem(

@@ -77,3 +77,13 @@ def marca_da_consulta(visiveis: set[str], pedida: str | None) -> str | None:
     if not visiveis:
         raise SemPermissao("Sem acesso a nenhuma marca")
     return next(iter(visiveis)) if len(visiveis) == 1 else None
+
+
+# a pessoa só abre ou muda o que é de uma marca que ela vê; o que não tem marca (a dúvida geral) passa
+def conferir_marca(visiveis: set[str], marcas: set[str]) -> None:
+    if marcas and not marcas & visiveis:
+        raise SemPermissao(f"Sem acesso à marca {' e '.join(sorted(marcas))}")
+
+
+def exigir_marca(db: Session, usuario, marcas: set[str]) -> None:
+    conferir_marca(marcas_visiveis(db, usuario), marcas)

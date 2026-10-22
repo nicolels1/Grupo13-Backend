@@ -214,7 +214,7 @@ def listar_movimentacoes(db: Session, limit: int, offset: int, **filtros) -> tup
 
 # ---------- divergência: saldo x soma das movimentações (ADR 0005) ----------
 
-def consulta_divergencias() -> Select:
+def consulta_divergencias(marca=None) -> Select:
     m = MovimentacaoEstoque
     somas = (
         select(m.id_variante, m.id_unidade, m.canal, func.sum(m.quantidade).label("soma"))
@@ -222,7 +222,7 @@ def consulta_divergencias() -> Select:
         .subquery()
     )
     soma = func.coalesce(somas.c.soma, 0)
-    return (
+    consulta = (
         select(Estoque.id_variante, Estoque.id_unidade, Estoque.canal, Estoque.quantidade,
                soma.label("soma_movimentacoes"))
         .outerjoin(somas, and_(
@@ -233,10 +233,13 @@ def consulta_divergencias() -> Select:
         .where(Estoque.quantidade != soma)
         .order_by(Estoque.id_unidade, Estoque.id_variante, Estoque.canal)
     )
+    if marca is not None:
+        consulta = consulta.where(Estoque.id_unidade.in_(select(Unidade.id_unidade).where(Unidade.marca == marca)))
+    return consulta
 
 
-def listar_divergencias(db: Session) -> list:
-    return list(db.execute(consulta_divergencias()).mappings().all())
+def listar_divergencias(db: Session, marca: str | None = None) -> list:
+    return list(db.execute(consulta_divergencias(marca)).mappings().all())
 
 
 # ---------- peças em trânsito: enviadas e ainda não recebidas naquele momento ----------
