@@ -13,7 +13,7 @@ from src.entities.atendimento import (
     TrocaCriar,
 )
 from src.entities.arquivos import AnexoLink
-from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Lista, Pagina, campos_alterados
+from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Lista, Marca, Pagina, campos_alterados
 from src.models.contas import Usuario
 from src.entities.vendas import PedidoSaida
 from src.use_cases import atendimento, devolucoes
@@ -128,6 +128,9 @@ def fila(
     id_unidade: int | None = None,
     id_cliente: uuid.UUID | None = Query(None, description="Chamados de um cliente com conta"),
     id_cliente_sem_conta: int | None = Query(None, description="Chamados de um cliente da Vulto sem conta"),
+    marca: Marca | None = Query(
+        None, description="Ligados a unidade, pedido ou peça dessa marca. Vazio: as duas, com as dúvidas gerais",
+    ),
     paginacao: dict = Depends(_paginacao),
     usuario: Usuario = Depends(ATENDER),
     db: Session = Depends(get_db),
@@ -135,7 +138,7 @@ def fila(
     return atendimento.listar_fila(
         db, usuario, **paginacao, meus=meus, status=status_chamado, sem_responsavel=sem_responsavel,
         com_mensagem_nova=com_mensagem_nova, categoria=categoria, prioridade=prioridade, id_unidade=id_unidade,
-        id_cliente=id_cliente, id_cliente_sem_conta=id_cliente_sem_conta,
+        id_cliente=id_cliente, id_cliente_sem_conta=id_cliente_sem_conta, marca=marca,
     )
 
 

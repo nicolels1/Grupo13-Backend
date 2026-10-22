@@ -37,8 +37,9 @@ def buscar(db: Session, id_transferencia: int) -> dict:
     return montar(transferencia, repo.itens_da_transferencia(db, id_transferencia))
 
 
-def listar(db: Session, status: str | None, id_unidade: int | None, limit: int, offset: int) -> dict:
-    transferencias, total = repo.listar_transferencias(db, status, id_unidade, limit, offset)
+def listar(db: Session, status: str | None, id_unidade: int | None, limit: int, offset: int,
+           marca: str | None = None) -> dict:
+    transferencias, total = repo.listar_transferencias(db, status, id_unidade, limit, offset, marca)
     itens = repo.itens_das_transferencias(db, [t.id_transferencia for t in transferencias])
     lista = [montar(t, itens[t.id_transferencia]) for t in transferencias]
     return {"items": lista, "total": total, "limit": limit, "offset": offset}

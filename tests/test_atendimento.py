@@ -286,6 +286,14 @@ def test_fila_filtra_pelo_cliente_com_conta(api, banco):
     assert banco.filtros[1]["id_cliente"] == id_cliente
 
 
+def test_fila_filtra_pela_marca(api, banco):
+    resposta = api(SessaoFalsa(), usuario=funcionario()).get("/atendimento/chamados", params={"marca": "vulto"})
+
+    assert resposta.status_code == 200
+    assert banco.filtros[1]["marca"] == "vulto"
+    assert api(SessaoFalsa(), usuario=funcionario()).get("/atendimento/chamados", params={"marca": "x"}).status_code == 422
+
+
 # ---------- consultas ----------
 
 def sql(consulta):
@@ -429,3 +437,22 @@ def test_equipe_exige_atender_chamado(api, banco):
     resposta = api(SessaoFalsa(), usuario=funcionario(), permitido=False).get("/atendimento/equipe")
 
     assert resposta.status_code == 403
+
+
+# o chamado é da marca pela unidade, pelo pedido ou pela peça (a mesma regra da visão geral)
+def test_marca_do_chamado_pela_unidade_pedido_ou_peca():
+    texto = sql(atendimento_repository.consulta_chamados("equipe", marca="vulto"))
+
+    assert "chamado.id_unidade IN (SELECT unidade.id_unidade" in texto
+    assert "chamado.id_pedido IN (SELECT pedido.id_pedido" in texto
+    assert "chamado.id_variante IN (SELECT variante.id_variante" in texto
+    assert "produto.marca =" in texto
+
+
+# o chamado migrado do atendimento da Vulto é da Vulto, mesmo sem unidade, pedido ou peça
+def test_chamado_migrado_e_da_vulto():
+    vulto = sql(atendimento_repository.consulta_chamados("equipe", marca="vulto"))
+    lorenzi = sql(atendimento_repository.consulta_chamados("equipe", marca="lorenzi"))
+
+    assert "CAST(chamado.id_chamado AS VARCHAR) IN (SELECT origem_migracao.id_registro" in vulto
+    assert "origem_migracao" not in lorenzi

@@ -58,7 +58,7 @@ def disponivel_online(db: Session, ids_variante: list[int]) -> list:
 
 def consulta_pedidos(
     id_cliente=None, id_cliente_sem_conta=None, status=None, canal=None, modalidade=None, id_unidade=None,
-    codigo_venda=None,
+    codigo_venda=None, marca=None,
     pronto_antes_de: datetime | None = None, cpf: str | None = None, entregue_desde: datetime | None = None,
     criado_desde: datetime | None = None, criado_ate: datetime | None = None,
 ):
@@ -75,7 +75,7 @@ def consulta_pedidos(
     for coluna, valor in [
         (Pedido.id_cliente, id_cliente), (Pedido.id_cliente_sem_conta, id_cliente_sem_conta),
         (Pedido.status, status), (Pedido.canal, canal),
-        (Pedido.modalidade, modalidade), (Pedido.id_unidade, id_unidade),
+        (Pedido.modalidade, modalidade), (Pedido.id_unidade, id_unidade), (Unidade.marca, marca),
     ]:
         if valor is not None:
             filtros.append(coluna == valor)

@@ -410,6 +410,18 @@ def test_pedidos_do_cliente_sem_conta(api, monkeypatch):
     assert filtros[0]["id_cliente_sem_conta"] == 7
 
 
+def test_pedidos_filtram_pela_marca_da_unidade(api, monkeypatch):
+    filtros = []
+    monkeypatch.setattr(pedido_repository, "listar_pedidos",
+                        lambda db, limit, offset, **f: filtros.append(f) or ([], 0))
+
+    assert api(SessaoFalsa(), usuario=funcionario()).get("/vendas/pedidos", params={"marca": "vulto"}).status_code == 200
+    assert api(SessaoFalsa(), usuario=funcionario()).get("/vendas/pedidos", params={"marca": "x"}).status_code == 422
+    assert filtros[0]["marca"] == "vulto" and len(filtros) == 1
+    texto = str(pedido_repository.consulta_pedidos(marca="vulto").compile(dialect=postgresql.dialect()))
+    assert "unidade.marca = %(marca_1)s" in texto
+
+
 # ---------- cliente com conta (área Clientes) ----------
 
 def com_conta(**campos):

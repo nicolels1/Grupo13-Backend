@@ -1,7 +1,7 @@
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from src.models.estoque import ItemTransferencia, Transferencia
+from src.models.estoque import ItemTransferencia, Transferencia, Unidade
 
 
 # travar=True segura a linha até o fim da transação: duas pessoas não enviam a mesma transferência
@@ -34,15 +34,19 @@ def itens_das_transferencias(db: Session, ids: list[int]) -> dict[int, list[Item
     return agrupados
 
 
-# id_unidade filtra quem envia ou recebe; devolve uma página e o total
+# id_unidade filtra quem envia ou recebe; a marca é a da origem (a transferência fica dentro da marca).
+# Devolve uma página e o total
 def listar_transferencias(db: Session, status: str | None, id_unidade: int | None, limit: int,
-                          offset: int) -> tuple[list[Transferencia], int]:
+                          offset: int, marca: str | None = None) -> tuple[list[Transferencia], int]:
     consulta = select(Transferencia)
     if status is not None:
         consulta = consulta.where(Transferencia.status == status)
     if id_unidade is not None:
         consulta = consulta.where(or_(Transferencia.id_unidade_origem == id_unidade,
                                       Transferencia.id_unidade_destino == id_unidade))
+    if marca is not None:
+        consulta = consulta.where(Transferencia.id_unidade_origem.in_(
+            select(Unidade.id_unidade).where(Unidade.marca == marca)))
     total = db.scalar(select(func.count()).select_from(consulta.subquery()))
     pagina = (
         consulta.order_by(Transferencia.solicitada_em.desc(), Transferencia.id_transferencia.desc())

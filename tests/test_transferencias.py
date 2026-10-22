@@ -266,3 +266,13 @@ def test_disponivel_conferido_pelo_total_da_variante(banco):
 
     with pytest.raises(RegraDeNegocio, match="disponível insuficiente"):
         transferencias.enviar(SessaoTransferencias(banco), id_t, ID_FUNCIONARIO, {})
+
+
+def test_listar_filtra_pela_marca(api, monkeypatch):
+    chamadas = []
+    monkeypatch.setattr(transferencia_repository, "listar_transferencias",
+                        lambda db, status, id_unidade, limit, offset, marca: chamadas.append(marca) or ([], 0))
+
+    assert api(SessaoFalsa(), usuario=funcionario()).get("/transferencias", params={"marca": "vulto"}).status_code == 200
+    assert api(SessaoFalsa(), usuario=funcionario()).get("/transferencias", params={"marca": "x"}).status_code == 422
+    assert chamadas == ["vulto"]

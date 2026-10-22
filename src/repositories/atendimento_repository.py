@@ -1,14 +1,34 @@
 import uuid
 
-from sqlalchemy import Select, and_, func, or_, select, update
+from sqlalchemy import Select, String, and_, cast, func, or_, select, update
 from sqlalchemy.orm import Session, aliased
 
 from src.models.atendimento import Chamado, HistoricoChamado, Mensagem
+from src.models.catalogo import Produto, Variante
 from src.models.contas import ClienteSemConta, Usuario
+from src.models.estoque import Unidade
+from src.models.migracao import OrigemMigracao
 from src.models.vendas import ItemPedido, Pedido
 
 Cliente = aliased(Usuario, name="cliente")
 Responsavel = aliased(Usuario, name="responsavel")
+
+
+# o chamado é da marca pela unidade, pelo pedido ou pela peça ligados a ele; o migrado do atendimento da Vulto
+# é da Vulto mesmo sem nenhum deles. O novo sem ligação (dúvida geral) não tem marca e só entra na visão das duas
+def da_marca(marca: str):
+    unidades = select(Unidade.id_unidade).where(Unidade.marca == marca)
+    condicoes = [
+        Chamado.id_unidade.in_(unidades),
+        Chamado.id_pedido.in_(select(Pedido.id_pedido).where(Pedido.id_unidade.in_(unidades))),
+        Chamado.id_variante.in_(select(Variante.id_variante)
+                                .join(Produto, Produto.id_produto == Variante.id_produto)
+                                .where(Produto.marca == marca)),
+    ]
+    if marca == "vulto":
+        condicoes.append(cast(Chamado.id_chamado, String).in_(
+            select(OrigemMigracao.id_registro).where(OrigemMigracao.tabela == "chamado")))
+    return or_(*condicoes)
 
 
 def buscar_chamado(db: Session, id_chamado: int) -> Chamado | None:
@@ -56,6 +76,7 @@ def _nao_lidas_do_outro_lado(lado: str):
 def consulta_chamados(
     lado: str, id_chamado=None, id_cliente=None, id_cliente_sem_conta=None, status=None, categoria=None,
     prioridade=None, id_unidade=None, id_responsavel=None, sem_responsavel=None, com_mensagem_nova=None,
+    marca=None,
 ) -> Select:
     nao_lidas = _nao_lidas_do_outro_lado(lado)
     # cliente com conta ou cliente sem conta da migração (P2); este sem nome aparece pelo e-mail. O migrado
@@ -84,6 +105,8 @@ def consulta_chamados(
         filtros.append(Chamado.id_responsavel.is_(None) if sem_responsavel else Chamado.id_responsavel.is_not(None))
     if com_mensagem_nova is not None:
         filtros.append(nao_lidas > 0 if com_mensagem_nova else nao_lidas == 0)
+    if marca is not None:
+        filtros.append(da_marca(marca))
     return consulta.where(*filtros)
 
 

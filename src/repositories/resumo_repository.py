@@ -8,6 +8,7 @@ from src.models.avaliacoes import Avaliacao, DenunciaAvaliacao
 from src.models.catalogo import Produto, Variante
 from src.models.estoque import Estoque, Transferencia, Unidade
 from src.models.vendas import ItemPedido, Pagamento, Pedido
+from src.repositories import atendimento_repository
 
 FUSO = "America/Sao_Paulo"
 
@@ -159,20 +160,13 @@ def saldos_das_variantes(db: Session, ids_variante: list[int], id_unidade: int |
 
 # ---------- chamados ----------
 
-# o chamado é da marca pela unidade, pelo pedido ou pela peça ligados a ele; o sem nenhum deles (dúvida geral)
-# não tem marca e só entra na visão das duas
+# a marca do chamado segue a mesma regra da fila do Atendimento
 def _chamados_da(id_unidade: int | None, marca: str | None) -> list:
     filtros = []
     if id_unidade is not None:
         filtros.append(Chamado.id_unidade == id_unidade)
     if marca is not None:
-        filtros.append(or_(
-            _da_marca(Chamado.id_unidade, marca),
-            Chamado.id_pedido.in_(select(Pedido.id_pedido).where(_da_marca(Pedido.id_unidade, marca))),
-            Chamado.id_variante.in_(select(Variante.id_variante)
-                                    .join(Produto, Produto.id_produto == Variante.id_produto)
-                                    .where(Produto.marca == marca)),
-        ))
+        filtros.append(atendimento_repository.da_marca(marca))
     return filtros
 
 

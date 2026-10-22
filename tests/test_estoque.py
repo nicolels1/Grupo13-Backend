@@ -424,3 +424,33 @@ def test_em_transito_pela_api(client, monkeypatch):
 
     assert resposta.status_code == 200
     assert resposta.json() == {"items": []}
+
+
+# ---------- filtro por marca: a da unidade ----------
+
+def test_marca_filtra_pela_unidade():
+    agora = datetime.now(timezone.utc)
+    for consulta in [
+        estoque_repository.consulta_estoque(marca="vulto"),
+        estoque_repository.consulta_historico(agora, marca="vulto"),
+        estoque_repository.consulta_movimentacoes(marca="vulto"),
+    ]:
+        assert "unidade.marca = %(marca_1)s" in sql(consulta)
+    assert "origem.marca = %(marca_1)s" in sql(estoque_repository.consulta_em_transito(agora, marca="vulto"))
+
+
+# em trânsito é uma lista; as outras são páginas (itens, total)
+@pytest.mark.parametrize("rota, funcao, vazia", [
+    ("/estoque", "listar_estoque", ([], 0)),
+    ("/estoque/historico?em=2026-09-22", "listar_historico", ([], 0)),
+    ("/movimentacoes-estoque", "listar_movimentacoes", ([], 0)),
+    ("/estoque/em-transito", "listar_em_transito", []),
+])
+def test_marca_pela_api(client, monkeypatch, rota, funcao, vazia):
+    filtros = []
+    monkeypatch.setattr(estoque_repository, funcao, lambda db, *args, **f: filtros.append(f) or vazia)
+    separador = "&" if "?" in rota else "?"
+
+    assert client({"movimentar_estoque"}).get(f"{rota}{separador}marca=vulto").status_code == 200
+    assert client({"movimentar_estoque"}).get(f"{rota}{separador}marca=outra").status_code == 422
+    assert len(filtros) == 1 and filtros[0]["marca"] == "vulto"

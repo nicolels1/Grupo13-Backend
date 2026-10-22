@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from src.database.session import get_db
 from src.dependencies.permissoes import exige_permissao
-from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Pagina
+from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Marca, Pagina
 from src.entities.transferencias import (
     TransferenciaCancelar, TransferenciaCriar, TransferenciaEnviar, TransferenciaReceber, TransferenciaSaida,
 )
@@ -27,12 +27,13 @@ ERROS = {
 def listar(
     status_: Status | None = Query(default=None, alias="status"),
     id_unidade: int | None = Query(default=None, description="Transferências que saem ou chegam nesta unidade"),
+    marca: Marca | None = Query(default=None, description="Só as unidades dessa marca. Vazio: as duas marcas"),
     limit: int = Query(LIMITE_PADRAO, ge=1, le=LIMITE_MAXIMO),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(VER_TRANSFERENCIAS),
 ):
-    return transferencias.listar(db, status_, id_unidade, limit, offset)
+    return transferencias.listar(db, status_, id_unidade, limit, offset, marca)
 
 
 @router.get("/transferencias/{id_transferencia}", response_model=TransferenciaSaida, responses={404: ERROS[404]})
