@@ -95,8 +95,10 @@ O histórico vai de 01/01/2025 a 30/09/2026, dia a dia, em todas as unidades (E2
 
 O que não conseguimos reconstruir:
 
-- **Saídas sem registro:** quando, voltando no tempo, o saldo ficaria negativo, entrou mais do que ficou. Entram 718 ajustes, 2.028 peças em 21 meses, contra 21.139 peças de fornecedor e 31.379 vendidas. No CD são 1.511, concentradas em set–out/2025 e mar–abr/2026, os lançamentos de coleção; nas lojas, de 109 a 166 cada.
-- **Entradas sem registro:** não aparecem como ajuste. Viram saldo maior no começo: 27.458 peças em 01/01/2025 (CD 19.538).
+- **Saídas sem registro:** quando, voltando no tempo, o saldo ficaria negativo, entrou mais do que ficou. No banco entram 707 ajustes, 2.012 peças em 21 meses, contra 21.139 peças de fornecedor e 31.352 vendidas. No CD são 1.511, concentradas em set–out/2025 e mar–abr/2026, os lançamentos de coleção; nas lojas, de 109 a 144 cada.
+- **Entradas sem registro:** não aparecem como ajuste. Viram saldo maior no começo: 27.580 peças em 01/01/2025 (CD 19.548).
+
+O histórico do banco inclui as vendas da planilha da Batel (V23) e as canceladas, que saem e voltam (V17). O `estoque_ajustes_por_mes.csv` deste script não as inclui e dá 718 ajustes (2.028 peças) e 27.458 peças em 01/01/2025; o saldo em 17/09 e em 01/10 é o mesmo nas duas contas (E2).
 - **Transferências:** o CD anotou só parte das saídas. Das transferências, 3.299 têm os dois lados, 2.213 só o envio e 7.536 só o recebimento da loja, que então dá a saída do CD (E4).
 - **Trocas:** a Vulto registra a peça que sai, não a que volta (V6).
 
@@ -109,7 +111,7 @@ O que não conseguimos reconstruir:
 | Eldorado | contagem em 30/09 em vez de 20/09 (E5) | +36 |
 | Batel | contagem em 13/09 ou 30/09 (E5) | −31 a +17 |
 | Savassi | contagem em 30/09 (E5) | −8 |
-| todas | peças vendidas depois da contagem que a contagem não viu (a posição negativa vira zero) | 25 |
+| todas | peças vendidas depois da contagem que a contagem não viu (a posição negativa vira zero, E15) | 25 |
 
 **Margem total:** até 353 peças, para mais ou para menos (2,3% do estoque), somando o maior lado de cada motivo: 222 (E11) + 53 (E12) + 53 (data da contagem, E5: de −39, Batel e Savassi, a +53, Eldorado e Batel) + 25.
 
@@ -131,7 +133,7 @@ De onde vêm os pontos:
 
 | Decisão | Lançamentos | Pontos |
 |---|---:|---:|
-| Saldo da planilha em 01/01/2025, somando os cadastros do mesmo CPF e os ATIVOS da aba antiga (K5a, K1, K5d, K2) | 2.422 | 3.680.188 |
+| Saldo da planilha em 01/01/2025, somando os cadastros do mesmo CPF e os ATIVOS da aba antiga (K5a, K1, K5d, K2) | 1.392 | 3.680.188 |
 | Créditos do banco (C) | 11.384 | 6.951.483 |
 | Resgates do banco (D) | 562 | −472.900 |
 | Estornos do banco (E) | 101 | −103.618 |
@@ -141,6 +143,8 @@ De onde vêm os pontos:
 | Resgates anotados só na planilha (K7a, K7c) | 91 | −83.400 |
 | Saldos negativos zerados (K5f) | 4 | +2.050 |
 | **Passivo em 01/10/2026** | | **9.436.136** |
+
+O saldo da planilha entra como um lançamento por cliente com saldo diferente de zero: 1.392 dos 2.422 CPFs da planilha (o `passivo_por_decisao.csv` conta os 2.422, com os zerados).
 
 Os pontos creditados em telefone, celular sem DDD ou CPF digitado errado vão para o dono certo (J1c, J1d, K2); os 486 CPFs que só existem nos pontos entram como clientes sem conta (K8). O vencimento e o bônus Ouro valem só a partir de 01/10/2026 (K4a): se o vencimento de 12 meses tivesse sido aplicado, 4,86 milhões de pontos já teriam vencido.
 
