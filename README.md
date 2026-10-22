@@ -2,8 +2,10 @@
 
 API da plataforma de estoque, vendas, catálogo, atendimento e avaliações da Casa Lorenzi, desenvolvida no Case Tech da Trainee Insper Jr 2026.2. Atende duas frentes com entrada única: a **plataforma interna** (equipe da loja) e a **plataforma do cliente**. O frontend fica no repositório [Grupo13-Frontend](https://github.com/nicolels1/Grupo13-Frontend).
 
-- **API publicada:** https://grupo13-backend-megw.onrender.com
-- **Documentação interativa:** https://grupo13-backend-megw.onrender.com/docs (Swagger) e `/redoc`
+- **API publicada (URL base):** https://grupo13-backend-megw.onrender.com (a raiz não tem página e responde 404; use os links abaixo)
+- **Documentação interativa:** [Swagger](https://grupo13-backend-megw.onrender.com/docs) e [ReDoc](https://grupo13-backend-megw.onrender.com/redoc)
+- **Saúde da API:** [/health](https://grupo13-backend-megw.onrender.com/health)
+- **Migração da Vulto (Entrega 3):** [README da migração](migracao_vulto/README.md), [os três números](migracao_vulto/numeros.md), [registro de decisões](migracao_vulto/registro_decisoes.md) e [validação](migracao_vulto/validacao.md)
 
 > No plano gratuito do Render, a API dorme depois de 15 minutos sem uso. A primeira chamada depois disso leva cerca de 1 minuto; as seguintes respondem normalmente.
 
@@ -94,7 +96,7 @@ rota (routes/) → token (dependencies/auth.py) → conta ativa e permissão (de
 - Toda conta tem tipo `interna` ou `cliente` e status `ativa`, `pendente_ativacao` ou `inativa`. Só conta ativa usa a API.
 - A conta interna está ligada a um **modelo de acesso** (Admin, Funcionário, Estoquista, Atendente…) e pode ter **exceções** que acrescentam ou retiram permissões.
 - O Admin tem todas as permissões. As permissões da Gestão (`gerenciar_contas`, `gerenciar_modelos_acesso`, `gerenciar_unidades`) são só dele, garantido por trigger (ADRs 0009 e 0010).
-- São 17 códigos de permissão; a lista e a tabela por modelo estão na seção 6 do [case](docs/case/Casa_Lorenzi_Case_Completo.md).
+- São 19 códigos de permissão: os 16 da seção 6 do [case](docs/case/Casa_Lorenzi_Case_Completo.md) (com a tabela por modelo), mais `ver_marca_lorenzi`, `ver_marca_vulto` e `gerenciar_fidelidade`, que entraram com a Entrega 3.
 
 Dependências prontas para proteger uma rota (`src/dependencies/permissoes.py`):
 
@@ -196,7 +198,7 @@ Rodam na raiz do repositório, com o venv ativo e o `.env` preenchido:
 
 ## Migração da Vulto
 
-A pasta [`migracao_vulto/`](migracao_vulto/) leva os dados da Vulto (banco SQLite e planilhas do vulto-legado-back) para o banco da Casa Lorenzi, em etapas: padronização automática, tratamento com as decisões de negócio e carga. Os dados de origem não ficam neste repositório (têm dados pessoais de clientes): o caminho vem de `VULTO_DATA_DIR`. Como rodar, o que cada etapa faz e o que falta estão no [README da migração](migracao_vulto/README.md); as decisões tomadas sobre os dados, no [registro de decisões](migracao_vulto/registro_decisoes.md).
+A pasta [`migracao_vulto/`](migracao_vulto/) leva os dados da Vulto (banco SQLite e planilhas do vulto-legado-back) para o banco da Casa Lorenzi, em etapas: padronização automática, tratamento com as decisões de negócio e carga. Os dados de origem não ficam neste repositório (têm dados pessoais de clientes): o caminho vem de `VULTO_DATA_DIR`. Como rodar e o que cada etapa faz estão no [README da migração](migracao_vulto/README.md); as decisões tomadas sobre os dados, no [registro de decisões](migracao_vulto/registro_decisoes.md); os três números da Vulto (faturamento, estoque e passivo de pontos), com a margem de erro de cada um, no [numeros.md](migracao_vulto/numeros.md); e a conferência do que entrou no banco, na [validação](migracao_vulto/validacao.md).
 
 O que a plataforma ganhou para receber a Vulto (cada item cita a decisão do registro):
 
@@ -386,7 +388,7 @@ As escritas são só do Admin; a lista de unidades é pública porque a vitrine 
 |---|---|---|---|
 | GET | `/unidades`, `/unidades/{id}` | público | lojas e CDs |
 | POST, PATCH | `/unidades`, `/unidades/{id}` | `gerenciar_unidades` | cria e altera unidade (desativar em vez de apagar) |
-| GET | `/permissoes` | `gerenciar_modelos_acesso` | os 16 códigos de permissão |
+| GET | `/permissoes` | `gerenciar_modelos_acesso` | os 19 códigos de permissão |
 | GET, POST | `/modelos-acesso` | `gerenciar_modelos_acesso` | lista e cria modelo |
 | GET, PATCH | `/modelos-acesso/{id}` | `gerenciar_modelos_acesso` | detalhe; altera nome ou ativo |
 | PUT | `/modelos-acesso/{id}/permissoes` | `gerenciar_modelos_acesso` | troca as permissões do modelo |
@@ -458,7 +460,7 @@ A API é publicada no Render a cada merge na `main`.
   - `rede_agora` (cobertura em dias, ruptura online, vendas de 14 dias com variação, ticket médio, `por_marca` com Casa Lorenzi × Vulto lado a lado, mediana da primeira resposta, avaliações e retiradas perto de vencer) e `por_unidade`: só Admin. `rede_agora` ignora o filtro de unidade.
 
   As vendas vêm por canal da venda (P3): `loja` e `site` sempre, e `app` só quando o período tem venda pelo app, que existe só no histórico da Vulto. Filtros opcionais: `marca=lorenzi|vulto` vale para todas as seções (o chamado é da marca pela unidade, pelo pedido ou pela peça ligados a ele, e o migrado do atendimento da Vulto é da Vulto; o mesmo filtro da fila do Atendimento); `referencia=AAAA-MM-DD` faz as janelas de 7, 14, 30 e 90 dias terminarem nesse dia, por exemplo `2026-09-30` para ver o histórico da Vulto, enquanto saldo, ruptura, chamados abertos, retiradas e pontos continuam sendo de agora. Os dias são no horário de Brasília. Os blocos de pendências continuam sendo o `total` de uma lista com filtro: `GET /atendimento/chamados?sem_responsavel=true`, `?meus=true&status=em_andamento` e `?com_mensagem_nova=true`; `GET /estoque?abaixo_minimo=true`; `GET /transferencias?status=enviada` e `?status=solicitada` com `id_unidade` (o frontend separa as que chegam das que saem); `GET /vendas/pedidos?status=pago` e `?pronto_ha_mais_de_dias=5`; `GET /moderacao/denuncias`.
-- **Os 3 números da Vulto:** o faturamento da plataforma vem de `GET /visao-geral/faturamento?de=2025-01-01&ate=2026-09-30&marca=vulto`, uma linha por mês, unidade e canal (site e app saem do CD Cajamar); o estoque, de `GET /estoque/historico?em=2026-09-30` e `GET /estoque/em-transito`; o passivo, de `GET /fidelidade/passivo?em=2026-09-30`. Os três com `2026-09-30` dão a posição no fim de 30/09, a data-base de 01/10/2026.
+- **Os 3 números da Vulto:** o faturamento da plataforma vem de `GET /visao-geral/faturamento?de=2025-01-01&ate=2026-09-30&marca=vulto`, uma linha por mês, unidade e canal (site e app saem do CD Cajamar); o estoque, de `GET /estoque/historico?em=2026-09-30` e `GET /estoque/em-transito`; o passivo, de `GET /fidelidade/passivo?em=2026-09-30`. Os três com `2026-09-30` dão a posição no fim de 30/09, a data-base de 01/10/2026. Os valores e como chegamos neles estão no [numeros.md](migracao_vulto/numeros.md).
 - **Vendas de hoje (Caixa):** `GET /vendas/pedidos?de=<hoje>&ate=<hoje>&id_unidade=<loja>`, com a data no formato `AAAA-MM-DD`.
 - **Compra online:** `POST /carrinho` mostra frete e lojas; `POST /pedidos` reserva por 15 minutos; `POST /pedidos/{id}/pagamentos` cria a cobrança e `POST /pagamentos/{id}/simular` faz o papel do gateway. Reserva vencida cancela o pedido sozinha.
 - **Compras da loja:** depois do `POST /clientes`, se `compras_ligadas` for maior que zero, as compras feitas em lojas com aquele CPF já aparecem em `GET /pedidos`.
@@ -489,9 +491,13 @@ A API é publicada no Render a cada merge na `main`.
 |---|---|
 | [docs/case/Casa_Lorenzi_Case_Completo.md](docs/case/Casa_Lorenzi_Case_Completo.md) | referência do case: contexto, regras de negócio, permissões e modelo de dados |
 | [CONTEXT.md](CONTEXT.md) | glossário dos termos do domínio |
-| [docs/adr/](docs/adr/) | decisões de arquitetura difíceis de reverter (ADRs 0001 a 0015) |
+| [docs/adr/](docs/adr/) | decisões de arquitetura difíceis de reverter (ADRs 0001 a 0016) |
 | [ALEMBIC_GUIDE.md](ALEMBIC_GUIDE.md) | como criar e aplicar migrations |
+| [migracao_vulto/README.md](migracao_vulto/README.md) | migração da Vulto: etapas, como rodar e onde cada decisão entra no código |
 | [migracao_vulto/registro_decisoes.md](migracao_vulto/registro_decisoes.md) | problemas encontrados nos dados da Vulto, decisões tomadas e impacto nos números |
+| [migracao_vulto/numeros.md](migracao_vulto/numeros.md) | os três números da Vulto (faturamento, estoque e passivo de pontos), como chegamos neles e a margem de erro |
+| [migracao_vulto/validacao.md](migracao_vulto/validacao.md) | o que entrou no banco e por que cada linha ficou de fora, fonte por fonte |
+| [migracao_vulto/mapeamento.md](migracao_vulto/mapeamento.md) | onde cada dado da Vulto entra no banco da Casa Lorenzi |
 
 ## Como contribuir
 
