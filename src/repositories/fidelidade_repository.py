@@ -132,16 +132,18 @@ def extrato(db: Session, id_cliente, id_cliente_sem_conta, marca: str | None, li
 
 
 # passivo de cada marca separado pela época do ponto (o valor que ele tinha quando foi ganho, K3). Num momento
-# passado: os lotes lançados até ali, menos o que saiu deles até ali (resgate, vencimento e devolução de resgate)
+# passado: os lotes lançados até ali, com o que sobra hoje mais o que saiu deles depois (resgate, vencimento e
+# devolução de resgate). Partir do que sobra hoje, e não dos pontos do lote, desconta o que o lote pagou do
+# saldo negativo herdado ao nascer (K5f), que não vira consumo
 def passivo_por_valor(db: Session, em: datetime | None = None) -> list:
     restante, filtros = LotePontos.restante, [LotePontos.restante > 0]
     if em is not None:
-        saiu = (select(func.coalesce(func.sum(ConsumoPontos.pontos), 0))
-                .join(MovimentoPontos, MovimentoPontos.id_movimento == ConsumoPontos.id_movimento)
-                .where(ConsumoPontos.id_lote == LotePontos.id_movimento, MovimentoPontos.criado_em <= em)
-                .correlate(LotePontos)
-                .scalar_subquery())
-        restante = LotePontos.pontos - saiu
+        saiu_depois = (select(func.coalesce(func.sum(ConsumoPontos.pontos), 0))
+                       .join(MovimentoPontos, MovimentoPontos.id_movimento == ConsumoPontos.id_movimento)
+                       .where(ConsumoPontos.id_lote == LotePontos.id_movimento, MovimentoPontos.criado_em > em)
+                       .correlate(LotePontos)
+                       .scalar_subquery())
+        restante = LotePontos.restante + saiu_depois
         filtros = [LotePontos.id_movimento.in_(
             select(MovimentoPontos.id_movimento).where(MovimentoPontos.criado_em <= em))]
     pontos = func.sum(restante)
