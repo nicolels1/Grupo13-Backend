@@ -5,6 +5,10 @@ from src.repositories import unidade_repository as repo
 from src.use_cases.erros import Conflito, RecursoNaoEncontrado, RegraDeNegocio
 
 
+def listar_unidades(db: Session, ativo: bool | None, tipo: str | None) -> list[Unidade]:
+    return repo.listar_unidades(db, ativo, tipo)
+
+
 def buscar_unidade(db: Session, id_unidade: int) -> Unidade:
     unidade = repo.buscar_unidade(db, id_unidade)
     if unidade is None:

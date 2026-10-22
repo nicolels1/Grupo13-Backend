@@ -13,7 +13,6 @@ from src.entities.catalogo import (
 )
 from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Lista, Marca, campos_alterados
 from src.models.contas import Usuario
-from src.repositories import catalogo_repository
 from src.use_cases import catalogo
 from src.use_cases.permissoes import exigir_marca
 from src.utils.supabase_storage import SupabaseStorage
@@ -43,8 +42,7 @@ def listar_categorias(
     marca: Marca | None = Query(default=None, description=FILTRO_MARCA_CATEGORIAS),
     db: Session = Depends(get_db),
 ):
-    categorias = catalogo_repository.listar_categorias(db, ativo, marca)
-    return {"items": [catalogo.montar_categoria(c) for c in categorias]}
+    return {"items": catalogo.listar_categorias(db, ativo, marca)}
 
 
 @router.post(

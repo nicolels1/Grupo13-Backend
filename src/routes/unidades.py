@@ -8,7 +8,6 @@ from src.dependencies.permissoes import exige_permissao
 from src.entities.comum import Lista, campos_alterados
 from src.entities.unidades import UnidadeAlterar, UnidadeCriar, UnidadeSaida
 from src.models.contas import Usuario
-from src.repositories import unidade_repository
 from src.use_cases import unidades
 
 router = APIRouter(tags=["unidades"])
@@ -25,7 +24,7 @@ ERROS_UNIDADE = {
 def listar_unidades(
     ativo: bool | None = None, tipo: Literal["loja", "cd"] | None = None, db: Session = Depends(get_db)
 ):
-    return {"items": unidade_repository.listar_unidades(db, ativo, tipo)}
+    return {"items": unidades.listar_unidades(db, ativo, tipo)}
 
 
 @router.get("/unidades/{id_unidade}", response_model=UnidadeSaida, responses={404: ERROS_UNIDADE[404]})

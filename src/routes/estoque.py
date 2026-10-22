@@ -9,9 +9,8 @@ from src.entities.estoque import (
     MovimentacaoSaida, NovaMovimentacao, NovaRealocacao, NovoMinimo,
 )
 from src.models.contas import Usuario
-from src.repositories import marca_repository
 from src.use_cases import estoque
-from src.use_cases.permissoes import exigir_marca
+from src.use_cases.permissoes import exigir_marca_da_unidade
 
 router = APIRouter(tags=["estoque"])
 
@@ -122,7 +121,7 @@ def definir_minimo(
     usuario: Usuario = Depends(exige_permissao("definir_estoque_minimo")),
     db: Session = Depends(get_db),
 ):
-    exigir_marca(db, usuario, marca_repository.da_unidade(db, dados.id_unidade))
+    exigir_marca_da_unidade(db, usuario, dados.id_unidade)
     return estoque.definir_minimo(
         db, usuario, dados.id_variante, dados.id_unidade, dados.canal, dados.estoque_minimo
     )
@@ -159,7 +158,7 @@ def registrar_movimentacao(
     usuario: Usuario = Depends(exige_permissao("movimentar_estoque")),
     db: Session = Depends(get_db),
 ):
-    exigir_marca(db, usuario, marca_repository.da_unidade(db, dados.id_unidade))
+    exigir_marca_da_unidade(db, usuario, dados.id_unidade)
     return estoque.registrar_movimentacao(
         db, usuario, dados.id_variante, dados.id_unidade, dados.canal, dados.tipo, dados.quantidade, dados.motivo
     )
@@ -177,5 +176,5 @@ def realocar(
     usuario: Usuario = Depends(exige_permissao("movimentar_estoque")),
     db: Session = Depends(get_db),
 ):
-    exigir_marca(db, usuario, marca_repository.da_unidade(db, dados.id_unidade))
+    exigir_marca_da_unidade(db, usuario, dados.id_unidade)
     return estoque.realocar(db, usuario, dados.id_variante, dados.id_unidade, dados.canal_origem, dados.quantidade)

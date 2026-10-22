@@ -284,6 +284,7 @@ Cada funcionário está ligado a um modelo de acesso e pode ter exceções indiv
 | Atendimento | atender chamado | sim | sim | — | sim | — |
 | Avaliações | moderar avaliações | sim | — | — | sim | — |
 | Fidelidade | gerenciar as regras de fidelidade (Entrega 3) | sim | — | — | — | — |
+| Marcas | ver a Casa Lorenzi; ver a Vulto (Entrega 3) | sim | sim | sim | sim | sim |
 
 - O **Vendedor** trabalha no balcão de uma loja: a conta fica ligada a ela. Consulta o estoque das unidades só para ler (sem as permissões de estoque). A troca pelo Atendimento continua usando `atender_chamado`.
 
@@ -291,11 +292,14 @@ Cada funcionário está ligado a um modelo de acesso e pode ter exceções indiv
 - Sempre há pelo menos uma conta ativa no Admin; modelo com pessoas ligadas não pode ser desativado.
 - Permissões lidas do banco a cada ação: mudanças valem na hora.
 - As três permissões da Gestão (gerenciar contas, gerenciar modelos de acesso e gerenciar unidades) são só do Admin: não entram em outro modelo nem em exceção. Exceção só vale para conta interna. As regras do Admin são garantidas por trigger no banco (ADRs 0009 e 0010).
-- No sistema, cada permissão tem um código. São 17: `gerenciar_contas`, `gerenciar_modelos_acesso`, `gerenciar_catalogo`, `gerenciar_unidades`, `movimentar_estoque`, `definir_estoque_minimo`, `solicitar_transferencia`, `enviar_transferencia`, `receber_transferencia`, `registrar_venda_fisica`, `preparar_entregar_pedido`, `cancelar_pedido_equipe`, `corrigir_cadastro_cliente`, `atender_chamado`, `moderar_avaliacoes`, `registrar_troca_devolucao`, `gerenciar_fidelidade` (Entrega 3).
+- As permissões de marca decidem que rede cada pessoa da equipe vê nas listas e nos números (estoque, transferências, pedidos, chamados, balcão, pontos e Visão Geral); quem vê só uma marca recebe 403 ao pedir a outra. Os modelos que existiam antes da Entrega 3 ganharam as duas, e o Admin tira a marca de quem só deve ver a outra, no modelo ou por exceção.
+- No sistema, cada permissão tem um código. São 19: `gerenciar_contas`, `gerenciar_modelos_acesso`, `gerenciar_catalogo`, `gerenciar_unidades`, `movimentar_estoque`, `definir_estoque_minimo`, `solicitar_transferencia`, `enviar_transferencia`, `receber_transferencia`, `registrar_venda_fisica`, `preparar_entregar_pedido`, `cancelar_pedido_equipe`, `corrigir_cadastro_cliente`, `atender_chamado`, `moderar_avaliacoes`, `registrar_troca_devolucao` e, na Entrega 3, `gerenciar_fidelidade`, `ver_marca_lorenzi` e `ver_marca_vulto`.
 
 ---
 
-## 7. Modelo de dados (27 tabelas)
+## 7. Modelo de dados (36 tabelas)
+
+São as 27 tabelas do modelo da Entrega 2, a DESTAQUE (carrossel da página inicial), as 7 da Entrega 3 (migração da Vulto e fidelidade) e a COMPRA (carrinho único das duas marcas).
 
 Campos com `?` aceitam vazio. A chave primária vem primeiro. No banco, nomes ficam em minúsculas (`usuario`, `item_pedido`).
 
@@ -308,6 +312,7 @@ Campos com `?` aceitam vazio. A chave primária vem primeiro. No banco, nomes fi
 | VARIANTE | id_variante, id_produto, sku (único), cor, tamanho, preco, ativo — única por produto + cor + tamanho | ESTOQUE, ITEM_PEDIDO, ITEM_TRANSFERENCIA, HISTORICO_PRECO (1:N) |
 | IMAGEM_PRODUTO | id_imagem, id_produto, cor?, caminho_arquivo, ordem | PRODUTO |
 | HISTORICO_PRECO | id_historico_preco, id_variante, preco_anterior?, preco_novo, id_alterado_por?, alterado_em | VARIANTE |
+| DESTAQUE | id_destaque, titulo, texto, rotulo_botao, link (só página da loja, começa com `/`), caminho_imagem?, ordem, ativo | slides do carrossel da página inicial, editados pela equipe (sem ligação) |
 
 ### Estoque e transferência
 
@@ -370,6 +375,14 @@ Colunas novas: `marca` em UNIDADE e PRODUTO; `ean` em VARIANTE; `canal_venda`, `
 | LOTE_PONTOS | id_movimento, id_cliente? ou id_cliente_sem_conta?, marca, ganho_em, valor_ponto, pontos, restante, vence_em? — só o trigger muda | MOVIMENTO_PONTOS |
 | CONSUMO_PONTOS | id_consumo, id_movimento, id_lote, pontos — nunca alterado | MOVIMENTO_PONTOS, LOTE_PONTOS |
 
+### Compra do site (carrinho único, ADR 0017)
+
+Coluna nova: `id_compra?` em PEDIDO (vazio no pedido da loja, no migrado e no checkout de um pedido só).
+
+| Tabela | Campos | Liga com |
+| --- | --- | --- |
+| COMPRA | id_compra, codigo_compra (único), id_cliente, status, valor_total, reserva_expira_em, metodo?, id_transacao_gateway? (único), status_cobranca?, pago_em?, cancelado_em?, criado_em, atualizado_em — a cobrança única das duas marcas | USUARIO; PEDIDO (1:N, um por marca) |
+
 Campos de "quem fez" (minimo_alterado_por, id_registrado_por, id_cancelado_por, id_analisada_por, id_alterado_por etc.) apontam para USUARIO, mas não têm linha no diagrama para não poluí-lo. `auth.users` aparece só como referência.
 
 ### Valores aceitos
@@ -388,6 +401,9 @@ Campos de status e de tipo só aceitam os valores abaixo, sempre em minúsculas 
 | pedido.motivo_cancelamento | cliente, reserva_vencida, retirada_vencida, equipe |
 | pedido.devolucao | nenhuma, parcial, total |
 | pedido.canal_venda | loja, site, app (loja só no canal loja_fisica) |
+| compra.status | aguardando_pagamento, pago, cancelado |
+| compra.metodo | pix, cartao_credito, cartao_debito |
+| compra.status_cobranca | pendente, aprovado, recusado |
 | pagamento.tipo | pagamento, estorno |
 | pagamento.metodo | pix, cartao_credito, cartao_debito, dinheiro, nao_informado (só no pagamento migrado) |
 | pagamento.status | pendente, aprovado, recusado |
@@ -425,7 +441,7 @@ Cores dos cabeçalhos: amarelo = catálogo, laranja = estoque, laranja-escuro = 
 
 ### Navegação
 
-- Barra no topo (não sidebar): **Visão Geral, Estoque, Transferências, Pedidos, Atendimento, Avaliações, Catálogo e Gestão**.
+- Barra no topo (não sidebar): **Visão Geral, Estoque, Transferências, Caixa, Pedidos, Clientes, Fidelidade, Atendimento, Avaliações, Catálogo e Gestão** (Caixa, Clientes e Fidelidade entraram depois da Entrega 2).
 - **Gestão** (Unidades + Usuários e acessos) é exclusiva do admin, sem exceção.
 - O que o funcionário não tem permissão nem aparece na tela dele.
 - Catálogo e unidades fazem parte da plataforma.
@@ -463,7 +479,7 @@ O modelo já foi pensado para não travar nela:
 
 - Funcionários da Vulto entram como contas internas comuns (a entrada decide pelo tipo de conta, não pelo domínio do e-mail).
 - Lojas e CDs da Vulto entram como novas unidades.
-- **Decidido na Entrega 3:** campo `marca` em UNIDADE e PRODUTO (P1; o USUARIO não ganhou marca); o cliente da Vulto entra como cliente sem conta e passa para a conta quando se cadastra com o mesmo CPF ou e-mail (P2, ADR 0016). As decisões estão no [registro de decisões da migração](../../migracao_vulto/registro_decisoes.md).
+- **Decidido na Entrega 3:** campo `marca` em UNIDADE e PRODUTO (P1; o USUARIO não ganhou marca); o cliente da Vulto entra como cliente sem conta e passa para a conta quando se cadastra com o mesmo CPF ou e-mail (P2, ADR 0016). As decisões estão no [registro de decisões da migração](https://github.com/nicolels1/Grupo13-Backend/blob/main/migracao_vulto/registro_decisoes.md).
 
 ### Evoluções futuras (depois da Entrega 2)
 

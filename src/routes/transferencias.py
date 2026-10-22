@@ -10,9 +10,8 @@ from src.entities.transferencias import (
     TransferenciaCancelar, TransferenciaCriar, TransferenciaEnviar, TransferenciaReceber, TransferenciaSaida,
 )
 from src.models.contas import Usuario
-from src.repositories import marca_repository
 from src.use_cases import transferencias
-from src.use_cases.permissoes import exigir_marca
+from src.use_cases.permissoes import exigir_marca_da_unidade
 
 router = APIRouter(tags=["transferencias"])
 
@@ -57,7 +56,7 @@ def solicitar(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(exige_permissao("solicitar_transferencia")),
 ):
-    exigir_marca(db, usuario, marca_repository.da_unidade(db, dados.id_unidade_origem))
+    exigir_marca_da_unidade(db, usuario, dados.id_unidade_origem)
     return transferencias.solicitar(db, usuario.id_usuario, dados.model_dump())
 
 

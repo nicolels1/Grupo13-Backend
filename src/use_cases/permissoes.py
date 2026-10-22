@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 
+from src.repositories import marca_repository
 from src.repositories import permissao_repository as repo
 from src.use_cases.erros import SemPermissao
 
@@ -87,3 +88,8 @@ def conferir_marca(visiveis: set[str], marcas: set[str]) -> None:
 
 def exigir_marca(db: Session, usuario, marcas: set[str]) -> None:
     conferir_marca(marcas_visiveis(db, usuario), marcas)
+
+
+# escrita que informa a unidade no corpo (movimentação, mínimo, realocação, transferência, venda na loja)
+def exigir_marca_da_unidade(db: Session, usuario, id_unidade: int) -> None:
+    exigir_marca(db, usuario, marca_repository.da_unidade(db, id_unidade))
