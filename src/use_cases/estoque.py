@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session
 
 from src.models.contas import Usuario
-from src.models.estoque import Estoque, MovimentacaoEstoque
+from src.models.estoque import Estoque, MovimentacaoEstoque, Unidade
 from src.repositories import estoque_repository as repo
 from src.use_cases.erros import RecursoNaoEncontrado, RegraDeNegocio
 
@@ -30,8 +30,16 @@ def quantidade_com_sinal(tipo: str, quantidade: int) -> int:
     return -quantidade if tipo in TIPOS_DE_SAIDA else quantidade
 
 
-# variante e unidade existem, unidade ativa e canal possível (o CD só tem online);
-# usada também no estoque inicial do catálogo e, com conferir_disponivel, nas transferências
+# cada unidade só guarda peças da própria marca (P1): vale para entrada, estoque inicial,
+# transferência, troca e devolução
+def conferir_marca(db: Session, unidade: Unidade, ids_variante: list[int]) -> None:
+    marcas = repo.marcas_das_variantes(db, ids_variante)
+    if any(marca != unidade.marca for marca in marcas.values()):
+        raise RegraDeNegocio(f"{unidade.nome} é da marca {unidade.marca}: só guarda peças dessa marca")
+
+
+# variante e unidade existem, unidade ativa, da marca da peça e canal possível (o CD só tem online);
+# usada também no estoque inicial do catálogo
 def validar_local(db: Session, id_variante: int, id_unidade: int, canal: str):
     variante = repo.buscar_variante(db, id_variante)
     if variante is None:
@@ -43,6 +51,7 @@ def validar_local(db: Session, id_variante: int, id_unidade: int, canal: str):
         raise RegraDeNegocio("Unidade desativada")
     if unidade.tipo == "cd" and canal == "loja_fisica":
         raise RegraDeNegocio("O CD só tem estoque online")
+    conferir_marca(db, unidade, [id_variante])
     return variante, unidade
 
 

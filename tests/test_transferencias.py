@@ -10,7 +10,7 @@ from src.use_cases import transferencias
 from src.use_cases.erros import RecursoNaoEncontrado, RegraDeNegocio
 from tests.apoio import ID_FUNCIONARIO, SessaoComTrigger, SessaoFalsa, api, funcionario  # noqa: F401
 
-LOJA_A, LOJA_B, CD, VARIANTE = 1, 2, 3, 10
+LOJA_A, LOJA_B, CD, LOJA_VULTO, VARIANTE, VARIANTE_VULTO = 1, 2, 3, 4, 10, 11
 
 
 class SessaoTransferencias(SessaoComTrigger):
@@ -37,14 +37,20 @@ class SessaoTransferencias(SessaoComTrigger):
 def banco(monkeypatch):
     estado = SimpleNamespace(
         saldos={},
-        unidades={LOJA_A: SimpleNamespace(id_unidade=LOJA_A, tipo="loja", ativo=True),
-                  LOJA_B: SimpleNamespace(id_unidade=LOJA_B, tipo="loja", ativo=True),
-                  CD: SimpleNamespace(id_unidade=CD, tipo="cd", ativo=True)},
+        unidades={LOJA_A: SimpleNamespace(id_unidade=LOJA_A, nome="Loja A", tipo="loja", ativo=True, marca="lorenzi"),
+                  LOJA_B: SimpleNamespace(id_unidade=LOJA_B, nome="Loja B", tipo="loja", ativo=True, marca="lorenzi"),
+                  CD: SimpleNamespace(id_unidade=CD, nome="CD", tipo="cd", ativo=True, marca="lorenzi"),
+                  LOJA_VULTO: SimpleNamespace(id_unidade=LOJA_VULTO, nome="Vulto Batel", tipo="loja", ativo=True,
+                                              marca="vulto")},
         transferencias={},
         itens=[],
     )
     monkeypatch.setattr(unidade_repository, "buscar_unidade", lambda db, u: estado.unidades.get(u))
-    monkeypatch.setattr(estoque_repository, "buscar_variante", lambda db, v: object() if v == VARIANTE else None)
+    monkeypatch.setattr(estoque_repository, "buscar_variante",
+                        lambda db, v: object() if v in (VARIANTE, VARIANTE_VULTO) else None)
+    marcas = {VARIANTE: "lorenzi", VARIANTE_VULTO: "vulto"}
+    monkeypatch.setattr(estoque_repository, "marcas_das_variantes",
+                        lambda db, ids: {v: marcas[v] for v in ids if v in marcas})
     monkeypatch.setattr(estoque_repository, "travar_estoque", lambda db, v, u, canais: {
         c: estado.saldos[(v, u, c)] for c in canais if (v, u, c) in estado.saldos})
     monkeypatch.setattr(transferencia_repository, "buscar_transferencia",
@@ -58,9 +64,10 @@ def com_estoque(banco, unidade, canal, quantidade, reservada=0):
     banco.saldos[(VARIANTE, unidade, canal)] = SimpleNamespace(quantidade=quantidade, quantidade_reservada=reservada)
 
 
-def solicitar(banco, origem=LOJA_A, destino=LOJA_B, quantidade=3, canal_saida="loja_fisica", canal_entrada="loja_fisica"):
+def solicitar(banco, origem=LOJA_A, destino=LOJA_B, quantidade=3, canal_saida="loja_fisica", canal_entrada="loja_fisica",
+              variante=VARIANTE):
     dados = TransferenciaCriar(id_unidade_origem=origem, id_unidade_destino=destino, itens=[
-        {"id_variante": VARIANTE, "canal_saida": canal_saida, "canal_entrada": canal_entrada, "quantidade": quantidade}
+        {"id_variante": variante, "canal_saida": canal_saida, "canal_entrada": canal_entrada, "quantidade": quantidade}
     ]).model_dump()
     return transferencias.solicitar(SessaoTransferencias(banco), ID_FUNCIONARIO, dados)
 
@@ -79,6 +86,18 @@ def test_solicitar_nao_mexe_no_estoque(banco):
     assert transferencia["status"] == "solicitada"
     assert transferencia["itens"][0].quantidade_solicitada == 3
     assert banco.saldos[(VARIANTE, LOJA_A, "loja_fisica")].quantidade == 5
+
+
+def test_nao_transfere_entre_marcas(banco):
+    with pytest.raises(RegraDeNegocio, match="mesma marca"):
+        solicitar(banco, destino=LOJA_VULTO)
+    assert banco.transferencias == {}
+
+
+def test_nao_transfere_peca_de_outra_marca(banco):
+    with pytest.raises(RegraDeNegocio, match="Loja A é da marca lorenzi"):
+        solicitar(banco, variante=VARIANTE_VULTO)
+    assert banco.transferencias == {}
 
 
 def test_origem_igual_ao_destino():
@@ -174,6 +193,16 @@ def test_recebe_tudo(banco):
     assert recebida["status"] == "recebida"
     assert movimentacoes(db) == [("entrada_transferencia", LOJA_B, 3)]
     assert banco.saldos[(VARIANTE, LOJA_B, "loja_fisica")].quantidade == 3
+
+
+def test_nao_recebe_se_o_destino_mudou_de_marca(banco):
+    id_t, _ = enviada(banco)
+    banco.unidades[LOJA_B].marca = "vulto"
+    db = SessaoTransferencias(banco)
+
+    with pytest.raises(RegraDeNegocio, match="Loja B é da marca vulto"):
+        transferencias.receber(db, id_t, ID_FUNCIONARIO, {})
+    assert movimentacoes(db) == []
 
 
 def test_diferenca_vira_perda_com_motivo(banco):

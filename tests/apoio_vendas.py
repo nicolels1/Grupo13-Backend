@@ -131,6 +131,8 @@ def banco(monkeypatch):
     m(r, "itens_do_pedido", lambda db, i: [x for x in estado.itens if x.id_pedido == i])
     m(estoque_repository, "travar_estoque", lambda db, v, u, canais: {
         c: estado.saldos[(v, u, c)] for c in canais if (v, u, c) in estado.saldos})
+    m(estoque_repository, "marcas_das_variantes", lambda db, ids: {
+        i: estado.variantes[i][1].marca for i in ids if i in estado.variantes})
     m(unidade_repository, "buscar_unidade", lambda db, u: estado.unidades.get(u))
     m(endereco_repository, "buscar_endereco", lambda db, i: estado.enderecos.get(i))
     m(usuario_repository, "buscar_cliente_por_cpf", lambda db, cpf: estado.clientes_por_cpf.get(cpf))

@@ -19,6 +19,16 @@ def buscar_unidade(db: Session, id_unidade: int) -> Unidade | None:
     return db.get(Unidade, id_unidade)
 
 
+# marca do produto de cada variante: a unidade só guarda peças da própria marca
+def marcas_das_variantes(db: Session, ids_variante: list[int]) -> dict[int, str]:
+    consulta = (
+        select(Variante.id_variante, Produto.marca)
+        .join(Produto, Produto.id_produto == Variante.id_produto)
+        .where(Variante.id_variante.in_(ids_variante))
+    )
+    return dict(db.execute(consulta).all())
+
+
 def buscar_estoque(db: Session, id_variante: int, id_unidade: int, canal: str) -> Estoque | None:
     return db.get(Estoque, (id_variante, id_unidade, canal))
 

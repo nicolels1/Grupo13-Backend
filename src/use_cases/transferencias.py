@@ -7,7 +7,7 @@ from src.models.estoque import ItemTransferencia, Transferencia
 from src.repositories import estoque_repository, unidade_repository
 from src.repositories import transferencia_repository as repo
 from src.use_cases.erros import RecursoNaoEncontrado, RegraDeNegocio
-from src.use_cases.estoque import conferir_disponivel
+from src.use_cases.estoque import conferir_disponivel, conferir_marca
 
 
 def _agora() -> datetime:
@@ -54,10 +54,13 @@ def _unidade_ativa(db: Session, id_unidade: int, papel: str):
     return unidade
 
 
-# a solicitação não reserva estoque na origem; só registra o pedido
+# a solicitação não reserva estoque na origem; só registra o pedido. A peça não muda de marca:
+# origem e destino são da mesma marca da peça
 def solicitar(db: Session, id_usuario: uuid.UUID, dados: dict) -> dict:
     origem = _unidade_ativa(db, dados["id_unidade_origem"], "origem")
     destino = _unidade_ativa(db, dados["id_unidade_destino"], "destino")
+    if origem.marca != destino.marca:
+        raise RegraDeNegocio("Transferência só entre unidades da mesma marca")
     for item in dados["itens"]:
         if estoque_repository.buscar_variante(db, item["id_variante"]) is None:
             raise RecursoNaoEncontrado(f"Variante {item['id_variante']} não encontrada")
@@ -65,6 +68,7 @@ def solicitar(db: Session, id_usuario: uuid.UUID, dados: dict) -> dict:
             raise RegraDeNegocio("Item que sai do CD sai do canal online")
         if destino.tipo == "cd" and item["canal_entrada"] != "online":
             raise RegraDeNegocio("O CD só recebe no canal online")
+    conferir_marca(db, origem, [item["id_variante"] for item in dados["itens"]])
 
     transferencia = Transferencia(
         id_unidade_origem=origem.id_unidade, id_unidade_destino=destino.id_unidade,
@@ -132,11 +136,14 @@ def enviar(db: Session, id_transferencia: int, id_usuario: uuid.UUID, dados: dic
     return buscar(db, id_transferencia)
 
 
-# recebimento: entra o total enviado no destino e, se chegou menos, a diferença sai como perda ou avaria
+# recebimento: entra o total enviado no destino e, se chegou menos, a diferença sai como perda ou avaria.
+# A marca do destino é conferida de novo: sem histórico, ela ainda podia mudar depois da solicitação
 def receber(db: Session, id_transferencia: int, id_usuario: uuid.UUID, dados: dict) -> dict:
     transferencia = _buscar(db, id_transferencia, travar=True)
     _exigir_status(transferencia, "enviada", "receber")
     itens = repo.itens_da_transferencia(db, id_transferencia)
+    unidade_destino = unidade_repository.buscar_unidade(db, transferencia.id_unidade_destino)
+    conferir_marca(db, unidade_destino, [item.id_variante for item in itens])
     recebidas = _quantidades(itens, dados.get("itens", []), lambda i: i.quantidade_enviada or 0)
 
     diferencas = {i.id_item_transferencia: (i.quantidade_enviada or 0) - recebidas[i.id_item_transferencia] for i in itens}

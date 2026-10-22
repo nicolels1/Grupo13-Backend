@@ -103,11 +103,12 @@ def linha(quantidade, reservada=0):
 @pytest.fixture
 def banco(monkeypatch):
     estado = SimpleNamespace(
-        variantes={1: SimpleNamespace(ativo=True), 2: SimpleNamespace(ativo=False)},
+        variantes={1: SimpleNamespace(ativo=True), 2: SimpleNamespace(ativo=False), 3: SimpleNamespace(ativo=True)},
+        marcas={1: "lorenzi", 2: "lorenzi", 3: "vulto"},
         unidades={
-            10: SimpleNamespace(tipo="cd", ativo=True),
-            20: SimpleNamespace(tipo="loja", ativo=True),
-            30: SimpleNamespace(tipo="loja", ativo=False),
+            10: SimpleNamespace(nome="CD", tipo="cd", ativo=True, marca="lorenzi"),
+            20: SimpleNamespace(nome="Loja Centro", tipo="loja", ativo=True, marca="lorenzi"),
+            30: SimpleNamespace(nome="Loja Antiga", tipo="loja", ativo=False, marca="lorenzi"),
         },
         estoque={},
         travados=[],
@@ -126,6 +127,8 @@ def banco(monkeypatch):
 
     monkeypatch.setattr(estoque_repository, "buscar_variante", lambda db, i: estado.variantes.get(i))
     monkeypatch.setattr(estoque_repository, "buscar_unidade", lambda db, i: estado.unidades.get(i))
+    monkeypatch.setattr(estoque_repository, "marcas_das_variantes",
+                        lambda db, ids: {i: estado.marcas[i] for i in ids if i in estado.marcas})
     monkeypatch.setattr(estoque_repository, "travar_estoque", travar)
     monkeypatch.setattr(estoque_repository, "inserir_movimentacao", inserir)
     monkeypatch.setattr(estoque_repository, "buscar_estoque", lambda db, v, u, c: estado.estoque.get((v, u, c)))
@@ -136,6 +139,20 @@ def banco(monkeypatch):
 
 def mover(db, tipo="recebimento", quantidade=5, unidade=20, canal="loja_fisica", motivo=None, variante=1):
     return estoque.registrar_movimentacao(db, USUARIO, variante, unidade, canal, tipo, quantidade, motivo)
+
+
+def test_unidade_nao_recebe_peca_de_outra_marca(banco):
+    db = SessaoFalsa()
+
+    with pytest.raises(RegraDeNegocio, match="Loja Centro é da marca lorenzi"):
+        mover(db, variante=3)
+    assert banco.inseridas == [] and db.commits == 0
+
+
+def test_minimo_de_peca_de_outra_marca_e_recusado(banco):
+    with pytest.raises(RegraDeNegocio, match="só guarda peças dessa marca"):
+        estoque.definir_minimo(SessaoFalsa(), USUARIO, 3, 20, "loja_fisica", 2)
+    assert banco.adicionados == []
 
 
 def test_recebimento_insere_movimentacao_com_autor(banco):

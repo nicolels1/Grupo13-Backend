@@ -4,7 +4,7 @@ from sqlalchemy import Select, and_, exists, func, literal, or_, select
 from sqlalchemy.orm import Session
 
 from src.models.catalogo import CategoriaProduto, HistoricoPreco, ImagemProduto, Produto, Variante
-from src.models.estoque import Estoque, Unidade
+from src.models.estoque import Estoque, MovimentacaoEstoque, Unidade
 from src.models.vendas import ItemPedido
 
 
@@ -237,9 +237,11 @@ def variante_por_ean(db: Session, ean: str) -> Variante | None:
 
 
 # alguma variante do produto já foi vendida: a partir daí a marca faz parte do histórico
-def produto_vendido(db: Session, id_produto: int) -> bool:
-    return db.scalar(select(exists().where(
-        ItemPedido.id_variante == Variante.id_variante, Variante.id_produto == id_produto,
+# alguma peça do produto já foi vendida ou já passou pelo estoque de uma unidade
+def tem_historico(db: Session, id_produto: int) -> bool:
+    return db.scalar(select(or_(
+        exists().where(ItemPedido.id_variante == Variante.id_variante, Variante.id_produto == id_produto),
+        exists().where(MovimentacaoEstoque.id_variante == Variante.id_variante, Variante.id_produto == id_produto),
     )))
 
 
