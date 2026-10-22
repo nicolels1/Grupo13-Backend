@@ -362,7 +362,7 @@ def pedido_original(lancamentos: pd.DataFrame, itens: pd.DataFrame) -> dict:
         if compras is None:
             continue
         antes = compras[compras["criado_em"] < d.criado_em]
-        perto = antes[pd.to_datetime(antes["dia"]) >= pd.to_datetime(d.dia) - pd.Timedelta(days=DIAS_DEVOLUCAO)]
+        perto = antes[pd.to_datetime(antes["dia"]) >= pd.to_datetime(d.dia) - pd.Timedelta(DIAS_DEVOLUCAO, unit="D")]
         mesma = perto[[bool(pecas.get(i, set()) & pecas.get(d.id, set())) for i in perto["id"]]]
         if len(mesma):
             achados[d.id] = (mesma["id"].iloc[-1], "mesmo cliente e peça")
@@ -378,7 +378,7 @@ def pedido_original(lancamentos: pd.DataFrame, itens: pd.DataFrame) -> dict:
 def compras_possiveis(devolucao, vendidos: pd.DataFrame) -> list[tuple[str, str]]:
     antes = vendidos[(vendidos["loja_id"] == devolucao.loja_id) & (vendidos["peca"] == devolucao.peca)
                      & (vendidos["criado_em"] < devolucao.criado_em)]
-    perto = pd.to_datetime(antes["dia"]) >= pd.to_datetime(devolucao.dia) - pd.Timedelta(days=DIAS_DEVOLUCAO)
+    perto = pd.to_datetime(antes["dia"]) >= pd.to_datetime(devolucao.dia) - pd.Timedelta(DIAS_DEVOLUCAO, unit="D")
     mesmo_preco = antes["preco"] == devolucao.preco
     if (perto & mesmo_preco).sum() == 1:
         return [(antes.loc[perto & mesmo_preco, "id"].iloc[0], "única compra possível")]
