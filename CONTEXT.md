@@ -141,7 +141,10 @@ Diferença entre o estoque atual e a soma das movimentações; deve ser sempre z
 
 **Pedido**:
 Registro de uma venda, online ou física, que sai de uma única unidade.
-_Evite_: compra, ordem, venda (como registro)
+_Evite_: ordem, venda (como registro); compra é o checkout do site, que junta os pedidos
+
+**Compra**:
+O que o cliente fecha no checkout do site: um carrinho com peças das duas marcas, uma cobrança e uma confirmação. Por dentro, um pedido por marca, cada um saindo de uma unidade dela.
 
 **Código da venda**:
 Identificador do pedido impresso no comprovante e usado na retirada e na reivindicação.

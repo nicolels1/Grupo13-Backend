@@ -263,14 +263,19 @@ As fotos aparecem em `imagens` de cada produto, com a URL pública.
 
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
-| POST | `/carrinho` | público | preços do momento, frete da entrega (com o valor mínimo do frete grátis) e lojas com tudo para retirada; não reserva nada |
+| POST | `/carrinho` | público | preços do momento, frete da entrega (com o valor mínimo do frete grátis), lojas com tudo para retirada e o resumo de cada marca em `marcas`; não reserva nada |
 | GET, POST | `/enderecos` | cliente | endereços salvos |
 | PATCH, DELETE | `/enderecos/{id}` | cliente | altera ou apaga (o pedido guarda a própria cópia) |
 | POST | `/pedidos` | cliente | checkout: escolhe a unidade, reserva as peças por 15 minutos e cria o pedido aguardando pagamento. `pontos_resgate` usa pontos como desconto: saem agora e voltam se a reserva vencer ou o pedido for cancelado |
+| POST | `/compras` | cliente | checkout do carrinho do site, que junta as duas marcas: uma compra com um pedido por marca, cada um numa unidade dela, tudo ou nada. Com as duas marcas, só entrega em casa. `pontos_por_marca` (ex.: `{"lorenzi": 200, "vulto": 150}`) usa os pontos de cada marca como desconto no pedido dela ([ADR 0017](docs/adr/0017-carrinho-unico-um-pedido-por-marca.md)) |
+| GET | `/compras/{id}` | cliente | a compra com os pedidos dela, para o pagamento e a confirmação |
+| POST | `/compras/{id}/pagamentos` | cliente | cobrança única da compra (Pix, crédito ou débito); pedir de novo com o mesmo método devolve a mesma |
+| POST | `/compras/{id}/simular` | cliente | gateway simulado: `{"aprovado": true}` paga todos os pedidos e baixa o estoque; depois do prazo da reserva, cancela sem cobrar |
+| POST | `/compras/{id}/cancelar` | cliente | cancela a compra inteira antes do pagamento e libera as reservas |
 | GET | `/pedidos`, `/pedidos/{id}` | cliente | meus pedidos, com itens (cada um com a foto da cor comprada em `foto_url`), pagamentos e endereço de entrega |
 | POST | `/pedidos/{id}/pagamentos` | cliente | cria a cobrança do valor que falta (Pix, crédito ou débito) no gateway simulado |
 | POST | `/pagamentos/{id}/simular` | cliente | gateway simulado: `{"aprovado": true}` paga o pedido e baixa o estoque (ADR 0011) |
-| POST | `/pedidos/{id}/cancelar` | cliente | cancela antes do pagamento e libera a reserva |
+| POST | `/pedidos/{id}/cancelar` | cliente | cancela antes do pagamento e libera a reserva (pedido de compra cancela pela compra) |
 | POST | `/pedidos/reivindicar` | cliente | liga à conta uma compra feita na loja sem CPF, pelo código do comprovante |
 
 ### Vendas (plataforma interna)
@@ -282,7 +287,7 @@ As fotos aparecem em `imagens` de cada produto, com a URL pública.
 | POST | `/vendas/pedidos/{id}/enviar` | `preparar_entregar_pedido` | entrega em casa paga → enviada |
 | POST | `/vendas/pedidos/{id}/pronto-retirada` | `preparar_entregar_pedido` | retirada paga → pronta (começa o prazo de 7 dias) |
 | POST | `/vendas/pedidos/{id}/entregar` | `preparar_entregar_pedido` | entrega o pedido enviado ou retirado (na retirada, confere o código) |
-| POST | `/vendas/pedidos/{id}/cancelar` | `cancelar_pedido_equipe` | antes do envio, com justificativa; se já pago, estorna tudo e devolve as peças ao estoque |
+| POST | `/vendas/pedidos/{id}/cancelar` | `cancelar_pedido_equipe` | antes do envio, com justificativa; se já pago, estorna tudo e devolve as peças ao estoque. Pedido de compra do site ainda sem pagamento cancela a compra inteira |
 | GET | `/vendas/clientes?cpf=` | `registrar_venda_fisica` ou `corrigir_cadastro_cliente` | mostra no caixa se o CPF já tem conta |
 | PATCH | `/vendas/clientes/{id}` | `corrigir_cadastro_cliente` | corrige e-mail ou CPF; CPF que já tem conta junta os pedidos nela, e as compras com o CPF certo na nota vão para a conta |
 | GET | `/vendas/clientes-sem-conta?busca=`, `/vendas/clientes-sem-conta/{id}` | qualquer permissão de vendas ou `atender_chamado` | clientes da Vulto que ainda não criaram conta: CPF ou telefone (só números) ou parte do nome ou e-mail. Os pedidos e chamados deles saem em `/vendas/pedidos` e `/atendimento/chamados` com `?id_cliente_sem_conta=` |
@@ -360,7 +365,7 @@ No resgate, os pontos viram desconto no pedido (`valor_desconto`): saem primeiro
 | GET | `/fidelidade/meus-pontos/extrato?marca=` | cliente | extrato paginado, do mais novo para o mais antigo, com o histórico de quando era cliente sem conta; nas entradas, o que sobra e quando vence |
 | GET | `/fidelidade/clientes/pontos?id_cliente=` ou `?id_cliente_sem_conta=`, `/fidelidade/clientes/pontos/extrato` | `atender_chamado`, `registrar_venda_fisica` ou `gerenciar_fidelidade` | o mesmo, de um cliente, para o atendimento ("meus pontos sumiram"), o caixa e quem cuida do programa |
 | GET | `/fidelidade/passivo?em=` | `gerenciar_fidelidade` | quanto cada marca deve em pontos, separado pelo valor do ponto na época em que foi ganho (o passivo da Entrega 3); `em` dá a posição num momento passado, no formato do histórico do estoque |
-| GET | `/fidelidade/resgate?marca=&pontos=` | cliente | quanto valem os pontos do cliente num resgate, antes do checkout: os mais antigos primeiro, cada um pelo valor da época (K3); confere o mínimo, o saldo e a regra da marca |
+| GET | `/fidelidade/resgate?marca=&pontos=` | cliente | quanto valem os pontos do cliente num resgate, antes do checkout (`pontos_resgate` no `POST /pedidos` e `pontos_por_marca` no `POST /compras`): os mais antigos primeiro, cada um pelo valor da época (K3); confere o mínimo, o saldo e a regra da marca |
 | GET | `/fidelidade/resgate/caixa?cpf=&marca=&pontos=` | `registrar_venda_fisica` | o mesmo no caixa, para o cliente do CPF (com conta ou da Vulto sem conta) |
 | POST | `/fidelidade/regras` | `gerenciar_fidelidade` | regra nova a partir de amanhã ou de uma data futura: vale dali em diante e nunca muda um ponto já ganho; uma regra que ainda não começou se corrige com outra para a mesma data (vale a criada por último) |
 
@@ -462,7 +467,7 @@ A API é publicada no Render a cada merge na `main`.
   As vendas vêm por canal da venda (P3): `loja` e `site` sempre, e `app` só quando o período tem venda pelo app, que existe só no histórico da Vulto. Filtros opcionais: `marca=lorenzi|vulto` vale para todas as seções (o chamado é da marca pela unidade, pelo pedido ou pela peça ligados a ele, e o migrado do atendimento da Vulto é da Vulto; o mesmo filtro da fila do Atendimento); `referencia=AAAA-MM-DD` faz as janelas de 7, 14, 30 e 90 dias terminarem nesse dia, por exemplo `2026-09-30` para ver o histórico da Vulto, enquanto saldo, ruptura, chamados abertos, retiradas e pontos continuam sendo de agora. Os dias são no horário de Brasília. Os blocos de pendências continuam sendo o `total` de uma lista com filtro: `GET /atendimento/chamados?sem_responsavel=true`, `?meus=true&status=em_andamento` e `?com_mensagem_nova=true`; `GET /estoque?abaixo_minimo=true`; `GET /transferencias?status=enviada` e `?status=solicitada` com `id_unidade` (o frontend separa as que chegam das que saem); `GET /vendas/pedidos?status=pago` e `?pronto_ha_mais_de_dias=5`; `GET /moderacao/denuncias`.
 - **Os 3 números da Vulto:** o faturamento da plataforma vem de `GET /visao-geral/faturamento?de=2025-01-01&ate=2026-09-30&marca=vulto`, uma linha por mês, unidade e canal (site e app saem do CD Cajamar); o estoque, de `GET /estoque/historico?em=2026-09-30` e `GET /estoque/em-transito`; o passivo, de `GET /fidelidade/passivo?em=2026-09-30`. Os três com `2026-09-30` dão a posição no fim de 30/09, a data-base de 01/10/2026. Os valores e como chegamos neles estão no [numeros.md](migracao_vulto/numeros.md).
 - **Vendas de hoje (Caixa):** `GET /vendas/pedidos?de=<hoje>&ate=<hoje>&id_unidade=<loja>`, com a data no formato `AAAA-MM-DD`.
-- **Compra online:** `POST /carrinho` mostra frete e lojas; `POST /pedidos` reserva por 15 minutos; `POST /pedidos/{id}/pagamentos` cria a cobrança e `POST /pagamentos/{id}/simular` faz o papel do gateway. Reserva vencida cancela o pedido sozinha.
+- **Compra online:** `POST /carrinho` mostra frete e lojas; `POST /compras` reserva por 15 minutos e cria a compra com um pedido por marca; `POST /compras/{id}/pagamentos` cria a cobrança única e `POST /compras/{id}/simular` faz o papel do gateway. O checkout de um pedido só (`POST /pedidos`, `POST /pedidos/{id}/pagamentos` e `POST /pagamentos/{id}/simular`) continua. Reserva vencida cancela a compra e os pedidos sozinha.
 - **Compras da loja:** depois do `POST /clientes`, se `compras_ligadas` for maior que zero, as compras feitas em lojas com aquele CPF já aparecem em `GET /pedidos`.
 - **CORS:** o navegador só deixa o frontend chamar a API se o endereço dele estiver em `CORS_ORIGINS`, sem `/` no final. Para os previews da Vercel, use `CORS_ORIGIN_REGEX`, por exemplo `https://<projeto>-.*\.vercel\.app`.
 
@@ -491,7 +496,7 @@ A API é publicada no Render a cada merge na `main`.
 |---|---|
 | [docs/case/Casa_Lorenzi_Case_Completo.md](docs/case/Casa_Lorenzi_Case_Completo.md) | referência do case: contexto, regras de negócio, permissões e modelo de dados |
 | [CONTEXT.md](CONTEXT.md) | glossário dos termos do domínio |
-| [docs/adr/](docs/adr/) | decisões de arquitetura difíceis de reverter (ADRs 0001 a 0016) |
+| [docs/adr/](docs/adr/) | decisões de arquitetura difíceis de reverter (ADRs 0001 a 0017) |
 | [ALEMBIC_GUIDE.md](ALEMBIC_GUIDE.md) | como criar e aplicar migrations |
 | [migracao_vulto/README.md](migracao_vulto/README.md) | migração da Vulto: etapas, como rodar e onde cada decisão entra no código |
 | [migracao_vulto/registro_decisoes.md](migracao_vulto/registro_decisoes.md) | problemas encontrados nos dados da Vulto, decisões tomadas e impacto nos números |
