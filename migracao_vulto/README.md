@@ -1,6 +1,6 @@
 # Migração da Vulto
 
-Scripts que preparam os dados da Vulto (banco SQLite e planilhas do `vulto-legado-back`) antes de levá-los ao banco da Casa Lorenzi. A migração acontece uma vez só; o que está aqui é reprodutível: roda de novo a partir dos arquivos originais e chega no mesmo resultado.
+Scripts que preparam os dados da Vulto (banco SQLite e planilhas do `vulto-legado-back`), levam-nos ao banco da Casa Lorenzi e conferem o resultado. A migração acontece uma vez só (a carga definitiva foi feita em 21/10/2026); o tratamento é reprodutível: roda de novo a partir dos arquivos originais e chega no mesmo resultado.
 
 ## Etapas
 
@@ -9,8 +9,9 @@ Scripts que preparam os dados da Vulto (banco SQLite e planilhas do `vulto-legad
 | 0. Original | `vulto-backend/data/` | Cópia congelada dos dados da Vulto. Nunca é alterada (o SQLite é aberto só para leitura). | — |
 | 1. Padronização automática | `staging_vulto/` | Formato de data, número, CPF, e-mail, telefone, texto, encoding e cabeçalho de planilha. Nenhuma regra de negócio. | **Feita** (`padronizar.py`) |
 | 2. Tratamento | `tratado_vulto/` | Padrões assumidos (de-para) e decisões de negócio: um CSV por tabela da plataforma, mais a origem de cada registro e cada valor alterado. | **Feito** (`tratar.py`: unidades, contas internas, catálogo, clientes, vendas, estoque, fidelidade e atendimento) |
-| 3. Carga | banco da Lorenzi | Insere os dados tratados numa transação só, guardando a origem de cada registro, e confere os três números calculados pelo banco. | **Pronta** (`carregar.py`; o ensaio chega nos três números do `numeros.md`; a carga definitiva é com `--confirmar`) |
+| 3. Carga | banco da Lorenzi | Insere os dados tratados numa transação só, guardando a origem de cada registro, e confere os três números calculados pelo banco. | **Feita** em 21/10/2026 (`carregar.py --confirmar`, a partir da `main`; os três números do banco batem com o `numeros.md`) |
 | Os três números | `numeros_vulto/` | Faturamento, estoque e passivo de pontos, calculados do staging com as decisões do registro. Só agregados. | **Feito** (`numeros.py`, resultado em [`numeros.md`](numeros.md)) |
+| Validação | [`validacao.md`](validacao.md) | Conta, para cada fonte, as linhas que entraram e o motivo de cada uma que ficou de fora, e compara cada tabela do tratado com o banco. Só lê. | **Feita** em 21/10/2026 (`validar.py`: 0 linhas sem explicação, as 16 tabelas iguais no tratado e no banco) |
 
 Cada etapa lê a pasta da anterior e regrava a sua do zero; regra nova entra no script e tudo roda de novo (não se cria um CSV por alteração). Os de-para da etapa 2 ficam em CSVs pequenos em `de_para/`, versionados no git, e cada valor alterado vai para um único `origem_migracao.csv`, com a decisão que o mudou.
 
@@ -34,10 +35,13 @@ python -m migracao_vulto.padronizar --destino staging_vulto
 python -m migracao_vulto.tratar --origem staging_vulto --destino tratado_vulto
 python -m migracao_vulto.numeros --origem staging_vulto --destino numeros_vulto
 python -m migracao_vulto.carregar --origem tratado_vulto              # ensaio: carrega, confere e desfaz
-python -m migracao_vulto.carregar --origem tratado_vulto --confirmar  # carga definitiva
+python -m migracao_vulto.carregar --origem tratado_vulto --confirmar  # carga definitiva (já feita)
+python -m migracao_vulto.validar --staging staging_vulto --tratado tratado_vulto --destino migracao_vulto/validacao.md
 ```
 
-A carga usa a conexão direta (`DATABASE_URL_DIRECT`, a mesma das migrations) e, na definitiva, também `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY`.
+A carga usa a conexão direta (`DATABASE_URL_DIRECT`, a mesma das migrations) e, na definitiva, também `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY`. A validação usa a mesma conexão, só para leitura.
+
+**A carga definitiva já foi feita (21/10/2026) e não deve rodar de novo.** Com a Vulto no banco, o `carregar.py` para antes de começar, no ensaio e na definitiva. As etapas 1 e 2, os números e a validação podem rodar de novo, porque não gravam no banco.
 
 O `tratar.py` imprime no fim os três números calculados a partir das tabelas tratadas; eles devem ser iguais aos do [`numeros.md`](numeros.md).
 
@@ -53,6 +57,7 @@ Sem `VULTO_DATA_DIR`, informe a pasta no comando: `--origem ../vulto-backend/dat
 - `tratar.py`: a etapa 2. Monta cada tabela da plataforma a partir do staging, com as regras do `regras.py` e as traduções do `de_para/`, e grava também `origem_migracao.csv` e `pendencias.csv`.
 - `de_para/`: as tabelas de tradução da Vulto para a Lorenzi, em CSV, cada linha com a decisão que a justifica. Unidades, cores e status da venda (lidas pelo `regras.py`); contas internas, vendedor e atendente (P9); método de pagamento da Batel; consentimento e loja de cadastro do Vulto+ (a categoria não tem de-para: sai da regra, K4c); categoria do catálogo; canal, categoria e status do atendimento. Valor que não está na tabela não é traduzido no chute. O teste `tests/test_de_para_vulto.py` confere a estrutura.
 - `carregar.py`: a etapa 3. Troca as chaves naturais pelos ids, grava tudo com COPY numa transação e confere os três números pelas consultas da plataforma. Os testes estão em `tests/test_carregar_vulto.py`.
+- `validar.py`: a validação. Lê o staging, o tratado e o banco (numa transação só de leitura) e grava o [`validacao.md`](validacao.md): as linhas de cada fonte da Vulto, quantas entraram, o motivo e a decisão de cada uma que ficou de fora, e a contagem de cada tabela no tratado e no banco.
 - `numeros.py`: calcula os três números da Entrega 3 (faturamento com a comparação com o relatório da Vulto, estoque em 01/10/2026 com o histórico desde jan/2025, passivo de pontos) a partir do staging, com as regras do `regras.py`.
 - [`numeros.md`](numeros.md): os três números, como chegamos neles e a margem de erro de cada um.
 - `notebooks/`: análise exploratória (entender as fontes e testar regras antes de irem para os scripts). Ver o [README da pasta](notebooks/README.md).
@@ -75,7 +80,7 @@ Só transformações em que o formato não deixa dúvida:
 - **Atendimento:** linhas duplicadas idênticas removidas, tags em lista, pedido classificado pelo prefixo (`S…` site, `APP-…` app, número solto), sem `#` ou "pedido" na frente.
 - A senha dos funcionários não é copiada.
 
-## Resultado da etapa 1 (execução de 16/10/2026)
+## Resultado da etapa 1 (execução de 21/10/2026, com os ajustes da K7b e da C15)
 
 | Arquivo gerado | Linhas |
 |---|---|
@@ -84,11 +89,11 @@ Só transformações em que o formato não deixa dúvida:
 | `banco_entradas_estoque.csv` / `banco_estoque.csv` | 17.331 / 7.130 |
 | `banco_lojas.csv` / `banco_funcionarios.csv` (sem a coluna de senha) | 7 / 24 |
 | `clientes_clientes.csv` / `clientes_antigos.csv` / `clientes_resgates.csv` | 2.535 / 300 / 596 |
-| `catalogo_produtos.csv` (5 abas juntas; 165 descontinuados, 5 para revisar preço) | 1.174 |
+| `catalogo_produtos.csv` (5 abas juntas, sem a linha de título da C15; 165 descontinuados, 5 para revisar preço) | 1.173 |
 | `contagem_set26.csv` (5 abas juntas) | 2.945 |
 | `batel_vendas_manuais.csv` | 76 |
 | `atendimentos.csv` (17 linhas duplicadas idênticas removidas) | 1.647 |
-| `pendencias.csv` | 1.213 |
+| `pendencias.csv` | 1.204 |
 
 Pendências por motivo (o que não dá para padronizar sem decidir ou que não dá para recuperar):
 
@@ -100,7 +105,6 @@ Pendências por motivo (o que não dá para padronizar sem decidir ou que não d
 | vulto.db | `vendas/compras.cliente_ref` | CPF com máscara e dígito verificador errado | 83 |
 | clientes | `Tel` | telefone sem DDD | 425 |
 | clientes | `cpf` | CPF com dígito verificador errado | 28 |
-| clientes | `pontos usados` (Resgates) | `1.500`: ponto de milhar (padrão assumido, abaixo) | 9 |
 | atendimento | `contato` | telefone sem DDD | 124 |
 | catálogo | `descontinuado` | só a célula do SKU em vermelho, resto da linha normal | 93 |
 
@@ -110,7 +114,7 @@ O `tratado_vulto/` já passa nas regras do banco (CHECK, chaves e triggers). A c
 
 - **Roda numa transação só.** O ensaio (o padrão) carrega, confere e desfaz (ROLLBACK): nada fica gravado, e as sequências dos ids voltam para onde estavam. A carga definitiva (`--confirmar`) só grava (COMMIT) se os três números baterem; se não baterem, desfaz tudo. Se a Vulto já está no banco (unidade da marca `vulto`), não começa.
 - **Cria as 17 contas internas da Vulto (P9) no Supabase Auth sem senha conhecida e bloqueadas**, porque a conta da plataforma é o login do Auth (ADR 0008). Elas só guardam quem vendeu, atendeu e lançou o estoque; para alguém voltar a entrar, um admin reativa a conta e a pessoa define a senha pela recuperação. No ensaio, as contas entram direto em `auth.users`, dentro da transação, e somem no ROLLBACK. Os clientes da Vulto não ganham conta: entram como cliente sem conta (P2) e se ligam à conta quando se cadastrarem com o CPF.
-- **Troca a chave natural pelo id**, na ordem das ligações: unidade, conta, catálogo (as categorias que a Lorenzi já tem são achadas pelo nome), cliente sem conta, pedido, item, chamado, mensagem, pagamento, transferência, movimentação de estoque e movimento de pontos. Os ids são reservados na sequência de cada tabela antes do COPY, e chave sem registro para a carga (nada é ligado no chute). O cliente é achado pelo CPF ou, de quem não tem CPF, pelo e-mail.
+- **Troca a chave natural pelo id**, na ordem das ligações: unidade, conta, catálogo (as categorias que a Lorenzi já tem são achadas pelo nome), cliente sem conta, pedido, item, chamado, mensagem, pagamento, transferência, movimentação de estoque e movimento de pontos. Os ids são reservados na sequência de cada tabela antes do COPY, e chave sem registro interrompe a carga (nada é ligado no chute). O cliente é achado pelo CPF ou, de quem não tem CPF, pelo e-mail.
 - **Deixa vazia a coluna que o banco preenche:** `cliente_sem_conta.criado_em` (120 clientes só da aba antiga) e `variante.ean` (49 peças, o trigger gera o código).
 - **Não grava o saldo do estoque direto:** o banco recusa ([ADR 0005](../docs/adr/0005-saldo-atualizado-por-trigger.md)). O saldo nasce das movimentações, inseridas na ordem da coluna `ordem`; o `estoque.csv` serve para conferir o saldo (os 3.541 batem) e para gravar só o `estoque_minimo` depois.
 - **Insere os movimentos de pontos na ordem da coluna `ordem`** (o trigger do saldo exige ordem de data) e o pagamento original antes do estorno (o estorno sai pelo mesmo método, P7).
@@ -119,6 +123,8 @@ O `tratado_vulto/` já passa nas regras do banco (CHECK, chaves e triggers). A c
 - **Não carrega** o `pendencias.csv` nem o `lista_marina.csv` (peças para a Marina revisar o preço, C10 e C17): são listas para a equipe. O `pendencias.csv` não é trabalho por fazer: é o que ficou de fora por uma decisão do registro, linha a linha (19 movimentos de pontos do CPF de teste e do `00000000000`, V8 e K2; 2 resgates sem cliente, K7a e K7c).
 
 No fim, a carga calcula os três números pelas mesmas consultas da plataforma (faturamento da visão geral, histórico e trânsito do estoque, passivo por data) e compara com os do [`numeros.md`](numeros.md). O ensaio de 21/10/2026 levou cerca de um minuto e chegou nos quatro valores: R$ 6.438.443,35; 15.233 peças; 9.436.136 pontos e R$ 652.718,10.
+
+A carga definitiva rodou no mesmo dia, a partir da `main`, em cerca de 73 segundos: os quatro valores bateram, a transação foi gravada e as 17 contas internas ficaram bloqueadas no Supabase Auth. A [validação](validacao.md) confirma que as 16 tabelas têm no banco o mesmo número de registros do tratado e que nenhuma linha da Vulto ficou de fora sem motivo.
 
 ## Onde cada decisão entra no código
 
