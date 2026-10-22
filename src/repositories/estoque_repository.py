@@ -19,6 +19,16 @@ def buscar_unidade(db: Session, id_unidade: int) -> Unidade | None:
     return db.get(Unidade, id_unidade)
 
 
+# marca do produto de cada variante: a unidade só guarda peças da própria marca
+def marcas_das_variantes(db: Session, ids_variante: list[int]) -> dict[int, str]:
+    consulta = (
+        select(Variante.id_variante, Produto.marca)
+        .join(Produto, Produto.id_produto == Variante.id_produto)
+        .where(Variante.id_variante.in_(ids_variante))
+    )
+    return dict(db.execute(consulta).all())
+
+
 def buscar_estoque(db: Session, id_variante: int, id_unidade: int, canal: str) -> Estoque | None:
     return db.get(Estoque, (id_variante, id_unidade, canal))
 
@@ -55,8 +65,11 @@ def _paginar(db: Session, consulta: Select, limit: int, offset: int) -> tuple[li
     return list(linhas), total
 
 
-def _filtros_comuns(colunas, id_unidade, id_variante, canal, busca) -> list:
+# a marca é a da unidade (a mesma regra da visão geral); as consultas abaixo já juntam a UNIDADE
+def _filtros_comuns(colunas, id_unidade, id_variante, canal, busca, marca=None) -> list:
     filtros = []
+    if marca is not None:
+        filtros.append(Unidade.marca == marca)
     if id_unidade is not None:
         filtros.append(colunas["id_unidade"] == id_unidade)
     if id_variante is not None:
@@ -72,7 +85,8 @@ def _filtros_comuns(colunas, id_unidade, id_variante, canal, busca) -> list:
 
 # ---------- estoque atual ----------
 
-def consulta_estoque(id_unidade=None, id_variante=None, canal=None, busca=None, abaixo_minimo=None) -> Select:
+def consulta_estoque(id_unidade=None, id_variante=None, canal=None, busca=None, abaixo_minimo=None,
+                     marca=None) -> Select:
     disponivel = Estoque.quantidade - Estoque.quantidade_reservada
     abaixo = and_(Estoque.estoque_minimo.is_not(None), Estoque.quantidade < Estoque.estoque_minimo)
     consulta = (
@@ -88,7 +102,7 @@ def consulta_estoque(id_unidade=None, id_variante=None, canal=None, busca=None, 
         .order_by(Produto.nome, Variante.cor, Variante.tamanho, Unidade.nome, Estoque.canal)
     )
     colunas = {"id_unidade": Estoque.id_unidade, "id_variante": Estoque.id_variante, "canal": Estoque.canal}
-    filtros = _filtros_comuns(colunas, id_unidade, id_variante, canal, busca)
+    filtros = _filtros_comuns(colunas, id_unidade, id_variante, canal, busca, marca)
     if abaixo_minimo is not None:
         filtros.append(abaixo if abaixo_minimo else ~abaixo)
     return consulta.where(*filtros)
@@ -100,7 +114,8 @@ def listar_estoque(db: Session, limit: int, offset: int, **filtros) -> tuple[lis
 
 # ---------- histórico: soma das movimentações até a data (ADR 0006) ----------
 
-def consulta_historico(em: datetime, id_unidade=None, id_variante=None, canal=None, busca=None) -> Select:
+def consulta_historico(em: datetime, id_unidade=None, id_variante=None, canal=None, busca=None,
+                       marca=None) -> Select:
     m = MovimentacaoEstoque
     consulta = (
         select(
@@ -116,7 +131,7 @@ def consulta_historico(em: datetime, id_unidade=None, id_variante=None, canal=No
         .order_by(Produto.nome, Variante.cor, Variante.tamanho, Unidade.nome, m.canal)
     )
     colunas = {"id_unidade": m.id_unidade, "id_variante": m.id_variante, "canal": m.canal}
-    return consulta.where(*_filtros_comuns(colunas, id_unidade, id_variante, canal, busca))
+    return consulta.where(*_filtros_comuns(colunas, id_unidade, id_variante, canal, busca, marca))
 
 
 def listar_historico(db: Session, em: datetime, limit: int, offset: int, **filtros) -> tuple[list, int]:
@@ -168,7 +183,7 @@ def somas_por_periodo(
 # ---------- movimentações ----------
 
 def consulta_movimentacoes(
-    id_unidade=None, id_variante=None, canal=None, tipo=None, de=None, ate=None, busca=None
+    id_unidade=None, id_variante=None, canal=None, tipo=None, de=None, ate=None, busca=None, marca=None
 ) -> Select:
     m = MovimentacaoEstoque
     consulta = (
@@ -183,7 +198,7 @@ def consulta_movimentacoes(
         .order_by(m.criado_em.desc(), m.id_movimentacao.desc())
     )
     colunas = {"id_unidade": m.id_unidade, "id_variante": m.id_variante, "canal": m.canal}
-    filtros = _filtros_comuns(colunas, id_unidade, id_variante, canal, busca)
+    filtros = _filtros_comuns(colunas, id_unidade, id_variante, canal, busca, marca)
     if tipo is not None:
         filtros.append(m.tipo == tipo)
     if de is not None:
@@ -199,7 +214,7 @@ def listar_movimentacoes(db: Session, limit: int, offset: int, **filtros) -> tup
 
 # ---------- divergência: saldo x soma das movimentações (ADR 0005) ----------
 
-def consulta_divergencias() -> Select:
+def consulta_divergencias(marca=None) -> Select:
     m = MovimentacaoEstoque
     somas = (
         select(m.id_variante, m.id_unidade, m.canal, func.sum(m.quantidade).label("soma"))
@@ -207,7 +222,7 @@ def consulta_divergencias() -> Select:
         .subquery()
     )
     soma = func.coalesce(somas.c.soma, 0)
-    return (
+    consulta = (
         select(Estoque.id_variante, Estoque.id_unidade, Estoque.canal, Estoque.quantidade,
                soma.label("soma_movimentacoes"))
         .outerjoin(somas, and_(
@@ -218,10 +233,13 @@ def consulta_divergencias() -> Select:
         .where(Estoque.quantidade != soma)
         .order_by(Estoque.id_unidade, Estoque.id_variante, Estoque.canal)
     )
+    if marca is not None:
+        consulta = consulta.where(Estoque.id_unidade.in_(select(Unidade.id_unidade).where(Unidade.marca == marca)))
+    return consulta
 
 
-def listar_divergencias(db: Session) -> list:
-    return list(db.execute(consulta_divergencias()).mappings().all())
+def listar_divergencias(db: Session, marca: str | None = None) -> list:
+    return list(db.execute(consulta_divergencias(marca)).mappings().all())
 
 
 # ---------- peças em trânsito: enviadas e ainda não recebidas naquele momento ----------
@@ -230,7 +248,7 @@ Origem = aliased(Unidade, name="origem")
 Destino = aliased(Unidade, name="destino")
 
 
-def consulta_em_transito(em: datetime, id_variante=None, id_unidade=None, busca=None) -> Select:
+def consulta_em_transito(em: datetime, id_variante=None, id_unidade=None, busca=None, marca=None) -> Select:
     i, t = ItemTransferencia, Transferencia
     consulta = (
         select(
@@ -254,6 +272,9 @@ def consulta_em_transito(em: datetime, id_variante=None, id_unidade=None, busca=
     if busca:
         padrao = f"%{busca}%"
         consulta = consulta.where(or_(Variante.sku.ilike(padrao), Produto.nome.ilike(padrao)))
+    # transferência só acontece dentro da mesma marca: a da origem basta
+    if marca is not None:
+        consulta = consulta.where(Origem.marca == marca)
     return consulta
 
 

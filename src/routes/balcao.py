@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
-from src.dependencies.permissoes import exige_permissao
+from src.dependencies.permissoes import exige_permissao, marca_do_pedido, marca_permitida
 from src.entities.atendimento import DevolucaoCriar, TrocaCriar
 from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Lista, Pagina
 from src.entities.estoque import Canal, EstoqueItem
@@ -11,6 +11,9 @@ from src.models.contas import Usuario
 from src.use_cases import devolucoes, estoque
 
 router = APIRouter(tags=["balcão"])
+
+# detalhe e escrita só de registro de uma marca que a pessoa vê (ver_marca_lorenzi, ver_marca_vulto)
+MARCA_DO_PEDIDO = Depends(marca_do_pedido)
 
 # troca e devolução na loja, sem chamado (ADR 0015); pelo Atendimento continua com atender_chamado
 BALCAO = exige_permissao("registrar_troca_devolucao")
@@ -35,14 +38,16 @@ def buscar_pedidos(
     codigo_venda: str | None = Query(None, max_length=20, description="Código da notinha (CL...)"),
     id_pedido: int | None = Query(None, description="Número do pedido"),
     cpf: str | None = Query(None, description="Com ou sem máscara"),
+    marca: str | None = Depends(marca_permitida),
     _: Usuario = Depends(BALCAO),
     db: Session = Depends(get_db),
 ):
-    return {"items": devolucoes.buscar_no_balcao(db, codigo_venda, id_pedido, cpf)}
+    return {"items": devolucoes.buscar_no_balcao(db, codigo_venda, id_pedido, cpf, marca)}
 
 
 @router.post(
     "/balcao/pedidos/{id_pedido}/devolucao",
+    dependencies=[MARCA_DO_PEDIDO],
     response_model=PedidoSaida,
     responses=ERROS,
     description="A peça entra no estoque de loja física da loja; o estorno sai pelo mesmo meio de pagamento.",
@@ -54,6 +59,7 @@ def devolver(id_pedido: int, dados: DevolucaoCriar, usuario: Usuario = Depends(B
 
 @router.post(
     "/balcao/pedidos/{id_pedido}/troca",
+    dependencies=[MARCA_DO_PEDIDO],
     response_model=PedidoSaida,
     responses=ERROS,
     description="A peça devolvida entra e a nova (mesmo produto, outra cor ou tamanho) sai da loja física.",
@@ -76,11 +82,12 @@ def consultar_peca(
     id_variante: int | None = None,
     id_unidade: int | None = None,
     canal: Canal | None = None,
+    marca: str | None = Depends(marca_permitida),
     limit: int = Query(LIMITE_PADRAO, ge=1, le=LIMITE_MAXIMO),
     offset: int = Query(0, ge=0),
     _: Usuario = Depends(CONSULTAR_PECA),
     db: Session = Depends(get_db),
 ):
     return estoque.listar_estoque(
-        db, limit, offset, id_unidade=id_unidade, id_variante=id_variante, canal=canal, busca=busca,
+        db, limit, offset, id_unidade=id_unidade, id_variante=id_variante, canal=canal, busca=busca, marca=marca,
     )

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
-from src.dependencies.permissoes import exige_permissao
+from src.dependencies.permissoes import exige_permissao, marca_do_pedido, marca_permitida
 from src.dependencies.supabase import get_supabase_admin
 from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Pagina, campos_alterados
 from src.entities.vendas import (
@@ -13,10 +13,15 @@ from src.entities.vendas import (
     PedidoSaida, StatusPedido, VendaFisica,
 )
 from src.models.contas import Usuario
+from src.repositories import marca_repository
 from src.use_cases import clientes, pedidos, vendas
+from src.use_cases.permissoes import exigir_marca
 from src.utils.supabase_admin import SupabaseAdmin
 
 router = APIRouter(tags=["vendas"])
+
+# detalhe e escrita só de registro de uma marca que a pessoa vê (ver_marca_lorenzi, ver_marca_vulto)
+MARCA_DO_PEDIDO = Depends(marca_do_pedido)
 
 # a página Pedidos aparece para quem tem alguma permissão de vendas; o atendente também consulta
 VER_PEDIDOS = exige_permissao(
@@ -45,6 +50,7 @@ def listar(
     codigo_venda: str | None = Query(None, max_length=20),
     id_cliente: uuid.UUID | None = Query(None, description="Pedidos de um cliente com conta"),
     id_cliente_sem_conta: int | None = Query(None, description="Pedidos de um cliente da Vulto sem conta"),
+    marca: str | None = Depends(marca_permitida),
     pronto_ha_mais_de_dias: int | None = Query(
         None, ge=0, description="Retiradas prontas há mais de N dias (risco de vencer)",
     ),
@@ -58,11 +64,11 @@ def listar(
     return vendas.listar(
         db, limit, offset, pronto_ha_mais_de_dias, de, ate, status=status_pedido, canal=canal, modalidade=modalidade,
         id_unidade=id_unidade, codigo_venda=codigo_venda, id_cliente=id_cliente,
-        id_cliente_sem_conta=id_cliente_sem_conta,
+        id_cliente_sem_conta=id_cliente_sem_conta, marca=marca,
     )
 
 
-@router.get("/vendas/pedidos/{id_pedido}", response_model=PedidoSaida, responses=ERROS)
+@router.get("/vendas/pedidos/{id_pedido}", dependencies=[MARCA_DO_PEDIDO], response_model=PedidoSaida, responses=ERROS)
 def detalhar(id_pedido: int, _: Usuario = Depends(VER_PEDIDOS), db: Session = Depends(get_db)):
     return pedidos.detalhar(db, id_pedido)
 
@@ -80,16 +86,23 @@ def registrar_venda_fisica(
     dados: VendaFisica, vendedor: Usuario = Depends(exige_permissao("registrar_venda_fisica")),
     db: Session = Depends(get_db),
 ):
+    exigir_marca(db, vendedor, marca_repository.da_unidade(db, dados.id_unidade))
     return vendas.registrar_venda_fisica(db, vendedor, dados.model_dump())
 
 
-@router.post("/vendas/pedidos/{id_pedido}/enviar", response_model=PedidoSaida, responses=ERROS)
+@router.post(
+    "/vendas/pedidos/{id_pedido}/enviar",
+    dependencies=[MARCA_DO_PEDIDO],
+    response_model=PedidoSaida,
+    responses=ERROS,
+)
 def enviar(id_pedido: int, _: Usuario = Depends(PREPARAR), db: Session = Depends(get_db)):
     return vendas.enviar(db, id_pedido)
 
 
 @router.post(
     "/vendas/pedidos/{id_pedido}/pronto-retirada",
+    dependencies=[MARCA_DO_PEDIDO],
     response_model=PedidoSaida,
     responses=ERROS,
     description="A partir daqui, o cliente tem 7 dias para retirar; depois, o pedido é cancelado com estorno.",
@@ -100,6 +113,7 @@ def pronto_para_retirada(id_pedido: int, _: Usuario = Depends(PREPARAR), db: Ses
 
 @router.post(
     "/vendas/pedidos/{id_pedido}/entregar",
+    dependencies=[MARCA_DO_PEDIDO],
     response_model=PedidoSaida,
     responses=ERROS,
     description="Entrega do pedido enviado ou retirada na loja (na retirada, confere o código do pedido).",
@@ -110,6 +124,7 @@ def entregar(id_pedido: int, dados: Entrega, _: Usuario = Depends(PREPARAR), db:
 
 @router.post(
     "/vendas/pedidos/{id_pedido}/cancelar",
+    dependencies=[MARCA_DO_PEDIDO],
     response_model=PedidoSaida,
     responses=ERROS,
     description="Antes do envio. Já pago: estorna tudo e as peças voltam ao estoque online.",

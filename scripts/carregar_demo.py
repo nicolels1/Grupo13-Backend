@@ -77,6 +77,8 @@ MODELOS = {
     # balcão da loja: caixa, troca e devolução e a fila do online; a conta fica numa loja
     "Vendedor": ["registrar_venda_fisica", "registrar_troca_devolucao", "preparar_entregar_pedido"],
 }
+# todos os modelos da demonstração veem as duas marcas; o Admin tira uma de quem só deve ver a outra
+MARCAS = ["ver_marca_lorenzi", "ver_marca_vulto"]
 
 # e-mails terminados em .example, domínio reservado para exemplos: nunca chegam a uma pessoa real.
 # Conta interna usa o e-mail corporativo; conta de cliente, o e-mail pessoal.
@@ -235,6 +237,7 @@ def carregar_base(db: Session) -> dict:
     # modelo novo nasce com as permissões da lista; modelo que já existe ganha as que faltam
     # (ex.: registrar_troca_devolucao, que chegou depois), sem perder nenhuma
     for nome, codigos in MODELOS.items():
+        codigos = [*codigos, *MARCAS]
         modelo, novo = _buscar_ou_criar(db, ModeloAcesso, {"nome": nome})
         ids = db.scalars(select(Permissao.id_permissao).where(Permissao.codigo.in_(codigos))).all()
         if len(ids) != len(codigos):

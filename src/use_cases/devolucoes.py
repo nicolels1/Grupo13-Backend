@@ -6,12 +6,15 @@ from sqlalchemy.orm import Session
 
 from src.models.atendimento import Chamado
 from src.models.contas import Usuario
+from src.models.estoque import Unidade
 from src.models.vendas import Pedido
-from src.repositories import atendimento_repository, estoque_repository, migracao_repository, unidade_repository
+from src.repositories import (
+    atendimento_repository, estoque_repository, marca_repository, migracao_repository, unidade_repository,
+)
 from src.repositories import pedido_repository as repo
 from src.use_cases import pagamentos
-from src.use_cases.erros import RecursoNaoEncontrado, RegraDeNegocio
-from src.use_cases.estoque import conferir_disponivel
+from src.use_cases.erros import RecursoNaoEncontrado, RegraDeNegocio, SemPermissao
+from src.use_cases.estoque import conferir_disponivel, conferir_marca
 from src.use_cases.pedidos import agora, buscar, detalhar, pagina, quantidades
 from src.utils.cpf import cpf_valido, normalizar_cpf
 
@@ -43,7 +46,7 @@ def _inicio_do_prazo(db: Session, pedido: Pedido):
 
 
 # pedido entregue há no máximo 30 dias, com ou sem conta; a peça volta numa loja ativa (não no CD)
-def _conferir_pedido_e_loja(db: Session, pedido: Pedido, id_unidade: int) -> None:
+def _conferir_pedido_e_loja(db: Session, pedido: Pedido, id_unidade: int) -> Unidade:
     if pedido.status != "entregue":
         raise RegraDeNegocio("Só pedido entregue tem troca ou devolução")
     if _inicio_do_prazo(db, pedido) + PRAZO < agora():
@@ -53,6 +56,7 @@ def _conferir_pedido_e_loja(db: Session, pedido: Pedido, id_unidade: int) -> Non
         raise RecursoNaoEncontrado("Loja não encontrada")
     if loja.tipo != "loja" or not loja.ativo:
         raise RegraDeNegocio("Troca e devolução são feitas numa loja ativa (o CD não atende público)")
+    return loja
 
 
 # peças do pedido que o cliente ainda tem: compradas + recebidas em troca − já devolvidas
@@ -92,12 +96,14 @@ def _estornar(db: Session, pedido: Pedido, estornos: list[dict], registro: Regis
         )
 
 
-# devolução: a peça entra no estoque de loja física da loja que recebeu, com estorno pelo mesmo meio de
-# pagamento; o pedido continua entregue e passa a indicar devolução parcial ou total (case, seção 5)
+# devolução: a peça entra no estoque de loja física da loja que recebeu (da mesma marca da peça), com
+# estorno pelo mesmo meio de pagamento; o pedido continua entregue e passa a indicar devolução parcial ou
+# total (case, seção 5)
 def _devolver(db: Session, pedido: Pedido, registro: Registro, dados: dict) -> dict:
-    _conferir_pedido_e_loja(db, pedido, registro.id_unidade)
+    loja = _conferir_pedido_e_loja(db, pedido, registro.id_unidade)
     pecas = em_maos(db, pedido)
     _conferir_pecas(pecas, dados["itens"])
+    conferir_marca(db, loja, [i["id_variante"] for i in dados["itens"]])
 
     for item in sorted(dados["itens"], key=lambda i: i["id_variante"]):
         _movimentar(db, registro, pedido, item["id_variante"], "devolucao", item["quantidade"])
@@ -108,11 +114,12 @@ def _devolver(db: Session, pedido: Pedido, registro: Registro, dados: dict) -> d
     return detalhar(db, pedido.id_pedido)
 
 
-# troca: a peça devolvida entra no estoque de loja física e a nova sai dele, na mesma loja.
+# troca: a peça devolvida entra no estoque de loja física e a nova sai dele, na mesma loja (da marca da peça).
 # A nova é do mesmo produto (outra cor ou tamanho): o preço não muda e não há estorno
 def _trocar(db: Session, pedido: Pedido, registro: Registro, dados: dict) -> dict:
-    _conferir_pedido_e_loja(db, pedido, registro.id_unidade)
+    loja = _conferir_pedido_e_loja(db, pedido, registro.id_unidade)
     _conferir_pecas(em_maos(db, pedido), dados["itens"])
+    conferir_marca(db, loja, [i["id_variante"] for i in dados["itens"]])
 
     variantes = repo.variantes_com_produto(
         db, [i["id_variante"] for i in dados["itens"]] + [i["id_variante_nova"] for i in dados["itens"]],
@@ -188,19 +195,23 @@ def registrar_estorno(db: Session, usuario: Usuario, id_chamado: int, id_pagamen
 
 # o pedido é achado pelo código da venda (notinha), pelo número do pedido ou pelo CPF; pelo CPF,
 # vêm os pedidos entregues nos últimos 30 dias, pelo CPF da conta ou pelo CPF na nota
-def buscar_no_balcao(db: Session, codigo_venda: str | None, id_pedido: int | None, cpf: str | None) -> list:
+# marca: a que a pessoa vê (None: as duas); pelo código ou número, o pedido da outra marca não aparece
+def buscar_no_balcao(db: Session, codigo_venda: str | None, id_pedido: int | None, cpf: str | None,
+                     marca: str | None = None) -> list:
     if sum(valor is not None for valor in (codigo_venda, id_pedido, cpf)) != 1:
         raise RegraDeNegocio("Informe um só: código da venda, número do pedido ou CPF")
     if cpf is not None:
         cpf = normalizar_cpf(cpf)
         if not cpf_valido(cpf):
             raise RegraDeNegocio("CPF inválido")
-        return pagina(db, 50, 0, cpf=cpf, status="entregue", entregue_desde=agora() - PRAZO)["items"]
+        return pagina(db, 50, 0, cpf=cpf, status="entregue", entregue_desde=agora() - PRAZO, marca=marca)["items"]
     if codigo_venda is not None:
         pedido = repo.pedido_por_codigo(db, codigo_venda.strip())
         if pedido is None:
             raise RecursoNaoEncontrado("Pedido não encontrado")
         id_pedido = pedido.id_pedido
+    if marca is not None and marca_repository.do_pedido(db, id_pedido) - {marca}:
+        raise SemPermissao("Pedido de uma marca que você não vê")
     return [detalhar(db, id_pedido)]
 
 

@@ -210,16 +210,16 @@ def test_mover_produto_para_categoria_desativada(banco):
         catalogo.alterar_produto(SessaoFalsa(), 5, {"id_categoria": 2})
 
 
-def test_corrige_marca_de_produto_nunca_vendido(banco, monkeypatch):
+def test_corrige_marca_de_produto_sem_historico(banco, monkeypatch):
     com_produto(banco)
-    monkeypatch.setattr(catalogo_repository, "produto_vendido", lambda db, i: False)
+    monkeypatch.setattr(catalogo_repository, "tem_historico", lambda db, i: False)
 
     assert catalogo.alterar_produto(SessaoFalsa(), 5, {"marca": "vulto"})["marca"] == "vulto"
 
 
-def test_marca_de_produto_vendido_nao_muda(banco, monkeypatch):
+def test_marca_de_produto_com_estoque_ou_venda_nao_muda(banco, monkeypatch):
     com_produto(banco)
-    monkeypatch.setattr(catalogo_repository, "produto_vendido", lambda db, i: True)
+    monkeypatch.setattr(catalogo_repository, "tem_historico", lambda db, i: True)
 
     with pytest.raises(Conflito, match="marca não muda"):
         catalogo.alterar_produto(SessaoFalsa(), 5, {"marca": "vulto"})
@@ -291,9 +291,12 @@ def test_limite_da_pagina(api, banco):
 
 @pytest.fixture
 def unidades(monkeypatch):
-    lojas = {1: SimpleNamespace(tipo="loja", ativo=True), 2: SimpleNamespace(tipo="cd", ativo=True)}
+    lojas = {1: SimpleNamespace(nome="Loja", tipo="loja", ativo=True, marca="lorenzi"),
+             2: SimpleNamespace(nome="CD", tipo="cd", ativo=True, marca="lorenzi"),
+             3: SimpleNamespace(nome="Vulto Batel", tipo="loja", ativo=True, marca="vulto")}
     monkeypatch.setattr(estoque_repository, "buscar_unidade", lambda db, u: lojas.get(u))
     monkeypatch.setattr(estoque_repository, "buscar_variante", lambda db, v: object())
+    monkeypatch.setattr(estoque_repository, "marcas_das_variantes", lambda db, ids: {i: "lorenzi" for i in ids})
     return lojas
 
 
@@ -309,6 +312,13 @@ def test_estoque_inicial_vira_saldo_inicial(banco, unidades):
     catalogo.criar_produto(db, ID_FUNCIONARIO, novo_produto(variantes=variantes))
 
     assert movimentacoes(db) == [("saldo_inicial", 1, "loja_fisica", 3), ("saldo_inicial", 2, "online", 5)]
+
+
+def test_estoque_inicial_so_em_unidade_da_marca(banco, unidades):
+    variantes = [{"sku": "A", "preco": "1", "estoque_inicial": [{"id_unidade": 3, "canal": "loja_fisica", "quantidade": 1}]}]
+
+    with pytest.raises(RegraDeNegocio, match="Vulto Batel é da marca vulto"):
+        catalogo.criar_produto(SessaoFalsa(), ID_FUNCIONARIO, novo_produto(variantes=variantes))
 
 
 def test_estoque_inicial_no_cd_so_online(banco, unidades):

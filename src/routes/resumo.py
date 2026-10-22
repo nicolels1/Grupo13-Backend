@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
-from src.dependencies.permissoes import get_usuario_ativo
+from src.dependencies.permissoes import get_usuario_ativo, marca_permitida
 from src.entities.comum import Marca
 from src.entities.resumo import Faturamento, Resumo
 from src.models.contas import Usuario
@@ -24,7 +24,7 @@ router = APIRouter(tags=["visão geral"])
 )
 def resumo_da_visao_geral(
     id_unidade: int | None = Query(None, description="Vazio: a rede inteira (rede_agora ignora o filtro)"),
-    marca: Marca | None = Query(None, description="Vazio: as duas marcas. Vale para todas as seções"),
+    marca: str | None = Depends(marca_permitida),
     referencia: date | None = Query(None, description="Último dia das janelas; vazio: hoje. Ex.: 2026-09-30 "
                                                       "para ver o histórico da Vulto, que vai até essa data"),
     usuario: Usuario = Depends(get_usuario_ativo),

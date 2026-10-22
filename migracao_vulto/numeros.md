@@ -71,6 +71,8 @@ De jan a jul/2025, antes dos centavos, a diferença fica entre R$ 15 mil e R$ 26
 - A V1 não tem margem: nenhum pedido do app ficou ambíguo entre reais e centavos.
 - O frete (R$ 55.248,70) fica fora do número; se a diretoria decidir que é receita (V7), soma-se a ele.
 
+**Margem total:** de −R$ 1.000,00 a +R$ 3.942,53, menos de 0,1% do faturamento. A V3 só aumenta o número e a V6 vai para os dois lados; o frete não entra, porque é uma escolha da diretoria, não um erro.
+
 ## 2. Estoque da Vulto em 01/10/2026
 
 **15.233 peças**: 15.200 nas unidades e 33 em trânsito do CD para a Pinheiros (E13).
@@ -108,6 +110,8 @@ O que não conseguimos reconstruir:
 | Batel | contagem em 13/09 ou 30/09 (E5) | −31 a +17 |
 | Savassi | contagem em 30/09 (E5) | −8 |
 | todas | peças vendidas depois da contagem que a contagem não viu (a posição negativa vira zero) | 25 |
+
+**Margem total:** até 353 peças, para mais ou para menos (2,3% do estoque), somando o maior lado de cada motivo: 222 (E11) + 53 (E12) + 53 (data da contagem, E5: de −39, Batel e Savassi, a +53, Eldorado e Batel) + 25.
 
 Por produto, a Savassi tem a maior margem: o total de cada modelo está certo, mas a divisão por cor e tamanho segue o sistema (E6).
 
@@ -147,6 +151,8 @@ Os pontos creditados em telefone, celular sem DDD ou CPF digitado errado vão pa
 | Pontos sem dono que podem ser dívida (1 cadastro sem CPF certo e o CPF `00000000000`, K2) | +165 | +16,50 |
 | Resgates da planilha sem cliente identificado, que podem reduzir a dívida (K7a, K7c: João e Alice Nogueira) | −1.500 | −75,00 |
 | Saldos abreviados ("2,7k") da planilha, para mais ou para menos (K5b) | ±4.800 | ±480,00 |
+
+**Margem total:** de −6.300 a +4.965 pontos (−R$ 555,00 a +R$ 496,50), menos de 0,1% do passivo. Para cima, +165 e +4.800; para baixo, −1.500 e −4.800.
 
 A margem é pequena perto do total. O que mais mexe no número é a regra, não o dado: o valor do ponto (K3) e o vencimento (K4a), acima.
 

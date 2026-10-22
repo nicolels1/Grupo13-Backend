@@ -103,11 +103,12 @@ def linha(quantidade, reservada=0):
 @pytest.fixture
 def banco(monkeypatch):
     estado = SimpleNamespace(
-        variantes={1: SimpleNamespace(ativo=True), 2: SimpleNamespace(ativo=False)},
+        variantes={1: SimpleNamespace(ativo=True), 2: SimpleNamespace(ativo=False), 3: SimpleNamespace(ativo=True)},
+        marcas={1: "lorenzi", 2: "lorenzi", 3: "vulto"},
         unidades={
-            10: SimpleNamespace(tipo="cd", ativo=True),
-            20: SimpleNamespace(tipo="loja", ativo=True),
-            30: SimpleNamespace(tipo="loja", ativo=False),
+            10: SimpleNamespace(nome="CD", tipo="cd", ativo=True, marca="lorenzi"),
+            20: SimpleNamespace(nome="Loja Centro", tipo="loja", ativo=True, marca="lorenzi"),
+            30: SimpleNamespace(nome="Loja Antiga", tipo="loja", ativo=False, marca="lorenzi"),
         },
         estoque={},
         travados=[],
@@ -126,6 +127,8 @@ def banco(monkeypatch):
 
     monkeypatch.setattr(estoque_repository, "buscar_variante", lambda db, i: estado.variantes.get(i))
     monkeypatch.setattr(estoque_repository, "buscar_unidade", lambda db, i: estado.unidades.get(i))
+    monkeypatch.setattr(estoque_repository, "marcas_das_variantes",
+                        lambda db, ids: {i: estado.marcas[i] for i in ids if i in estado.marcas})
     monkeypatch.setattr(estoque_repository, "travar_estoque", travar)
     monkeypatch.setattr(estoque_repository, "inserir_movimentacao", inserir)
     monkeypatch.setattr(estoque_repository, "buscar_estoque", lambda db, v, u, c: estado.estoque.get((v, u, c)))
@@ -136,6 +139,20 @@ def banco(monkeypatch):
 
 def mover(db, tipo="recebimento", quantidade=5, unidade=20, canal="loja_fisica", motivo=None, variante=1):
     return estoque.registrar_movimentacao(db, USUARIO, variante, unidade, canal, tipo, quantidade, motivo)
+
+
+def test_unidade_nao_recebe_peca_de_outra_marca(banco):
+    db = SessaoFalsa()
+
+    with pytest.raises(RegraDeNegocio, match="Loja Centro é da marca lorenzi"):
+        mover(db, variante=3)
+    assert banco.inseridas == [] and db.commits == 0
+
+
+def test_minimo_de_peca_de_outra_marca_e_recusado(banco):
+    with pytest.raises(RegraDeNegocio, match="só guarda peças dessa marca"):
+        estoque.definir_minimo(SessaoFalsa(), USUARIO, 3, 20, "loja_fisica", 2)
+    assert banco.adicionados == []
 
 
 def test_recebimento_insere_movimentacao_com_autor(banco):
@@ -321,13 +338,15 @@ def test_periodo_no_horario_de_brasilia_e_igual_no_select_e_no_group_by(granular
 
 @pytest.fixture
 def client(monkeypatch, banco):
-    def logar(codigos):
+    # quem testa vê as duas marcas, a não ser que a lista de marcas diga outra coisa
+    def logar(codigos, marcas=("lorenzi", "vulto")):
         usuario = SimpleNamespace(
             id_usuario=USUARIO.id_usuario, tipo_conta="interna", id_modelo_acesso=2, status_conta="ativa"
         )
         app.dependency_overrides[get_usuario_ativo] = lambda: usuario
         monkeypatch.setattr(permissao_repository, "modelo_eh_admin", lambda db, i: False)
-        monkeypatch.setattr(permissao_repository, "codigos_do_modelo", lambda db, i: set(codigos))
+        monkeypatch.setattr(permissao_repository, "codigos_do_modelo",
+                            lambda db, i: set(codigos) | {f"ver_marca_{m}" for m in marcas})
         monkeypatch.setattr(permissao_repository, "excecoes_do_usuario", lambda db, i: {})
         return TestClient(app)
 
@@ -424,3 +443,49 @@ def test_em_transito_pela_api(client, monkeypatch):
 
     assert resposta.status_code == 200
     assert resposta.json() == {"items": []}
+
+
+# ---------- filtro por marca: a da unidade ----------
+
+def test_marca_filtra_pela_unidade():
+    agora = datetime.now(timezone.utc)
+    for consulta in [
+        estoque_repository.consulta_estoque(marca="vulto"),
+        estoque_repository.consulta_historico(agora, marca="vulto"),
+        estoque_repository.consulta_movimentacoes(marca="vulto"),
+    ]:
+        assert "unidade.marca = %(marca_1)s" in sql(consulta)
+    assert "origem.marca = %(marca_1)s" in sql(estoque_repository.consulta_em_transito(agora, marca="vulto"))
+
+
+# em trânsito é uma lista; as outras são páginas (itens, total)
+@pytest.mark.parametrize("rota, funcao, vazia", [
+    ("/estoque", "listar_estoque", ([], 0)),
+    ("/estoque/historico?em=2026-09-22", "listar_historico", ([], 0)),
+    ("/movimentacoes-estoque", "listar_movimentacoes", ([], 0)),
+    ("/estoque/em-transito", "listar_em_transito", []),
+])
+def test_marca_pela_api(client, monkeypatch, rota, funcao, vazia):
+    filtros = []
+    monkeypatch.setattr(estoque_repository, funcao, lambda db, *args, **f: filtros.append(f) or vazia)
+    separador = "&" if "?" in rota else "?"
+
+    assert client({"movimentar_estoque"}).get(f"{rota}{separador}marca=vulto").status_code == 200
+    assert client({"movimentar_estoque"}).get(f"{rota}{separador}marca=outra").status_code == 422
+    assert len(filtros) == 1 and filtros[0]["marca"] == "vulto"
+
+
+# quem vê uma marca só recebe essa sem pedir e não consegue pedir a outra
+def test_quem_ve_uma_marca_so_lista_essa(client, monkeypatch):
+    filtros = []
+    monkeypatch.setattr(estoque_repository, "listar_estoque", lambda db, limit, offset, **f: filtros.append(f) or ([], 0))
+    so_vulto = client({"movimentar_estoque"}, marcas=("vulto",))
+
+    assert so_vulto.get("/estoque").status_code == 200
+    assert so_vulto.get("/estoque?marca=vulto").status_code == 200
+    assert so_vulto.get("/estoque?marca=lorenzi").status_code == 403
+    assert [f["marca"] for f in filtros] == ["vulto", "vulto"]
+
+
+def test_sem_nenhuma_marca_nao_ve_as_listas(client):
+    assert client({"movimentar_estoque"}, marcas=()).get("/estoque").status_code == 403

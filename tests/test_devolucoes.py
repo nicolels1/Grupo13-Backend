@@ -81,6 +81,18 @@ def test_devolucao_parcial_entra_na_loja_fisica_com_estorno(entregue):
     assert saldo(entregue.banco, CAMISA, LOJA_RJ, "loja_fisica") == (1, 0)
 
 
+def test_peca_nao_volta_numa_loja_de_outra_marca(entregue):
+    entregue.banco.unidades[LOJA_RJ].marca = "vulto"
+    db = entregue.nova()
+
+    with pytest.raises(RegraDeNegocio, match="Loja Rio é da marca vulto"):
+        devolucoes.registrar_devolucao(db, funcionario(), 8, devolucao(entregue))
+    with pytest.raises(RegraDeNegocio, match="só guarda peças dessa marca"):
+        devolucoes.registrar_troca(db, funcionario(), 8, {
+            "id_unidade": LOJA_RJ, "itens": [{"id_variante": CAMISA, "quantidade": 1, "id_variante_nova": CALCA}]})
+    assert saldo(entregue.banco, CAMISA, LOJA_RJ, "loja_fisica") == (0, 0)
+
+
 def test_devolver_tudo_marca_total(entregue):
     devolucoes.registrar_devolucao(entregue.nova(), funcionario(), 8, devolucao(entregue))
     pedido = devolucoes.registrar_devolucao(entregue.nova(), funcionario(), 8, devolucao(entregue))
@@ -275,7 +287,9 @@ def test_busca_exige_um_filtro_so(entregue):
 def _vendedor_api(api, monkeypatch, codigos):
     cliente_api = api(SessaoFalsa(), usuario=funcionario())
     monkeypatch.setattr(permissao_repository, "modelo_eh_admin", lambda db, i: False)
-    monkeypatch.setattr(permissao_repository, "codigos_do_modelo", lambda db, i: set(codigos))
+    # vê as duas marcas: o teste é da permissão do balcão
+    monkeypatch.setattr(permissao_repository, "codigos_do_modelo",
+                        lambda db, i: set(codigos) | {"ver_marca_lorenzi", "ver_marca_vulto"})
     return cliente_api
 
 

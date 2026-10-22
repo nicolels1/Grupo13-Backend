@@ -26,6 +26,8 @@ CodigoPermissao = Literal[
     "atender_chamado",
     "moderar_avaliacoes",
     "gerenciar_fidelidade",
+    "ver_marca_lorenzi",
+    "ver_marca_vulto",
 ]
 
 

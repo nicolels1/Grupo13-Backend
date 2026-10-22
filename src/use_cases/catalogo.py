@@ -361,12 +361,12 @@ def criar_produto(db: Session, id_usuario: uuid.UUID, dados: dict) -> dict:
     return montar_produto(produto, criadas)
 
 
-# a marca só se corrige antes da primeira venda: depois disso, mudar levaria o faturamento do
-# produto para a outra rede
+# a marca só se corrige antes da primeira venda ou movimentação de estoque: depois disso, mudar levaria o
+# faturamento do produto para a outra rede e deixaria peças numa unidade de outra marca
 def alterar_produto(db: Session, id_produto: int, campos: dict) -> dict:
     produto = _produto_ou_404(db, id_produto)
-    if campos.get("marca", produto.marca) != produto.marca and repo.produto_vendido(db, id_produto):
-        raise Conflito("A marca não muda depois que o produto foi vendido")
+    if campos.get("marca", produto.marca) != produto.marca and repo.tem_historico(db, id_produto):
+        raise Conflito("A marca não muda depois que o produto tem movimentação de estoque ou venda")
     if "id_categoria" in campos and campos["id_categoria"] != produto.id_categoria:
         _conferir_categoria(db, campos["id_categoria"])
     for campo, valor in campos.items():

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
-from src.dependencies.permissoes import exige_cliente, exige_permissao
+from src.dependencies.permissoes import exige_cliente, exige_permissao, marca_do_chamado, marca_permitida
 from src.dependencies.supabase import get_storage
 from src.entities.atendimento import (
     Categoria, ChamadoAlterar, ChamadoConcluir, ChamadoCriar, ChamadoSaida, HistoricoSaida,
@@ -21,6 +21,9 @@ from src.utils.supabase_storage import SupabaseStorage
 from src.utils.upload import ler_upload
 
 router = APIRouter(tags=["atendimento"])
+
+# detalhe e escrita só de registro de uma marca que a pessoa vê (ver_marca_lorenzi, ver_marca_vulto)
+MARCA_DO_CHAMADO = Depends(marca_do_chamado)
 
 ATENDER = exige_permissao("atender_chamado")
 ERROS_LEITURA = {401: {"description": "Sem login válido"}, 403: {"description": "Sem permissão"},
@@ -128,6 +131,7 @@ def fila(
     id_unidade: int | None = None,
     id_cliente: uuid.UUID | None = Query(None, description="Chamados de um cliente com conta"),
     id_cliente_sem_conta: int | None = Query(None, description="Chamados de um cliente da Vulto sem conta"),
+    marca: str | None = Depends(marca_permitida),
     paginacao: dict = Depends(_paginacao),
     usuario: Usuario = Depends(ATENDER),
     db: Session = Depends(get_db),
@@ -135,7 +139,7 @@ def fila(
     return atendimento.listar_fila(
         db, usuario, **paginacao, meus=meus, status=status_chamado, sem_responsavel=sem_responsavel,
         com_mensagem_nova=com_mensagem_nova, categoria=categoria, prioridade=prioridade, id_unidade=id_unidade,
-        id_cliente=id_cliente, id_cliente_sem_conta=id_cliente_sem_conta,
+        id_cliente=id_cliente, id_cliente_sem_conta=id_cliente_sem_conta, marca=marca,
     )
 
 
@@ -149,18 +153,29 @@ def equipe(_: Usuario = Depends(ATENDER), db: Session = Depends(get_db)):
     return {"items": atendimento.equipe(db)}
 
 
-@router.get("/atendimento/chamados/{id_chamado}", response_model=ChamadoSaida, responses=ERROS_LEITURA)
+@router.get(
+    "/atendimento/chamados/{id_chamado}",
+    dependencies=[MARCA_DO_CHAMADO],
+    response_model=ChamadoSaida,
+    responses=ERROS_LEITURA,
+)
 def detalhar(id_chamado: int, _: Usuario = Depends(ATENDER), db: Session = Depends(get_db)):
     return atendimento.detalhar_chamado(db, id_chamado)
 
 
-@router.post("/atendimento/chamados/{id_chamado}/assumir", response_model=ChamadoSaida, responses=ERROS_ESCRITA)
+@router.post(
+    "/atendimento/chamados/{id_chamado}/assumir",
+    dependencies=[MARCA_DO_CHAMADO],
+    response_model=ChamadoSaida,
+    responses=ERROS_ESCRITA,
+)
 def assumir(id_chamado: int, usuario: Usuario = Depends(ATENDER), db: Session = Depends(get_db)):
     return atendimento.assumir(db, usuario, id_chamado)
 
 
 @router.patch(
     "/atendimento/chamados/{id_chamado}",
+    dependencies=[MARCA_DO_CHAMADO],
     response_model=ChamadoSaida,
     responses=ERROS_ESCRITA,
     description="Só o responsável: define a prioridade e/ou repassa o chamado para outra pessoa que atende.",
@@ -171,7 +186,12 @@ def alterar(
     return atendimento.alterar(db, usuario, id_chamado, campos_alterados(dados))
 
 
-@router.post("/atendimento/chamados/{id_chamado}/concluir", response_model=ChamadoSaida, responses=ERROS_ESCRITA)
+@router.post(
+    "/atendimento/chamados/{id_chamado}/concluir",
+    dependencies=[MARCA_DO_CHAMADO],
+    response_model=ChamadoSaida,
+    responses=ERROS_ESCRITA,
+)
 def concluir(
     id_chamado: int, dados: ChamadoConcluir, usuario: Usuario = Depends(ATENDER), db: Session = Depends(get_db)
 ):
@@ -180,6 +200,7 @@ def concluir(
 
 @router.get(
     "/atendimento/chamados/{id_chamado}/mensagens",
+    dependencies=[MARCA_DO_CHAMADO],
     response_model=Lista[MensagemSaida],
     responses=ERROS_LEITURA,
     description="Todas as mensagens, inclusive as internas. Marca as do cliente como lidas.",
@@ -190,6 +211,7 @@ def mensagens(id_chamado: int, _: Usuario = Depends(ATENDER), db: Session = Depe
 
 @router.post(
     "/atendimento/chamados/{id_chamado}/mensagens",
+    dependencies=[MARCA_DO_CHAMADO],
     status_code=status.HTTP_201_CREATED,
     response_model=MensagemSaida,
     responses=ERROS_ESCRITA,
@@ -202,6 +224,7 @@ def responder(
 
 @router.post(
     "/atendimento/chamados/{id_chamado}/anexos",
+    dependencies=[MARCA_DO_CHAMADO],
     status_code=status.HTTP_201_CREATED,
     response_model=MensagemSaida,
     responses=ERROS_ANEXO,
@@ -217,6 +240,7 @@ def anexar(
 
 @router.get(
     "/atendimento/chamados/{id_chamado}/mensagens/{id_mensagem}/anexo",
+    dependencies=[MARCA_DO_CHAMADO],
     response_model=AnexoLink,
     responses=ERROS_ANEXO,
 )
@@ -227,7 +251,12 @@ def anexo(
     return atendimento.anexo_para_a_equipe(db, storage, id_chamado, id_mensagem)
 
 
-@router.get("/atendimento/chamados/{id_chamado}/historico", response_model=Lista[HistoricoSaida], responses=ERROS_LEITURA)
+@router.get(
+    "/atendimento/chamados/{id_chamado}/historico",
+    dependencies=[MARCA_DO_CHAMADO],
+    response_model=Lista[HistoricoSaida],
+    responses=ERROS_LEITURA,
+)
 def historico(id_chamado: int, _: Usuario = Depends(ATENDER), db: Session = Depends(get_db)):
     return {"items": atendimento.historico(db, id_chamado)}
 
@@ -240,6 +269,7 @@ ERROS_PEDIDO = {**ERROS_ESCRITA, 404: {"description": "Chamado, loja, variante o
 
 @router.post(
     "/atendimento/chamados/{id_chamado}/devolucao",
+    dependencies=[MARCA_DO_CHAMADO],
     response_model=PedidoSaida,
     responses=ERROS_PEDIDO,
     description="A peça volta ao estoque de loja física da loja que recebeu, com estorno ligado ao chamado.",
@@ -252,6 +282,7 @@ def devolver(
 
 @router.post(
     "/atendimento/chamados/{id_chamado}/troca",
+    dependencies=[MARCA_DO_CHAMADO],
     response_model=PedidoSaida,
     responses=ERROS_PEDIDO,
     description="A peça devolvida entra e a nova sai do estoque de loja física da mesma loja; sem estorno.",
@@ -262,6 +293,7 @@ def trocar(id_chamado: int, dados: TrocaCriar, usuario: Usuario = Depends(ATENDE
 
 @router.post(
     "/atendimento/chamados/{id_chamado}/estornos",
+    dependencies=[MARCA_DO_CHAMADO],
     response_model=PedidoSaida,
     responses=ERROS_PEDIDO,
     description="Estorno sem troca nem devolução (ex.: problema na entrega). Pode ser parcial.",
