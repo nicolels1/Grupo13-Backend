@@ -7,7 +7,6 @@ from src.dependencies.supabase import get_storage
 from src.entities.comum import Lista, campos_alterados
 from src.entities.destaques import DestaqueAlterar, DestaqueCriar, DestaqueSaida
 from src.models.contas import Usuario
-from src.repositories import destaque_repository
 from src.use_cases import destaques
 from src.use_cases.catalogo import visao_publica
 from src.utils.supabase_storage import SupabaseStorage
@@ -23,7 +22,7 @@ ERRO_404 = {404: {"description": "Destaque não encontrado"}}
 @router.get("/destaques", response_model=Lista[DestaqueSaida])
 def listar_destaques(db: Session = Depends(get_db), usuario: Usuario | None = Depends(get_usuario_opcional)):
     so_ativos = visao_publica(db, usuario)
-    return {"items": [destaques.montar_destaque(d) for d in destaque_repository.listar_destaques(db, so_ativos)]}
+    return {"items": destaques.listar_destaques(db, so_ativos)}
 
 
 @router.post("/destaques", status_code=status.HTTP_201_CREATED, response_model=DestaqueSaida)

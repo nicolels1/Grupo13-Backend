@@ -6,7 +6,7 @@ from src.dependencies.permissoes import exige_permissao
 from src.entities.comum import Lista
 from src.entities.migracao import OrigemSaida
 from src.models.contas import Usuario
-from src.repositories import migracao_repository
+from src.use_cases import migracao
 
 router = APIRouter(tags=["migração da Vulto"])
 
@@ -30,4 +30,4 @@ def origem_do_registro(
     _: Usuario = Depends(VER_ORIGEM),
     db: Session = Depends(get_db),
 ):
-    return {"items": migracao_repository.origem(db, tabela, id_registro)}
+    return {"items": migracao.origem_do_registro(db, tabela, id_registro)}

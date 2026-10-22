@@ -13,9 +13,8 @@ from src.entities.vendas import (
     PedidoSaida, StatusPedido, VendaFisica,
 )
 from src.models.contas import Usuario
-from src.repositories import marca_repository
 from src.use_cases import clientes, pedidos, vendas
-from src.use_cases.permissoes import exigir_marca
+from src.use_cases.permissoes import exigir_marca_da_unidade
 from src.utils.supabase_admin import SupabaseAdmin
 
 router = APIRouter(tags=["vendas"])
@@ -86,7 +85,7 @@ def registrar_venda_fisica(
     dados: VendaFisica, vendedor: Usuario = Depends(exige_permissao("registrar_venda_fisica")),
     db: Session = Depends(get_db),
 ):
-    exigir_marca(db, vendedor, marca_repository.da_unidade(db, dados.id_unidade))
+    exigir_marca_da_unidade(db, vendedor, dados.id_unidade)
     return vendas.registrar_venda_fisica(db, vendedor, dados.model_dump())
 
 

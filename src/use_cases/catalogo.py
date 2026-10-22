@@ -47,6 +47,10 @@ def alterar_categoria(db: Session, id_categoria: int, campos: dict) -> Categoria
     return categoria
 
 
+def listar_categorias(db: Session, ativo: bool | None, marca: str | None) -> list[dict]:
+    return [montar_categoria(c) for c in repo.listar_categorias(db, ativo, marca)]
+
+
 # ---------- foto da categoria (carrossel da página inicial) ----------
 
 # a saída da categoria leva a URL pública da foto; o banco guarda só o caminho no Storage

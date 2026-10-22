@@ -28,6 +28,10 @@ def montar_destaque(destaque: Destaque) -> dict:
     }
 
 
+def listar_destaques(db: Session, so_ativos: bool) -> list[dict]:
+    return [montar_destaque(d) for d in repo.listar_destaques(db, so_ativos)]
+
+
 # sem ordem, o slide novo entra no fim do carrossel
 def criar_destaque(db: Session, dados: dict) -> Destaque:
     destaque = Destaque(**{**dados, "ordem": dados.get("ordem") or repo.proxima_ordem(db)})
