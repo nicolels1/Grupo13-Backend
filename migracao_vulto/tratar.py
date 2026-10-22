@@ -114,8 +114,6 @@ ILEGIVEL = "ILEGÍVEL "  # prefixo da peça contada sem variante única (E10)
 COR_ILEGIVEL = "A identificar"
 NOME_SEM_CADASTRO = "Item sem cadastro Vulto"
 CATEGORIA_SEM_CADASTRO = "Sem cadastro Vulto"
-# C16: a mesma imagem da marca em todo produto, no bucket de fotos de produto; a carga sobe o arquivo
-IMAGEM_GENERICA = "vulto/sem-foto.png"
 
 
 # Vendas classificadas do banco e o estoque na data base (E2, E4, E5, E10, E13), calculados uma vez para o
@@ -310,8 +308,6 @@ def tratar_catalogo(origem: Path, saida: Saida):
     saida.tabela("produto", produto)
     saida.tabela("variante", variante)
     saida.tabela("historico_preco", pd.DataFrame(historicos))
-    saida.tabela("imagem_produto", pd.DataFrame(
-        [dict(produto=p, cor=None, caminho_arquivo=IMAGEM_GENERICA, ordem=1) for p in produto["codigo"]]))
     saida.tabela("lista_marina", pd.DataFrame(para_marina))
 
 
