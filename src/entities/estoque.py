@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from src.entities.comum import Pagina
+
 Canal = Literal["loja_fisica", "online"]
 # tipos que a equipe registra à mão; os outros (venda, transferência, troca...) nascem dos fluxos
 TipoManual = Literal["recebimento", "avaria", "perda", "ajuste"]
@@ -66,6 +68,23 @@ class EstoqueHistoricoItem(BaseModel):
     unidade: str
     canal: Canal
     quantidade: int
+
+
+# uma peça numa unidade: o saldo naquele momento e agora, somando os canais do filtro
+class ComparacaoItem(BaseModel):
+    id_variante: int
+    sku: str
+    produto: str
+    cor: str
+    tamanho: str
+    id_unidade: int
+    unidade: str
+    naquele: int
+    agora: int
+
+
+class PaginaComparacao(Pagina[ComparacaoItem]):
+    mudaram: int = Field(description="Quantas peças da lista têm saldo diferente naquele momento e agora")
 
 
 class EmTransitoItem(BaseModel):

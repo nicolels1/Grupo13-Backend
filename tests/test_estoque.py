@@ -404,6 +404,83 @@ def test_limite_da_paginacao(client, limit):
     assert client({"movimentar_estoque"}).get(f"/estoque?limit={limit}").status_code == 422
 
 
+# ---------- estoque por produto ----------
+
+def test_pagina_de_produtos_agrupa_pelo_nome_com_os_filtros_das_linhas():
+    texto = sql(estoque_repository.consulta_produtos_do_estoque(id_unidade=1, canal="online", busca="cam"))
+
+    assert "GROUP BY produto.nome" in texto
+    assert "estoque.id_unidade = " in texto and "estoque.canal = " in texto
+    assert "count(*) OVER ()" in texto
+    assert "HAVING" not in texto
+
+
+def test_so_abaixo_pega_produto_com_alguma_linha_abaixo_do_minimo():
+    texto = sql(estoque_repository.consulta_produtos_do_estoque(so_abaixo=True))
+
+    assert "HAVING bool_or(estoque.estoque_minimo IS NOT NULL AND estoque.quantidade < estoque.estoque_minimo)" in texto
+
+
+def test_estoque_por_produto_pela_api(client, monkeypatch):
+    chamadas = []
+    monkeypatch.setattr(
+        estoque_repository, "listar_estoque_por_produto",
+        lambda db, limit, offset, **f: chamadas.append((limit, offset, f)) or ([], 53),
+    )
+
+    resposta = client({"movimentar_estoque"}).get("/estoque/por-produto?so_abaixo=true&limit=30&offset=30")
+
+    assert resposta.status_code == 200
+    assert resposta.json() == {"items": [], "total": 53, "limit": 30, "offset": 30}
+    limit, offset, filtros = chamadas[0]
+    assert (limit, offset, filtros["so_abaixo"]) == (30, 30, True)
+
+
+# ---------- histórico comparado com agora ----------
+
+def test_comparacao_soma_ate_o_momento_e_o_saldo_de_agora():
+    texto = sql(estoque_repository.consulta_comparacao(datetime.now(timezone.utc), id_unidade=1, canal="online"))
+
+    assert "movimentacao_estoque.criado_em <=" in texto
+    assert "UNION ALL" in texto and "FROM estoque" in texto
+    assert "estoque.canal = " in texto and "movimentacao_estoque.canal = " in texto
+    assert "count(*) OVER ()" in texto
+
+
+def test_so_o_que_mudou_filtra_naquele_diferente_de_agora():
+    agora = datetime.now(timezone.utc)
+    filtro = "anon_1.naquele != anon_1.agora"
+
+    # a condição sempre aparece uma vez, na contagem de "mudaram"; com o filtro, de novo no WHERE
+    assert sql(estoque_repository.consulta_comparacao(agora, so_mudou=True)).count(filtro) == 2
+    assert sql(estoque_repository.consulta_comparacao(agora)).count(filtro) == 1
+
+
+def test_comparacao_ordena_a_grade_antes_dos_numeros():
+    texto = sql(estoque_repository.consulta_comparacao(datetime.now(timezone.utc)))
+
+    assert "CASE upper(variante.tamanho)" in texto
+    assert "CAST(variante.tamanho AS INTEGER)" in texto
+
+
+def test_comparacao_pela_api(client, monkeypatch):
+    chamadas = []
+    linha = {"id_variante": 1, "sku": "CAM-P", "produto": "Camisa", "cor": "Azul", "tamanho": "P", "id_unidade": 2,
+             "unidade": "Batel", "naquele": 3, "agora": 1}
+    monkeypatch.setattr(
+        estoque_repository, "listar_comparacao",
+        lambda db, em, limit, offset, **f: chamadas.append((em, limit, offset, f)) or ([linha], 40, 7),
+    )
+
+    resposta = client({"movimentar_estoque"}).get("/estoque/comparacao?em=2026-10-01&so_mudou=true&offset=50")
+
+    assert resposta.status_code == 200
+    assert resposta.json() == {"items": [linha], "total": 40, "limit": 50, "offset": 50, "mudaram": 7}
+    em, limit, offset, filtros = chamadas[0]
+    assert em == datetime(2026, 10, 1, 23, 59, 59, 999999, BRASILIA)
+    assert (limit, offset, filtros["so_mudou"]) == (50, 50, True)
+
+
 def test_historico_com_data_invalida(client):
     resposta = client({"movimentar_estoque"}).get("/estoque/historico?em=22/09/2026")
 
@@ -452,6 +529,7 @@ def test_marca_filtra_pela_unidade():
     for consulta in [
         estoque_repository.consulta_estoque(marca="vulto"),
         estoque_repository.consulta_historico(agora, marca="vulto"),
+        estoque_repository.consulta_comparacao(agora, marca="vulto"),
         estoque_repository.consulta_movimentacoes(marca="vulto"),
     ]:
         assert "unidade.marca = %(marca_1)s" in sql(consulta)
@@ -462,6 +540,8 @@ def test_marca_filtra_pela_unidade():
 @pytest.mark.parametrize("rota, funcao, vazia", [
     ("/estoque", "listar_estoque", ([], 0)),
     ("/estoque/historico?em=2026-09-22", "listar_historico", ([], 0)),
+    ("/estoque/comparacao?em=2026-09-22", "listar_comparacao", ([], 0, 0)),
+    ("/estoque/por-produto", "listar_estoque_por_produto", ([], 0)),
     ("/movimentacoes-estoque", "listar_movimentacoes", ([], 0)),
     ("/estoque/em-transito", "listar_em_transito", []),
 ])
