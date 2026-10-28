@@ -108,6 +108,12 @@ class PedidosEntrada(ConversaEntrada):
     id_pedido: int | None = Field(default=None, description="Um pedido só; vazio traz os últimos 5")
 
 
+# o que só o n8n sabe da conversa, para o resumo anônimo; os dois campos são opcionais
+class ResumoDoN8nEntrada(ConversaEntrada):
+    avaliacao: Literal["positiva", "negativa"] | None = Field(default=None, description="👍 ou 👎 do cliente")
+    fora_do_tema: bool = Field(default=False, description="O cliente falou de algo fora do que o assistente atende")
+
+
 class EstadoConversa(BaseModel):
     etapa: str
     confirmado: bool = Field(description="Conta confirmada pelo código nesta conversa")

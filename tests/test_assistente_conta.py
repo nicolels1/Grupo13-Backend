@@ -10,14 +10,14 @@ from fastapi.testclient import TestClient
 from src.app import app
 from src.config import settings
 from src.database.session import get_db
-from src.models.assistente import AfirmacaoAssistente, CodigoVerificacao, ConversaCanal
+from src.models.assistente import AfirmacaoAssistente, CodigoVerificacao, ConversaCanal, ResumoConversa
 from src.models.contas import ClienteSemConta, Usuario
 from src.models.estoque import Unidade
 from src.models.fidelidade import RegraFidelidade
 from src.models.vendas import Pedido
 from src.repositories import assistente_repository, cliente_sem_conta_repository, fidelidade_repository
 from src.repositories import pedido_repository, usuario_repository
-from src.use_cases import assistente_conta
+from src.use_cases import assistente, assistente_conta, resumo_conversa
 from src.use_cases.erros import MuitasTentativas, NaoAutenticado, RecursoNaoEncontrado, RegraDeNegocio
 from src.use_cases.horarios import BRASILIA
 from src.utils.cpf import digito_verificador
@@ -81,6 +81,8 @@ def banco(monkeypatch):
       lambda db, canal, id_externo, desde: sum(c.criado_em >= desde for c in codigos(canal, id_externo)))
     m(assistente_repository, "codigo_aberto", aberto)
     m(assistente_repository, "encerrar_codigos", encerrar)
+    m(assistente_repository, "buscar_resumo", lambda db, id_resumo: next(
+        (o for o in estado.db.adicionados if isinstance(o, ResumoConversa) and o.id_resumo == id_resumo), None))
     m(usuario_repository, "buscar_cliente_por_cpf", lambda db, cpf: ANA if cpf == CPF_ANA else None)
     m(usuario_repository, "buscar_por_id", lambda db, id_usuario: ANA)
     m(cliente_sem_conta_repository, "buscar_por_cpf", lambda db, cpf: SEM_CONTA if cpf == CPF_SEM_CONTA else None)
@@ -432,3 +434,151 @@ def test_rota_de_pontos_sem_confirmar_responde_401(cliente):
     resposta = cliente.post("/assistente/meus-pontos", json={"canal": CANAL, "id_externo": TELEFONE}, headers=cabecalho)
 
     assert resposta.status_code == 401
+
+
+# ---------- resumo anônimo da conversa ----------
+
+def resumos(banco) -> list[ResumoConversa]:
+    return [o for o in banco.db.adicionados if isinstance(o, ResumoConversa)]
+
+
+def resumo_atual(banco) -> ResumoConversa:
+    conversa = banco.conversas[(CANAL, TELEFONE)]
+    return next(r for r in resumos(banco) if r.id_resumo == conversa.id_resumo_atual)
+
+
+def test_conversa_nova_abre_um_resumo_na_hora_cheia(banco):
+    mensagem(banco, AGORA + timedelta(minutes=47, seconds=12))
+
+    [resumo] = resumos(banco)
+    assert (resumo.canal, resumo.iniciada_em) == (CANAL, AGORA)
+    assert (resumo.autenticou, resumo.assuntos, resumo.ferramenta_falhou, resumo.avaliacao) == (False, [], False, None)
+
+
+def test_mesma_conversa_usa_o_mesmo_resumo_e_a_nova_troca(banco):
+    mensagem(banco)
+    mensagem(banco, AGORA + timedelta(minutes=10))
+    assert len(resumos(banco)) == 1
+
+    mensagem(banco, AGORA + timedelta(minutes=41))
+
+    primeiro, segundo = resumos(banco)
+    assert banco.conversas[(CANAL, TELEFONE)].id_resumo_atual == segundo.id_resumo != primeiro.id_resumo
+
+
+def test_conversa_de_antes_do_resumo_ganha_um(banco):
+    mensagem(banco)
+    banco.conversas[(CANAL, TELEFONE)].id_resumo_atual = None
+
+    mensagem(banco, AGORA + timedelta(minutes=5))
+
+    assert banco.conversas[(CANAL, TELEFONE)].id_resumo_atual is not None
+
+
+def test_codigo_certo_marca_que_autenticou(banco):
+    confirmar(banco)
+    assert resumo_atual(banco).autenticou is True
+
+
+def test_codigo_errado_nao_marca(banco):
+    mensagem(banco)
+    assistente_conta.pedir_codigo(banco.db, CANAL, TELEFONE, CPF_SEM_CADASTRO, AGORA)
+    with pytest.raises(RegraDeNegocio):
+        assistente_conta.conferir_codigo(banco.db, CANAL, TELEFONE, "123456", AGORA)
+    assert resumo_atual(banco).autenticou is False
+
+
+def test_ferramenta_anota_o_assunto_uma_vez(banco):
+    mensagem(banco)
+    for _ in range(2):
+        resumo_conversa.com_assunto(banco.db, CANAL, TELEFONE, "pecas", lambda: "ok")
+    resumo_conversa.com_assunto(banco.db, CANAL, TELEFONE, "lojas", lambda: "ok")
+
+    assert resumo_atual(banco).assuntos == ["pecas", "lojas"]
+
+
+def test_erro_de_regra_anota_o_assunto_sem_falha(banco):
+    mensagem(banco)
+
+    def sem_a_cor():
+        raise RecursoNaoEncontrado("Camisa não existe na cor verde")
+
+    with pytest.raises(RecursoNaoEncontrado):
+        resumo_conversa.com_assunto(banco.db, CANAL, TELEFONE, "estoque", sem_a_cor)
+    assert (resumo_atual(banco).assuntos, resumo_atual(banco).ferramenta_falhou) == (["estoque"], False)
+
+
+def test_erro_inesperado_marca_a_falha(banco):
+    mensagem(banco)
+
+    def quebrada():
+        raise RuntimeError("banco fora do ar")
+
+    with pytest.raises(RuntimeError):
+        resumo_conversa.com_assunto(banco.db, CANAL, TELEFONE, "lojas", quebrada)
+    assert resumo_atual(banco).ferramenta_falhou is True
+    assert banco.db.rollbacks == 1
+
+
+def test_sem_a_conversa_a_ferramenta_responde_e_nao_anota(banco):
+    assert resumo_conversa.com_assunto(banco.db, None, None, "pecas", lambda: "ok") == "ok"
+    assert resumos(banco) == []
+
+
+def test_n8n_registra_avaliacao_e_fora_do_tema(banco):
+    mensagem(banco)
+
+    resumo_conversa.registrar_do_n8n(banco.db, CANAL, TELEFONE, "negativa", fora_do_tema=True)
+    resumo_conversa.registrar_do_n8n(banco.db, CANAL, TELEFONE, None, fora_do_tema=True)
+
+    resumo = resumo_atual(banco)
+    assert (resumo.avaliacao, resumo.assuntos) == ("negativa", ["fora_do_tema"])
+
+
+def test_n8n_sem_conversa_registrada(banco):
+    with pytest.raises(RecursoNaoEncontrado):
+        resumo_conversa.registrar_do_n8n(banco.db, CANAL, TELEFONE, "positiva", fora_do_tema=False)
+
+
+def test_resumo_nao_guarda_quem_e(banco):
+    confirmar(banco)
+    colunas = {c.key for c in ResumoConversa.__table__.columns}
+    assert not colunas & {"id_externo", "id_cliente", "id_cliente_sem_conta", "telefone", "texto"}
+
+
+def test_rota_de_lojas_anota_pelo_cabecalho(cliente, banco, monkeypatch):
+    monkeypatch.setattr(assistente, "lojas", lambda db, agora: {"items": []})
+    cabecalho = {"X-Assistente-Chave": CHAVE}
+    cliente.post("/assistente/conversa", json={"canal": CANAL, "id_externo": TELEFONE}, headers=cabecalho)
+
+    resposta = cliente.get("/assistente/lojas", headers={**cabecalho, "X-Canal": CANAL, "X-Id-Externo": TELEFONE})
+
+    assert resposta.status_code == 200
+    assert resumo_atual(banco).assuntos == ["lojas"]
+
+
+def test_rota_de_pontos_anota_o_assunto_mesmo_sem_confirmar(cliente, banco):
+    cabecalho = {"X-Assistente-Chave": CHAVE}
+    corpo = {"canal": CANAL, "id_externo": TELEFONE}
+    cliente.post("/assistente/conversa", json=corpo, headers=cabecalho)
+
+    assert cliente.post("/assistente/meus-pontos", json=corpo, headers=cabecalho).status_code == 401
+    assert resumo_atual(banco).assuntos == ["pontos"]
+
+
+def test_rota_do_resumo_do_n8n(cliente, banco):
+    cabecalho = {"X-Assistente-Chave": CHAVE}
+    corpo = {"canal": CANAL, "id_externo": TELEFONE}
+    cliente.post("/assistente/conversa", json=corpo, headers=cabecalho)
+
+    resposta = cliente.patch("/assistente/conversa/resumo", json={**corpo, "avaliacao": "positiva"}, headers=cabecalho)
+
+    assert resposta.status_code == 204
+    assert resumo_atual(banco).avaliacao == "positiva"
+
+
+def test_rota_do_resumo_recusa_avaliacao_desconhecida(cliente):
+    resposta = cliente.patch("/assistente/conversa/resumo",
+                             json={"canal": CANAL, "id_externo": TELEFONE, "avaliacao": "talvez"},
+                             headers={"X-Assistente-Chave": CHAVE})
+    assert resposta.status_code == 422
