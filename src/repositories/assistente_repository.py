@@ -5,7 +5,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from src.models.assistente import CodigoVerificacao, ConversaCanal
+from src.models.assistente import CodigoVerificacao, ConversaCanal, ResumoConversa
 from src.models.catalogo import CategoriaProduto, Produto, Variante
 from src.models.estoque import Estoque, Unidade
 from src.models.fidelidade import LotePontos
@@ -80,6 +80,11 @@ def codigos_desde(db: Session, canal: str, id_externo: str, desde: datetime) -> 
         CodigoVerificacao.canal == canal, CodigoVerificacao.id_externo == id_externo,
         CodigoVerificacao.criado_em >= desde,
     ))
+
+
+# travado: duas ferramentas da mesma resposta podem anotar assuntos ao mesmo tempo
+def buscar_resumo(db: Session, id_resumo: int) -> ResumoConversa | None:
+    return db.scalar(select(ResumoConversa).where(ResumoConversa.id_resumo == id_resumo).with_for_update())
 
 
 # o código que ainda vale: o mais novo, nem usado nem esgotado, dentro dos 10 min

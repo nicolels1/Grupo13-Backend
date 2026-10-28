@@ -4,14 +4,14 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
-from src.dependencies.assistente import exige_chave_assistente
+from src.dependencies.assistente import conversa_do_cabecalho, exige_chave_assistente
 from src.entities.assistente import (
     BuscaPecasSaida, CodigoEntrada, CodigoEnviado, ConfirmacaoSaida, ConversaEntrada, CpfEntrada, EstadoConversa,
     EstoqueSaida, EtapaEntrada, LinkCarrinhoSaida, LojasDaMarca, MeusPedidosSaida, MeusPontosSaida, PedidosEntrada,
-    VocabularioSaida,
+    ResumoDoN8nEntrada, VocabularioSaida,
 )
 from src.entities.comum import Lista, Marca
-from src.use_cases import assistente, assistente_conta
+from src.use_cases import assistente, assistente_conta, resumo_conversa
 from src.use_cases.horarios import BRASILIA
 
 # ferramentas do assistente do cliente, chamadas pelo n8n com a chave no cabeçalho X-Assistente-Chave.
@@ -37,9 +37,12 @@ def buscar_pecas(
     tamanho: str | None = Query(default=None, max_length=20, description="Só peças com esse tamanho à venda"),
     marca: Marca | None = Query(default=None, description="Só quando o cliente falar a marca"),
     categoria: str | None = Query(default=None, max_length=100),
+    conversa: tuple = Depends(conversa_do_cabecalho),
     db: Session = Depends(get_db),
 ):
-    return assistente.buscar_pecas(db, descricao, cor, tamanho, marca, categoria)
+    return resumo_conversa.com_assunto(
+        db, *conversa, "pecas", lambda: assistente.buscar_pecas(db, descricao, cor, tamanho, marca, categoria)
+    )
 
 
 @router.get(
@@ -53,9 +56,12 @@ def ver_estoque(
     id_produto: int,
     cor: str = Query(max_length=50),
     tamanho: str = Query(max_length=20),
+    conversa: tuple = Depends(conversa_do_cabecalho),
     db: Session = Depends(get_db),
 ):
-    return assistente.ver_estoque(db, id_produto, cor, tamanho)
+    return resumo_conversa.com_assunto(
+        db, *conversa, "estoque", lambda: assistente.ver_estoque(db, id_produto, cor, tamanho)
+    )
 
 
 @router.get(
@@ -67,8 +73,8 @@ def ver_estoque(
     },
     description="Link que abre o site com a peça no carrinho. Só sai com estoque para o site.",
 )
-def link_carrinho(id_variante: int, db: Session = Depends(get_db)):
-    return assistente.link_carrinho(db, id_variante)
+def link_carrinho(id_variante: int, conversa: tuple = Depends(conversa_do_cabecalho), db: Session = Depends(get_db)):
+    return resumo_conversa.com_assunto(db, *conversa, "carrinho", lambda: assistente.link_carrinho(db, id_variante))
 
 
 @router.get(
@@ -76,8 +82,8 @@ def link_carrinho(id_variante: int, db: Session = Depends(get_db)):
     response_model=Lista[LojasDaMarca],
     description="Lojas por marca, com endereço, o horário de hoje em texto pronto e o da semana.",
 )
-def lojas(db: Session = Depends(get_db)):
-    return assistente.lojas(db, datetime.now(BRASILIA))
+def lojas(conversa: tuple = Depends(conversa_do_cabecalho), db: Session = Depends(get_db)):
+    return resumo_conversa.com_assunto(db, *conversa, "lojas", lambda: assistente.lojas(db, datetime.now(BRASILIA)))
 
 
 @router.get(
@@ -109,6 +115,16 @@ def registrar_mensagem(dados: ConversaEntrada, db: Session = Depends(get_db)):
 )
 def mudar_etapa(dados: EtapaEntrada, db: Session = Depends(get_db)):
     return assistente_conta.mudar_etapa(db, dados.canal, dados.id_externo, dados.etapa, datetime.now(BRASILIA))
+
+
+@router.patch(
+    "/conversa/resumo",
+    status_code=204,
+    responses={404: {"description": "Conversa não registrada"}},
+    description="Anota no resumo anônimo da conversa o 👍/👎 do cliente e se ele falou de algo fora do tema.",
+)
+def registrar_no_resumo(dados: ResumoDoN8nEntrada, db: Session = Depends(get_db)):
+    resumo_conversa.registrar_do_n8n(db, dados.canal, dados.id_externo, dados.avaliacao, dados.fora_do_tema)
 
 
 @router.post(
@@ -150,7 +166,10 @@ def conferir_codigo(dados: CodigoEntrada, db: Session = Depends(get_db)):
                 "o que foi entregue (auditoria).",
 )
 def meus_pontos(dados: ConversaEntrada, db: Session = Depends(get_db)):
-    return assistente_conta.meus_pontos(db, dados.canal, dados.id_externo, datetime.now(BRASILIA))
+    return resumo_conversa.com_assunto(
+        db, dados.canal, dados.id_externo, "pontos",
+        lambda: assistente_conta.meus_pontos(db, dados.canal, dados.id_externo, datetime.now(BRASILIA)),
+    )
 
 
 @router.post(
@@ -164,4 +183,8 @@ def meus_pontos(dados: ConversaEntrada, db: Session = Depends(get_db)):
                 "entregue (auditoria).",
 )
 def meus_pedidos(dados: PedidosEntrada, db: Session = Depends(get_db)):
-    return assistente_conta.meus_pedidos(db, dados.canal, dados.id_externo, dados.id_pedido, datetime.now(BRASILIA))
+    return resumo_conversa.com_assunto(
+        db, dados.canal, dados.id_externo, "pedidos",
+        lambda: assistente_conta.meus_pedidos(db, dados.canal, dados.id_externo, dados.id_pedido,
+                                              datetime.now(BRASILIA)),
+    )

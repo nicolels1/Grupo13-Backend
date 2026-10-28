@@ -14,7 +14,7 @@ from src.models.estoque import Unidade
 from src.repositories import assistente_repository as repo
 from src.repositories import cliente_sem_conta_repository, fidelidade_repository, pedido_repository
 from src.repositories import usuario_repository
-from src.use_cases import fidelidade
+from src.use_cases import fidelidade, resumo_conversa
 from src.use_cases.assistente import endereco
 from src.use_cases.erros import MuitasTentativas, NaoAutenticado, RecursoNaoEncontrado, RegraDeNegocio
 from src.use_cases.horarios import BRASILIA
@@ -115,6 +115,9 @@ def registrar_mensagem(db: Session, canal: str, id_externo: str, momento: dateti
         _desconfirmar(conversa)
         if conversa.etapa in ("esperando_cpf", "esperando_codigo"):
             conversa.etapa = "livre"
+    # cada conversa tem o seu resumo anônimo; a conversa aberta antes do resumo existir também ganha um
+    if conversa_nova or conversa.id_resumo_atual is None:
+        resumo_conversa.abrir(db, conversa, momento)
     hoje = momento.astimezone(BRASILIA).date()
     if conversa.dia_contagem != hoje:
         conversa.dia_contagem = hoje
@@ -241,6 +244,7 @@ def conferir_codigo(db: Session, canal: str, id_externo: str, codigo: str, momen
     conversa.id_cliente_sem_conta = aberto.id_cliente_sem_conta
     conversa.confirmado_ate = momento + DURACAO_DA_CONVERSA
     conversa.etapa = "livre"
+    resumo_conversa.marcar_autenticou(db, conversa)
     if aberto.id_cliente is not None:
         nome = usuario_repository.buscar_por_id(db, aberto.id_cliente).nome
     else:
