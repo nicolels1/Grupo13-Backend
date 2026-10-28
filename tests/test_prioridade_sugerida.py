@@ -135,3 +135,41 @@ def test_abrir_chamado_agenda_a_sugestao_depois_de_gravar(monkeypatch, sem_prior
 
     assert r == {"id_chamado": 41}
     assert Sessao.commits == 1 and sem_prioridade_sugerida_em_segundo_plano == [41]
+
+
+# ---------- a equipe vê a sugestão; o cliente não ----------
+
+def test_so_as_rotas_da_equipe_mostram_a_sugestao():
+    from src.app import app
+
+    caminhos = app.openapi()["paths"]
+
+    def esquema(caminho, metodo="get"):
+        conteudo = caminhos[caminho][metodo]["responses"]
+        codigo = "201" if "201" in conteudo else "200"
+        return conteudo[codigo]["content"]["application/json"]["schema"]["$ref"].rsplit("/", 1)[1]
+
+    assert esquema("/chamados/{id_chamado}") == "ChamadoSaida"
+    assert esquema("/chamados", "post") == "ChamadoSaida"
+    assert esquema("/atendimento/chamados/{id_chamado}") == "ChamadoEquipe"
+    assert esquema("/atendimento/chamados/{id_chamado}/assumir", "post") == "ChamadoEquipe"
+    assert esquema("/atendimento/chamados") == "Pagina_ChamadoEquipe_"
+    componentes = app.openapi()["components"]["schemas"]
+    assert "prioridade_sugerida" not in componentes["ChamadoSaida"]["properties"]
+    assert "prioridade_sugerida" in componentes["ChamadoEquipe"]["properties"]
+
+
+def ordem(lado: str) -> str:
+    consulta = atendimento_repository.consulta_chamados(lado)
+    return str(consulta.compile(dialect=postgresql.dialect())).split("ORDER BY", 1)[1]
+
+
+def test_fila_da_equipe_poe_a_prioridade_e_depois_quem_espera_mais():
+    texto = ordem("equipe")
+    # abertos antes dos concluídos; a prioridade definida ou, sem ela, a sugerida; entre os abertos, o mais antigo
+    assert texto.index("CASE WHEN (chamado.status = ") < texto.index("coalesce(chamado.prioridade, chamado.prioridade_sugerida)")
+    assert "CASE WHEN (chamado.status != " in texto and "THEN chamado.criado_em END ASC" in texto
+
+
+def test_cliente_ve_os_mais_novos_primeiro():
+    assert ordem("cliente").strip() == "chamado.criado_em DESC, chamado.id_chamado DESC"

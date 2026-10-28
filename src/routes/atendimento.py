@@ -7,7 +7,7 @@ from src.database.session import get_db
 from src.dependencies.permissoes import exige_cliente, exige_permissao, marca_do_chamado, marca_permitida
 from src.dependencies.supabase import get_storage
 from src.entities.atendimento import (
-    Categoria, ChamadoAlterar, ChamadoConcluir, ChamadoCriar, ChamadoSaida, HistoricoSaida,
+    Categoria, ChamadoAlterar, ChamadoConcluir, ChamadoCriar, ChamadoEquipe, ChamadoSaida, HistoricoSaida,
     DevolucaoCriar, EstornoPedido, MensagemClienteCriar, MensagemEquipeCriar, MensagemSaida, PessoaDaEquipe,
     Prioridade, Status,
     TrocaCriar,
@@ -120,7 +120,7 @@ def anexo_do_meu_chamado(
 
 # ---------- plataforma interna: permissão atender_chamado ----------
 
-@router.get("/atendimento/chamados", response_model=Pagina[ChamadoSaida], responses=ERROS_LEITURA)
+@router.get("/atendimento/chamados", response_model=Pagina[ChamadoEquipe], responses=ERROS_LEITURA)
 def fila(
     status_chamado: Status | None = Query(None, alias="status"),
     sem_responsavel: bool | None = Query(None, description="true: a fila de chamados que ninguém assumiu"),
@@ -156,7 +156,7 @@ def equipe(_: Usuario = Depends(ATENDER), db: Session = Depends(get_db)):
 @router.get(
     "/atendimento/chamados/{id_chamado}",
     dependencies=[MARCA_DO_CHAMADO],
-    response_model=ChamadoSaida,
+    response_model=ChamadoEquipe,
     responses=ERROS_LEITURA,
 )
 def detalhar(id_chamado: int, _: Usuario = Depends(ATENDER), db: Session = Depends(get_db)):
@@ -166,7 +166,7 @@ def detalhar(id_chamado: int, _: Usuario = Depends(ATENDER), db: Session = Depen
 @router.post(
     "/atendimento/chamados/{id_chamado}/assumir",
     dependencies=[MARCA_DO_CHAMADO],
-    response_model=ChamadoSaida,
+    response_model=ChamadoEquipe,
     responses=ERROS_ESCRITA,
 )
 def assumir(id_chamado: int, usuario: Usuario = Depends(ATENDER), db: Session = Depends(get_db)):
@@ -176,7 +176,7 @@ def assumir(id_chamado: int, usuario: Usuario = Depends(ATENDER), db: Session = 
 @router.patch(
     "/atendimento/chamados/{id_chamado}",
     dependencies=[MARCA_DO_CHAMADO],
-    response_model=ChamadoSaida,
+    response_model=ChamadoEquipe,
     responses=ERROS_ESCRITA,
     description="Só o responsável: define a prioridade e/ou repassa o chamado para outra pessoa que atende.",
 )
@@ -189,7 +189,7 @@ def alterar(
 @router.post(
     "/atendimento/chamados/{id_chamado}/concluir",
     dependencies=[MARCA_DO_CHAMADO],
-    response_model=ChamadoSaida,
+    response_model=ChamadoEquipe,
     responses=ERROS_ESCRITA,
 )
 def concluir(
