@@ -1,4 +1,5 @@
 import re
+from datetime import date, time
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -93,3 +94,62 @@ class UnidadeSaida(BaseModel):
     uf: str
     cep: str
     ativo: bool
+
+
+# ---------- horário de atendimento (só loja) ----------
+
+class DiaDeAtendimento(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    dia_semana: int = Field(ge=0, le=6, description="0 = segunda ... 6 = domingo")
+    abre: time
+    fecha: time
+
+    @model_validator(mode="after")
+    def abre_antes(self):
+        if self.abre >= self.fecha:
+            raise ValueError("O horário de abrir precisa ser antes do de fechar")
+        return self
+
+
+# a semana inteira: o dia que não vier fica fechado
+class HorarioSemana(BaseModel):
+    semana: list[DiaDeAtendimento] = Field(max_length=7)
+
+    @field_validator("semana")
+    @classmethod
+    def um_por_dia(cls, dias: list[DiaDeAtendimento]) -> list[DiaDeAtendimento]:
+        if len({d.dia_semana for d in dias}) != len(dias):
+            raise ValueError("Cada dia da semana aparece uma vez só")
+        return sorted(dias, key=lambda d: d.dia_semana)
+
+
+# feriado ou horário especial de uma data; sem abre e fecha, a loja fica fechada nesse dia
+class ExcecaoHorarioSalvar(BaseModel):
+    abre: time | None = None
+    fecha: time | None = None
+    motivo: str = Field(min_length=2, max_length=100, description="Ex.: Natal, horário do shopping, reforma")
+
+    _limpa = field_validator("motivo", mode="before")(sem_espacos)
+
+    @model_validator(mode="after")
+    def horario_completo(self):
+        if (self.abre is None) != (self.fecha is None):
+            raise ValueError("Informe abre e fecha juntos, ou nenhum dos dois para fechada")
+        if self.abre is not None and self.abre >= self.fecha:
+            raise ValueError("O horário de abrir precisa ser antes do de fechar")
+        return self
+
+
+class ExcecaoHorarioSaida(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    data: date
+    abre: time | None
+    fecha: time | None
+    motivo: str
+
+
+class HorarioSaida(BaseModel):
+    semana: list[DiaDeAtendimento]
+    excecoes: list[ExcecaoHorarioSaida]
