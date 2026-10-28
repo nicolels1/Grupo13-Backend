@@ -47,3 +47,9 @@ from src.models.fidelidade import (  # noqa: F401
     RegraFidelidade,
     SaldoPontos,
 )
+from src.models.assistente import (  # noqa: F401
+    AfirmacaoAssistente,
+    CodigoVerificacao,
+    ConversaCanal,
+    ResumoConversa,
+)

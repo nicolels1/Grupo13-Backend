@@ -102,7 +102,9 @@ class ChamadoSaida(BaseModel):
     atualizado_em: datetime
     assumido_em: datetime | None
     concluido_em: datetime | None
-    canal_externo: str | None = Field(description="Atendimento migrado da Vulto: whatsapp, instagram ou email")
+    canal_externo: str | None = Field(
+        description="Atendimento migrado da Vulto (whatsapp, instagram ou email) ou aberto pelo assistente (whatsapp ou chat)"
+    )
     contato_externo: str | None = Field(description="Atendimento migrado da Vulto: telefone, e-mail ou @ de quem escreveu")
     mensagens_nao_lidas: int = Field(description="Mensagens do outro lado (cliente ou equipe) ainda não lidas")
 
