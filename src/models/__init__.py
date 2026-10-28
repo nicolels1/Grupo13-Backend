@@ -53,3 +53,4 @@ from src.models.assistente import (  # noqa: F401
     ConversaCanal,
     ResumoConversa,
 )
+from src.models.assistente_interno import ConversaInterna, MensagemInterna  # noqa: F401
