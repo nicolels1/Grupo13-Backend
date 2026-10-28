@@ -1,11 +1,14 @@
 from collections import defaultdict
-from datetime import date
+from datetime import date, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
+from src.models.assistente import CodigoVerificacao, ConversaCanal
 from src.models.catalogo import CategoriaProduto, Produto, Variante
 from src.models.estoque import Estoque, Unidade
+from src.models.fidelidade import LotePontos
 from src.models.horarios import ExcecaoHorario, HorarioUnidade
 
 
@@ -55,3 +58,65 @@ def cores_a_venda(db: Session) -> list[str]:
         .order_by(Variante.cor)
     )
     return list(db.scalars(consulta))
+
+
+# ---------- conversa e código por e-mail ----------
+
+# a primeira mensagem cria a conversa; duas mensagens juntas não criam duas (ON CONFLICT)
+def garantir_conversa(db: Session, canal: str, id_externo: str) -> ConversaCanal:
+    db.execute(insert(ConversaCanal).values(canal=canal, id_externo=id_externo).on_conflict_do_nothing())
+    return buscar_conversa(db, canal, id_externo, travar=True)
+
+
+def buscar_conversa(db: Session, canal: str, id_externo: str, travar: bool = False) -> ConversaCanal | None:
+    consulta = select(ConversaCanal).where(ConversaCanal.canal == canal, ConversaCanal.id_externo == id_externo)
+    if travar:
+        consulta = consulta.with_for_update()
+    return db.scalar(consulta)
+
+
+def codigos_desde(db: Session, canal: str, id_externo: str, desde: datetime) -> int:
+    return db.scalar(select(func.count()).select_from(CodigoVerificacao).where(
+        CodigoVerificacao.canal == canal, CodigoVerificacao.id_externo == id_externo,
+        CodigoVerificacao.criado_em >= desde,
+    ))
+
+
+# o código que ainda vale: o mais novo, nem usado nem esgotado, dentro dos 10 min
+def codigo_aberto(db: Session, canal: str, id_externo: str, agora: datetime) -> CodigoVerificacao | None:
+    return db.scalar(
+        select(CodigoVerificacao)
+        .where(CodigoVerificacao.canal == canal, CodigoVerificacao.id_externo == id_externo,
+               CodigoVerificacao.encerrado_em.is_(None), CodigoVerificacao.expira_em > agora)
+        .order_by(CodigoVerificacao.criado_em.desc(), CodigoVerificacao.id_codigo.desc())
+        .limit(1)
+        .with_for_update()
+    )
+
+
+# pedir um código novo invalida os anteriores da conversa
+def encerrar_codigos(db: Session, canal: str, id_externo: str, agora: datetime) -> None:
+    db.execute(
+        update(CodigoVerificacao)
+        .where(CodigoVerificacao.canal == canal, CodigoVerificacao.id_externo == id_externo,
+               CodigoVerificacao.encerrado_em.is_(None))
+        .values(encerrado_em=agora)
+    )
+
+
+# pontos de lotes ainda sem data de vencimento, por marca (o resumo só traz o próximo vencimento)
+def pontos_sem_vencimento(db: Session, id_cliente, id_cliente_sem_conta) -> dict[str, int]:
+    dono = LotePontos.id_cliente == id_cliente if id_cliente is not None \
+        else LotePontos.id_cliente_sem_conta == id_cliente_sem_conta
+    consulta = (
+        select(LotePontos.marca, func.sum(LotePontos.restante))
+        .where(dono, LotePontos.restante > 0, LotePontos.vence_em.is_(None))
+        .group_by(LotePontos.marca)
+    )
+    return {marca: int(pontos) for marca, pontos in db.execute(consulta)}
+
+
+def unidades(db: Session, ids_unidade: list[int]) -> dict[int, Unidade]:
+    if not ids_unidade:
+        return {}
+    return {u.id_unidade: u for u in db.scalars(select(Unidade).where(Unidade.id_unidade.in_(ids_unidade)))}

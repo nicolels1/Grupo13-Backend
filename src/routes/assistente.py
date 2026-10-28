@@ -6,14 +6,17 @@ from sqlalchemy.orm import Session
 from src.database.session import get_db
 from src.dependencies.assistente import exige_chave_assistente
 from src.entities.assistente import (
-    BuscaPecasSaida, EstoqueSaida, LinkCarrinhoSaida, LojasDaMarca, VocabularioSaida,
+    BuscaPecasSaida, CodigoEntrada, CodigoEnviado, ConfirmacaoSaida, ConversaEntrada, CpfEntrada, EstadoConversa,
+    EstoqueSaida, EtapaEntrada, LinkCarrinhoSaida, LojasDaMarca, MeusPedidosSaida, MeusPontosSaida, PedidosEntrada,
+    VocabularioSaida,
 )
 from src.entities.comum import Lista, Marca
-from src.use_cases import assistente
+from src.use_cases import assistente, assistente_conta
 from src.use_cases.horarios import BRASILIA
 
 # ferramentas do assistente do cliente, chamadas pelo n8n com a chave no cabeçalho X-Assistente-Chave.
-# Sem login de cliente: só o que a vitrine mostra a qualquer pessoa
+# Sem login de cliente, só o que a vitrine mostra a qualquer pessoa; pontos e pedidos só depois do código
+# por e-mail, e sempre do cliente confirmado na conversa (canal + telefone ou sessão)
 router = APIRouter(
     prefix="/assistente",
     tags=["assistente"],
@@ -84,3 +87,81 @@ def lojas(db: Session = Depends(get_db)):
 )
 def vocabulario(db: Session = Depends(get_db)):
     return assistente.vocabulario(db)
+
+
+# ---------- conversa e confirmação por e-mail (fluxo fixo do n8n, sem IA) ----------
+
+@router.post(
+    "/conversa",
+    response_model=EstadoConversa,
+    description="Registra a mensagem do cliente: chamada no começo de toda mensagem. Diz a etapa, se a conta "
+                "está confirmada, se a conversa é nova (30 min parada: apagar a memória curta) e o limite do dia.",
+)
+def registrar_mensagem(dados: ConversaEntrada, db: Session = Depends(get_db)):
+    return assistente_conta.registrar_mensagem(db, dados.canal, dados.id_externo, datetime.now(BRASILIA))
+
+
+@router.put(
+    "/conversa/etapa",
+    response_model=EstadoConversa,
+    responses={404: {"description": "Conversa não registrada"}},
+    description="Põe a conversa esperando o CPF (o cliente pediu pontos ou pedidos) ou a devolve para a IA.",
+)
+def mudar_etapa(dados: EtapaEntrada, db: Session = Depends(get_db)):
+    return assistente_conta.mudar_etapa(db, dados.canal, dados.id_externo, dados.etapa, datetime.now(BRASILIA))
+
+
+@router.post(
+    "/verificacao/cpf",
+    response_model=CodigoEnviado,
+    responses={
+        404: {"description": "Conversa não registrada"},
+        422: {"description": "CPF inválido"},
+        429: {"description": "Confirmação pausada ou 3 códigos no dia"},
+    },
+    description="Manda o código de 6 números ao e-mail do cadastro. A resposta é a mesma para CPF com e sem "
+                "cadastro. O CPF não fica guardado.",
+)
+def pedir_codigo(dados: CpfEntrada, db: Session = Depends(get_db)):
+    return assistente_conta.pedir_codigo(db, dados.canal, dados.id_externo, dados.cpf, datetime.now(BRASILIA))
+
+
+@router.post(
+    "/verificacao/codigo",
+    response_model=ConfirmacaoSaida,
+    responses={
+        404: {"description": "Conversa não registrada"},
+        422: {"description": "Código incorreto (diz quantas tentativas restam) ou expirado"},
+        429: {"description": "5 erros: confirmação pausada por 30 min"},
+    },
+    description="Confere o código; certo, liga a conversa à conta até ela terminar (30 min sem mensagem).",
+)
+def conferir_codigo(dados: CodigoEntrada, db: Session = Depends(get_db)):
+    return assistente_conta.conferir_codigo(db, dados.canal, dados.id_externo, dados.codigo, datetime.now(BRASILIA))
+
+
+# ---------- ferramentas com login (a IA chama; o n8n injeta a conversa) ----------
+
+@router.post(
+    "/meus-pontos",
+    response_model=MeusPontosSaida,
+    responses={401: {"description": "Conta não confirmada nesta conversa: pedir o CPF"}},
+    description="Pontos por marca: saldo, valor, categoria, vencimento e quanto falta para subir. Fica registrado "
+                "o que foi entregue (auditoria).",
+)
+def meus_pontos(dados: ConversaEntrada, db: Session = Depends(get_db)):
+    return assistente_conta.meus_pontos(db, dados.canal, dados.id_externo, datetime.now(BRASILIA))
+
+
+@router.post(
+    "/meus-pedidos",
+    response_model=MeusPedidosSaida,
+    responses={
+        401: {"description": "Conta não confirmada nesta conversa: pedir o CPF"},
+        404: {"description": "Pedido não encontrado"},
+    },
+    description="Últimos 5 pedidos (ou um): status, onde e até quando retirar. Fica registrado o que foi "
+                "entregue (auditoria).",
+)
+def meus_pedidos(dados: PedidosEntrada, db: Session = Depends(get_db)):
+    return assistente_conta.meus_pedidos(db, dados.canal, dados.id_externo, dados.id_pedido, datetime.now(BRASILIA))
