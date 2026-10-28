@@ -42,4 +42,6 @@ BREVO_API_KEY = os.getenv("BREVO_API_KEY") or None
 # fora do ar. O modelo fica na variável para o teste trocar sem mudar o código
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY") or None
 MODELO_INTERNO = os.getenv("MODELO_INTERNO") or "claude-sonnet-5-5"
+# Prioridade sugerida do chamado: vazio usa o mesmo modelo do assistente; dá para baratear só essa parte
+MODELO_PRIORIDADE = os.getenv("MODELO_PRIORIDADE") or None
 EMAIL_REMETENTE = os.getenv("EMAIL_REMETENTE") or "casa.lorenzi.contato@gmail.com"

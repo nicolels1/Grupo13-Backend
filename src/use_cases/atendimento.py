@@ -6,7 +6,7 @@ from src.models.atendimento import Chamado, HistoricoChamado, Mensagem
 from src.models.contas import Usuario
 from src.repositories import atendimento_repository as repo
 from src.repositories import estoque_repository, permissao_repository, unidade_repository
-from src.use_cases import arquivos
+from src.use_cases import arquivos, prioridade_sugerida
 from src.use_cases.arquivos import ANEXO_CHAMADO
 from src.use_cases.erros import Conflito, RecursoNaoEncontrado, RegraDeNegocio, SemPermissao, ServicoIndisponivel
 from src.use_cases.permissoes import usuario_tem_permissao
@@ -60,6 +60,8 @@ def abrir_chamado(db: Session, cliente: Usuario, dados: dict) -> dict:
     db.add(chamado)
     db.flush()
     db.commit()
+    # a IA sugere a prioridade em segundo plano (vale também para o chamado aberto pelo assistente do cliente)
+    prioridade_sugerida.agendar(chamado.id_chamado)
     return repo.detalhar_chamado(db, "cliente", chamado.id_chamado)
 
 

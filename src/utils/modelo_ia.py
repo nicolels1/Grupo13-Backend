@@ -1,3 +1,4 @@
+import json
 import logging
 from dataclasses import dataclass
 
@@ -68,6 +69,33 @@ def conversar(instrucoes: str, mensagens: list, ferramentas: list[dict]) -> Resp
         logger.error("modelo sem resposta: %s", erro)
         raise ErroModelo("Modelo sem resposta") from erro
 
+    return _resposta(resposta)
+
+
+# uma resposta num formato fixo (JSON validado pela API contra o schema), sem ferramentas: classificações curtas,
+# como a prioridade sugerida do chamado. O modelo é settings.MODELO_PRIORIDADE (vazio: o mesmo do assistente)
+def classificar(instrucoes: str, texto: str, schema: dict, max_tokens: int = 300) -> tuple[dict, RespostaModelo]:
+    try:
+        resposta = _cliente_anthropic().messages.create(
+            model=settings.MODELO_PRIORIDADE or settings.MODELO_INTERNO,
+            max_tokens=max_tokens,
+            system=[{"type": "text", "text": instrucoes, "cache_control": {"type": "ephemeral"}}],
+            messages=[{"role": "user", "content": texto}],
+            output_config={"effort": ESFORCO, "format": {"type": "json_schema", "schema": schema}},
+        )
+    except anthropic.APIError as erro:
+        logger.error("modelo sem resposta: %s", erro)
+        raise ErroModelo("Modelo sem resposta") from erro
+    rodada = _resposta(resposta)
+    if rodada.parou_por != "end_turn":
+        raise ErroModelo(f"Resposta incompleta ({rodada.parou_por})")
+    try:
+        return json.loads(rodada.texto), rodada
+    except json.JSONDecodeError as erro:
+        raise ErroModelo("Resposta fora do formato") from erro
+
+
+def _resposta(resposta) -> RespostaModelo:
     uso = resposta.usage
     return RespostaModelo(
         conteudo=resposta.content,
