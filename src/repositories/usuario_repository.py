@@ -31,6 +31,10 @@ def cpf_em_uso(db: Session, cpf: str) -> bool:
     return db.scalar(select(Usuario.id_usuario).where(Usuario.cpf == cpf)) is not None
 
 
+def buscar_por_id(db: Session, id_usuario: uuid.UUID) -> Usuario | None:
+    return db.get(Usuario, id_usuario)
+
+
 # funcionário entra só com e-mail; o login por CPF é só de cliente
 def buscar_cliente_por_cpf(db: Session, cpf: str) -> Usuario | None:
     return db.scalar(select(Usuario).where(Usuario.cpf == cpf, Usuario.tipo_conta == "cliente"))

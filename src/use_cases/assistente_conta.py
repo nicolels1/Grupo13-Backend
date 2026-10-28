@@ -1,0 +1,411 @@
+import hashlib
+import hmac
+import logging
+import secrets
+from datetime import date, datetime, time, timedelta
+from decimal import Decimal
+
+from fastapi.encoders import jsonable_encoder
+from sqlalchemy.orm import Session
+
+from src.config import settings
+from src.models.assistente import AfirmacaoAssistente, CodigoVerificacao, ConversaCanal
+from src.models.estoque import Unidade
+from src.repositories import assistente_repository as repo
+from src.repositories import cliente_sem_conta_repository, fidelidade_repository, pedido_repository
+from src.repositories import usuario_repository
+from src.use_cases import fidelidade
+from src.use_cases.assistente import endereco
+from src.use_cases.erros import MuitasTentativas, NaoAutenticado, RecursoNaoEncontrado, RegraDeNegocio
+from src.use_cases.horarios import BRASILIA
+from src.utils.cpf import cpf_valido, normalizar_cpf
+from src.utils.email import ErroEmail, enviar_email
+
+logger = logging.getLogger(__name__)
+
+# ferramentas do assistente do cliente que dependem de saber quem é o cliente. A conversa (canal + telefone
+# ou sessão) vem do n8n, que a tira do canal, nunca do modelo; a conta só fica ligada a ela depois do
+# código mandado ao e-mail do cadastro, e só enquanto a conversa durar
+
+DURACAO_DA_CONVERSA = timedelta(minutes=30)  # sem mensagem por esse tempo, a conversa termina
+VALIDADE_DO_CODIGO = timedelta(minutes=10)
+ERROS_ATE_BLOQUEAR = 5
+BLOQUEIO = timedelta(minutes=30)
+CODIGOS_POR_DIA = 3  # contra quem testa quais CPFs têm cadastro
+MENSAGENS_POR_DIA = 100
+PEDIDOS_NA_CONVERSA = 5
+DIAS_PARA_RETIRAR = 7  # depois disso o pg_cron cancela (migration 03aeb347f6cf)
+
+# a mesma resposta para CPF com e sem cadastro: não revela quem é cliente
+RESPOSTA_DO_CPF = (
+    "Se esse CPF tiver cadastro, mandamos um código de 6 números para o e-mail cadastrado. "
+    "Ele vale por 10 minutos."
+)
+ASSUNTO_DO_EMAIL = "Seu código de atendimento da Casa Lorenzi"
+SEM_PEDIDOS_NO_SITE ="Não encontrei pedidos do site no seu cadastro."
+
+PROXIMA_CATEGORIA = {"bronze": ("prata", "limite_prata"), "prata": ("ouro", "limite_ouro")}
+
+
+# ---------- texto pronto ----------
+
+def _numero(valor: int) -> str:
+    return f"{valor:,}".replace(",", ".")
+
+
+def _reais(valor: Decimal) -> str:
+    return "R$ " + f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def _data(valor: date) -> str:
+    return valor.strftime("%d/%m/%Y")
+
+
+def _pontos(valor: int) -> str:
+    return f"{_numero(valor)} {'ponto' if abs(valor) == 1 else 'pontos'}"
+
+
+def _primeiro_nome(nome: str | None) -> str | None:
+    return nome.split()[0] if nome else None
+
+
+# ---------- estado da conversa ----------
+
+def _confirmado(conversa: ConversaCanal, momento: datetime) -> bool:
+    tem_dono = conversa.id_cliente is not None or conversa.id_cliente_sem_conta is not None
+    return tem_dono and conversa.confirmado_ate is not None and conversa.confirmado_ate > momento
+
+
+def _desconfirmar(conversa: ConversaCanal) -> None:
+    conversa.id_cliente = None
+    conversa.id_cliente_sem_conta = None
+    conversa.confirmado_ate = None
+
+
+def _bloqueado_ate(conversa: ConversaCanal, momento: datetime) -> datetime | None:
+    return conversa.bloqueado_ate if conversa.bloqueado_ate and conversa.bloqueado_ate > momento else None
+
+
+def _estado(conversa: ConversaCanal, momento: datetime, conversa_nova: bool = False) -> dict:
+    return {
+        "etapa": conversa.etapa,
+        "confirmado": _confirmado(conversa, momento),
+        "conversa_nova": conversa_nova,
+        "limite_atingido": conversa.msgs_hoje > MENSAGENS_POR_DIA,
+        # o texto fixo do limite sai uma vez só; depois, silêncio até o dia seguinte
+        "avisar_limite": conversa.msgs_hoje == MENSAGENS_POR_DIA + 1,
+        "bloqueado_ate": _bloqueado_ate(conversa, momento),
+    }
+
+
+def _conversa(db: Session, canal: str, id_externo: str, travar: bool = False) -> ConversaCanal:
+    conversa = repo.buscar_conversa(db, canal, id_externo, travar)
+    if conversa is None:
+        raise RecursoNaoEncontrado("Conversa não encontrada: registre a mensagem antes")
+    return conversa
+
+
+# chamada pelo n8n no começo de toda mensagem do cliente. Passados 30 min da anterior, a conversa é
+# nova: a conta deixa de estar confirmada e o n8n apaga a memória curta (conversa_nova)
+def registrar_mensagem(db: Session, canal: str, id_externo: str, momento: datetime) -> dict:
+    conversa = repo.garantir_conversa(db, canal, id_externo)
+    anterior = conversa.ultima_msg_cliente_em
+    conversa_nova = anterior is None or momento - anterior > DURACAO_DA_CONVERSA
+    if conversa_nova:
+        _desconfirmar(conversa)
+        if conversa.etapa in ("esperando_cpf", "esperando_codigo"):
+            conversa.etapa = "livre"
+    hoje = momento.astimezone(BRASILIA).date()
+    if conversa.dia_contagem != hoje:
+        conversa.dia_contagem = hoje
+        conversa.msgs_hoje = 0
+    conversa.msgs_hoje += 1
+    conversa.ultima_msg_cliente_em = momento
+    if _confirmado(conversa, momento):
+        conversa.confirmado_ate = momento + DURACAO_DA_CONVERSA
+    db.commit()
+    return _estado(conversa, momento, conversa_nova)
+
+
+# o n8n só põe a conversa esperando o CPF (o cliente pediu pontos ou pedidos) ou a devolve para a IA
+# (desistiu); esperando_codigo e a confirmação saem das rotas de verificação
+def mudar_etapa(db: Session, canal: str, id_externo: str, etapa: str, momento: datetime) -> dict:
+    conversa = _conversa(db, canal, id_externo, travar=True)
+    if etapa == "esperando_cpf" and _confirmado(conversa, momento):
+        etapa = "livre"
+    if etapa == "livre":
+        repo.encerrar_codigos(db, canal, id_externo, momento)
+    conversa.etapa = etapa
+    db.commit()
+    return _estado(conversa, momento)
+
+
+# ---------- CPF e código por e-mail ----------
+
+def _hash_do_codigo(codigo: str) -> str:
+    return hmac.new(settings.ASSISTENTE_CHAVE.encode(), codigo.encode(), hashlib.sha256).hexdigest()
+
+
+def _conferir_bloqueio(conversa: ConversaCanal, momento: datetime) -> None:
+    bloqueio = _bloqueado_ate(conversa, momento)
+    if bloqueio:
+        hora = bloqueio.astimezone(BRASILIA).strftime("%H:%M")
+        raise MuitasTentativas(f"Por segurança, a confirmação está pausada. Tente de novo depois das {hora}.")
+
+
+# quem tem o CPF e um e-mail para receber o código: a conta de cliente ou o cliente sem conta da
+# migração (ADR 0016). Conta inativa e cadastro sem e-mail não confirmam
+def _dono_do_cpf(db: Session, cpf: str) -> dict | None:
+    conta = usuario_repository.buscar_cliente_por_cpf(db, cpf)
+    if conta is not None:
+        if conta.status_conta == "inativa":
+            return None
+        return {"id_cliente": conta.id_usuario, "id_cliente_sem_conta": None, "email": conta.email, "nome": conta.nome}
+    sem_conta = cliente_sem_conta_repository.buscar_por_cpf(db, cpf)
+    if sem_conta is not None and sem_conta.email:
+        return {"id_cliente": None, "id_cliente_sem_conta": sem_conta.id_cliente_sem_conta,
+                "email": sem_conta.email, "nome": sem_conta.nome}
+    return None
+
+
+def _texto_do_email(nome: str | None, codigo: str) -> str:
+    saudacao = f"Olá, {_primeiro_nome(nome)}!" if nome else "Olá!"
+    return (
+        f"{saudacao}\n\n"
+        f"Seu código para confirmar quem é você no atendimento da Casa Lorenzi é: {codigo}\n\n"
+        "Ele vale por 10 minutos. Não passe este código para ninguém: a nossa equipe nunca pede.\n"
+        "Se não foi você que pediu, ignore este e-mail. Sem o código, ninguém vê seus pontos nem seus pedidos.\n"
+    )
+
+
+# o CPF não é segredo, então só ele não confirma: o código vai para o e-mail do cadastro. CPF sem
+# cadastro também gera um código (que nenhum número acerta), e a resposta é sempre a mesma
+def pedir_codigo(db: Session, canal: str, id_externo: str, cpf: str, momento: datetime) -> dict:
+    conversa = _conversa(db, canal, id_externo, travar=True)
+    _conferir_bloqueio(conversa, momento)
+    cpf = normalizar_cpf(cpf)
+    if not cpf_valido(cpf):
+        raise RegraDeNegocio("CPF inválido. Confira os 11 números.")
+    inicio_do_dia = datetime.combine(momento.astimezone(BRASILIA).date(), time.min, BRASILIA)
+    if repo.codigos_desde(db, canal, id_externo, inicio_do_dia) >= CODIGOS_POR_DIA:
+        raise MuitasTentativas("Já mandamos 3 códigos hoje nesta conversa. Tente de novo amanhã.")
+
+    dono = _dono_do_cpf(db, cpf)
+    codigo = f"{secrets.randbelow(1_000_000):06d}"
+    repo.encerrar_codigos(db, canal, id_externo, momento)
+    db.add(CodigoVerificacao(
+        canal=canal, id_externo=id_externo,
+        id_cliente=dono["id_cliente"] if dono else None,
+        id_cliente_sem_conta=dono["id_cliente_sem_conta"] if dono else None,
+        codigo_hash=_hash_do_codigo(codigo), expira_em=momento + VALIDADE_DO_CODIGO, tentativas=0, criado_em=momento,
+    ))
+    conversa.etapa = "esperando_codigo"
+    db.commit()
+
+    if dono is not None:
+        try:
+            enviar_email(dono["email"], ASSUNTO_DO_EMAIL, _texto_do_email(dono["nome"], codigo))
+        except ErroEmail:
+            # a resposta continua a mesma, para não revelar que o CPF tem cadastro; o erro fica no log
+            logger.error("código do assistente não enviado (canal=%s)", canal)
+    return {"mensagem": RESPOSTA_DO_CPF, "validade_minutos": int(VALIDADE_DO_CODIGO.total_seconds() // 60)}
+
+
+def conferir_codigo(db: Session, canal: str, id_externo: str, codigo: str, momento: datetime) -> dict:
+    conversa = _conversa(db, canal, id_externo, travar=True)
+    _conferir_bloqueio(conversa, momento)
+    aberto = repo.codigo_aberto(db, canal, id_externo, momento)
+    if aberto is None:
+        if conversa.etapa == "esperando_codigo":
+            conversa.etapa = "esperando_cpf"
+            db.commit()
+        raise RegraDeNegocio("Esse código expirou. Mande o CPF de novo para receber outro.")
+
+    tem_dono = aberto.id_cliente is not None or aberto.id_cliente_sem_conta is not None
+    certo = tem_dono and hmac.compare_digest(aberto.codigo_hash, _hash_do_codigo(codigo.strip()))
+    if not certo:
+        aberto.tentativas += 1
+        if aberto.tentativas >= ERROS_ATE_BLOQUEAR:
+            aberto.encerrado_em = momento
+            conversa.bloqueado_ate = momento + BLOQUEIO
+            conversa.etapa = "livre"
+            db.commit()
+            _conferir_bloqueio(conversa, momento)  # avisa até quando ficou pausado
+        db.commit()
+        restam = ERROS_ATE_BLOQUEAR - aberto.tentativas
+        tentativas = "Resta 1 tentativa" if restam == 1 else f"Restam {restam} tentativas"
+        raise RegraDeNegocio(f"Código incorreto. {tentativas}.")
+
+    aberto.encerrado_em = momento
+    conversa.id_cliente = aberto.id_cliente
+    conversa.id_cliente_sem_conta = aberto.id_cliente_sem_conta
+    conversa.confirmado_ate = momento + DURACAO_DA_CONVERSA
+    conversa.etapa = "livre"
+    if aberto.id_cliente is not None:
+        nome = usuario_repository.buscar_por_id(db, aberto.id_cliente).nome
+    else:
+        nome = cliente_sem_conta_repository.buscar(db, aberto.id_cliente_sem_conta).nome
+    db.commit()
+    return {"confirmado": True, "nome": _primeiro_nome(nome)}
+
+
+# ---------- pontos e pedidos ----------
+
+# só com a conta confirmada nesta conversa; sem ela, o n8n pede o CPF
+def _conversa_confirmada(db: Session, canal: str, id_externo: str, momento: datetime) -> ConversaCanal:
+    conversa = repo.buscar_conversa(db, canal, id_externo)
+    if conversa is None or not _confirmado(conversa, momento):
+        raise NaoAutenticado("Confirme quem é você antes: peça o CPF")
+    return conversa
+
+
+# auditoria: o que foi entregue ao assistente com dado pessoal, na mesma transação da resposta
+def _afirmar(db: Session, conversa: ConversaCanal, ferramenta: str, dados: dict, momento: datetime) -> None:
+    db.add(AfirmacaoAssistente(
+        canal=conversa.canal, id_externo=conversa.id_externo, id_cliente=conversa.id_cliente,
+        id_cliente_sem_conta=conversa.id_cliente_sem_conta, ferramenta=ferramenta,
+        dados=jsonable_encoder(dados), criado_em=momento,
+    ))
+    db.commit()
+
+
+# o que falta para subir: limite da regra vigente menos os pontos ganhos no ano (a categoria sobe pelo
+# que se ganha no ano, não pelo saldo). Ouro não tem próxima
+def _proxima_categoria(db: Session, saldo: dict) -> tuple[str | None, int | None]:
+    if saldo["categoria"] not in PROXIMA_CATEGORIA:
+        return None, None
+    proxima, limite = PROXIMA_CATEGORIA[saldo["categoria"]]
+    regra = fidelidade_repository.regra_vigente(db, saldo["marca"], fidelidade.hoje())
+    if regra is None:
+        return None, None
+    return proxima, max(getattr(regra, limite) - saldo["ganhos_no_ano"], 0)
+
+
+def _texto_da_marca(marca: dict) -> str:
+    partes = [f"{marca['marca'].capitalize()}: {_pontos(marca['saldo'])} ({_reais(marca['valor_em_reais'])}), "
+              f"categoria {marca['categoria'].capitalize()}."]
+    proximo, sem_data = marca["proximo_vencimento"], marca["pontos_sem_vencimento"]
+    if marca["saldo"] > 0:
+        if proximo and sem_data:
+            partes.append(f"{_pontos(proximo['pontos'])} vencem em {_data(proximo['data'])} e "
+                          f"{_numero(sem_data)} ainda não têm data de vencimento.")
+        elif proximo and proximo["pontos"] == marca["saldo"]:
+            partes.append(f"Vencem em {_data(proximo['data'])}.")
+        elif proximo:
+            partes.append(f"Os próximos {_pontos(proximo['pontos'])} vencem em {_data(proximo['data'])}.")
+        elif sem_data:
+            partes.append("Ainda não têm data de vencimento.")
+    if marca["proxima_categoria"] and marca["faltam_para_subir"]:
+        partes.append(f"Faltam {_pontos(marca['faltam_para_subir'])} ganhos este ano para chegar a "
+                      f"{marca['proxima_categoria'].capitalize()}.")
+    return " ".join(partes)
+
+
+# por marca, nunca somados (valor do ponto e categoria são diferentes). Os números vêm prontos daqui;
+# o texto é o que o n8n manda se a resposta da IA trouxer um número diferente destes
+def meus_pontos(db: Session, canal: str, id_externo: str, momento: datetime) -> dict:
+    conversa = _conversa_confirmada(db, canal, id_externo, momento)
+    dono = (conversa.id_cliente, conversa.id_cliente_sem_conta)
+    sem_data = repo.pontos_sem_vencimento(db, *dono)
+    marcas = []
+    for saldo in fidelidade_repository.resumo(db, *dono):
+        proxima, faltam = _proxima_categoria(db, saldo)
+        vencimento = saldo["proximo_vencimento"]
+        marca = {
+            "marca": saldo["marca"],
+            "saldo": saldo["saldo"],
+            "valor_em_reais": saldo["valor_em_reais"],
+            "categoria": saldo["categoria"],
+            "proxima_categoria": proxima,
+            "faltam_para_subir": faltam,
+            "proximo_vencimento": {"data": vencimento.astimezone(BRASILIA).date(),
+                                   "pontos": saldo["pontos_no_proximo_vencimento"]} if vencimento else None,
+            "pontos_sem_vencimento": sem_data.get(saldo["marca"], 0),
+        }
+        marca["texto"] = _texto_da_marca(marca)
+        marcas.append(marca)
+    texto = "\n".join(m["texto"] for m in marcas) or "Você ainda não tem pontos na Lorenzi nem na Vulto."
+    resultado = {"marcas": marcas, "texto": texto}
+    _afirmar(db, conversa, "meus_pontos", resultado, momento)
+    return resultado
+
+
+STATUS_DO_PEDIDO = {
+    "aguardando_pagamento": "aguardando pagamento",
+    "pago": "pago, em preparação",
+    "enviado": "enviado",
+    "pronto_para_retirada": "pronto para retirar",
+    "entregue": "entregue",
+    "cancelado": "cancelado",
+}
+
+
+def _montar_pedido(pedido, unidade: Unidade, itens: list) -> dict:
+    retirada = None
+    if pedido.modalidade == "retirada" and pedido.status in ("pago", "pronto_para_retirada"):
+        retirar_ate = None
+        if pedido.status == "pronto_para_retirada" and pedido.pronto_retirada_em:
+            retirar_ate = (pedido.pronto_retirada_em + timedelta(days=DIAS_PARA_RETIRAR)).astimezone(BRASILIA).date()
+        retirada = {"loja": unidade.nome, "endereco": endereco(unidade), "retirar_ate": retirar_ate}
+    pagar_ate = None
+    if pedido.status == "aguardando_pagamento" and pedido.reserva_expira_em:
+        pagar_ate = pedido.reserva_expira_em.astimezone(BRASILIA)
+    na_loja = pedido.canal_venda == "loja"
+    montado = {
+        "id_pedido": pedido.id_pedido,
+        "codigo_venda": pedido.codigo_venda,
+        "marca": unidade.marca,
+        "feito_em": pedido.criado_em.astimezone(BRASILIA).date(),
+        "na_loja": na_loja,
+        "modalidade": pedido.modalidade,
+        "status": pedido.status,
+        "valor_total": pedido.valor_total,
+        "itens": [{"produto": i["produto"], "cor": i["cor"], "tamanho": i["tamanho"], "quantidade": i["quantidade"]}
+                  for i in itens],
+        "retirada": retirada,
+        "pagar_ate": pagar_ate,
+    }
+    montado["texto"] = _texto_do_pedido(montado, unidade)
+    return montado
+
+
+def _texto_do_pedido(pedido: dict, unidade: Unidade) -> str:
+    inicio = f"Pedido {pedido['codigo_venda']} ({pedido['marca'].capitalize()}), de {_data(pedido['feito_em'])}"
+    if pedido["na_loja"] and pedido["status"] != "cancelado":
+        situacao = f"compra feita na {unidade.nome}"
+    else:
+        situacao = STATUS_DO_PEDIDO.get(pedido["status"], pedido["status"])
+    retirada = pedido["retirada"]
+    if retirada and retirada["retirar_ate"]:
+        situacao += f" na {retirada['loja']} ({retirada['endereco']}) até {_data(retirada['retirar_ate'])}"
+    elif retirada:
+        situacao += f", para retirar na {retirada['loja']} ({retirada['endereco']})"
+    if pedido["pagar_ate"]:
+        situacao += f" até {pedido['pagar_ate'].strftime('%d/%m/%Y às %H:%M')}"
+    itens = ", ".join(f"{i['quantidade']}x {i['produto']} ({i['cor']}, {i['tamanho']})" for i in pedido["itens"])
+    return f"{inicio}: {situacao}. Itens: {itens}. Total {_reais(pedido['valor_total'])}."
+
+
+# os últimos pedidos da conta ou um pedido dela; pedido de outra pessoa responde como inexistente.
+# Cliente sem conta da migração só tem compras da Vulto antiga: o assistente diz que não há pedidos do site
+def meus_pedidos(db: Session, canal: str, id_externo: str, id_pedido: int | None, momento: datetime) -> dict:
+    conversa = _conversa_confirmada(db, canal, id_externo, momento)
+    if conversa.id_cliente is None:
+        resultado = {"items": [], "texto": SEM_PEDIDOS_NO_SITE}
+        _afirmar(db, conversa, "meus_pedidos", resultado, momento)
+        return resultado
+    if id_pedido is not None:
+        linha = pedido_repository.pedido_com_nomes(db, id_pedido)
+        if linha is None or linha[0].id_cliente != conversa.id_cliente:
+            raise RecursoNaoEncontrado("Pedido não encontrado")
+        linhas = [linha]
+    else:
+        linhas, _ = pedido_repository.listar_pedidos(db, PEDIDOS_NA_CONVERSA, 0, id_cliente=conversa.id_cliente)
+    pedidos = [pedido for pedido, _, _ in linhas]
+    itens = pedido_repository.itens_dos_pedidos(db, [p.id_pedido for p in pedidos])
+    lojas = repo.unidades(db, list({p.id_unidade for p in pedidos}))
+    montados = [_montar_pedido(p, lojas[p.id_unidade], itens[p.id_pedido]) for p in pedidos]
+    texto = "\n".join(p["texto"] for p in montados) or "Você ainda não tem pedidos."
+    resultado = {"items": montados, "texto": texto}
+    _afirmar(db, conversa, "meus_pedidos", resultado, momento)
+    return resultado

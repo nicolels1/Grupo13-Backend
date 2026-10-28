@@ -33,3 +33,8 @@ ASSISTENTE_CHAVE = os.getenv("ASSISTENTE_CHAVE") or None
 
 # Pasta data/ do vulto-legado-back, lida pela migração da Vulto (migracao_vulto/); a API não usa
 VULTO_DATA_DIR = os.getenv("VULTO_DATA_DIR") or None
+
+# E-mail que o sistema manda (código do assistente), pela API do Brevo: o Render grátis bloqueia SMTP.
+# Sem a chave, o envio falha com aviso no log
+BREVO_API_KEY = os.getenv("BREVO_API_KEY") or None
+EMAIL_REMETENTE = os.getenv("EMAIL_REMETENTE") or "casa.lorenzi.contato@gmail.com"
