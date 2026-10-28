@@ -149,6 +149,530 @@ def test_reais_no_formato_brasileiro():
     assert reais(Decimal("1234567.8")) == "R$ 1.234.567,80"
 
 
+# ---------- estoque_em_um_dia ----------
+
+class ConsultaFalsa:
+    def __init__(self, linhas):
+        self.linhas = linhas
+
+    def limit(self, n):
+        return self
+
+
+class BancoDeEstoque:
+    def __init__(self, linhas):
+        self.linhas = linhas
+
+    def execute(self, consulta):
+        return SimpleNamespace(mappings=lambda: iter(consulta.linhas))
+
+
+def linha_estoque(id_variante, produto, cor, tamanho, unidade, canal, quantidade):
+    return {"id_variante": id_variante, "sku": f"SKU-{id_variante}", "produto": produto, "cor": cor,
+            "tamanho": tamanho, "unidade": unidade, "canal": canal, "quantidade": quantidade}
+
+
+@pytest.fixture
+def estoque(monkeypatch):
+    estado = SimpleNamespace(pode=True, marcas={"lorenzi", "vulto"}, consultas=[], linhas=[
+        linha_estoque(1, "Camisa Cuban Ampla", "Bege", "M", "Vulto Savassi", "loja_fisica", 7),
+        linha_estoque(1, "Camisa Cuban Ampla", "Bege", "M", "CD Cajamar", "online", 4),
+        linha_estoque(1, "Camisa Cuban Ampla", "Bege", "M", "Vulto Savassi", "online", 1),
+        linha_estoque(2, "Camisa Cuban Ampla", "Bege", "G", "Vulto Savassi", "loja_fisica", 3),
+        linha_estoque(3, "Camisa Cuban Ampla", "Azul Marinho", "M", "Vulto Batel", "loja_fisica", 2),
+    ])
+
+    def consulta(em, id_unidade=None, busca=None, marca=None):
+        estado.consultas.append({"em": em, "id_unidade": id_unidade, "busca": busca, "marca": marca})
+        return ConsultaFalsa(estado.linhas)
+
+    def paradas(corte, id_unidade=None, marca=None):
+        estado.consultas.append({"corte": corte, "id_unidade": id_unidade, "marca": marca})
+        return ConsultaFalsa(estado.linhas)
+
+    m = monkeypatch.setattr
+    m(ferramentas_internas.estoque_repository, "consulta_historico", consulta)
+    m(ferramentas_internas.estoque_repository, "consulta_pecas_paradas", paradas)
+    m(ferramentas_internas, "usuario_tem_permissao", lambda db, u, *codigos: estado.pode)
+    m(ferramentas_internas, "marcas_visiveis", lambda db, u: estado.marcas)
+    m(unidade_repository, "buscar_unidade", lambda db, i: SAVASSI if i == 5 else None)
+    return estado
+
+
+def em_estoque(estado, parametros):
+    return ferramentas_internas.estoque_em_um_dia(BancoDeEstoque(estado.linhas), USUARIO, parametros, QUARTA)
+
+
+def test_estoque_soma_os_canais_por_unidade_e_filtra_cor_e_tamanho(estoque):
+    r = em_estoque(estoque, {"peca": "cuban", "cor": "bege", "tamanho": "m"})
+
+    assert len(r["pecas"]) == 1
+    peca = r["pecas"][0]
+    assert (peca["produto"], peca["cor"], peca["tamanho"], peca["total"]) == ("Camisa Cuban Ampla", "Bege", "M", "12")
+    assert peca["por_unidade"] == [
+        {"unidade": "CD Cajamar", "loja_fisica": "0", "online": "4", "total": "4"},
+        {"unidade": "Vulto Savassi", "loja_fisica": "7", "online": "1", "total": "8"},
+    ]
+    assert r["momento"] == "agora"
+    assert r["texto"] == "Estoque na rede inteira agora: Camisa Cuban Ampla Bege M: 12 peças."
+    assert estoque.consultas[0]["busca"] == "cuban"
+
+
+def test_estoque_numa_data_passada_vale_o_fim_do_dia_em_brasilia(estoque):
+    r = em_estoque(estoque, {"peca": "cuban", "data": "2026-09-30", "id_unidade": 5})
+
+    em = estoque.consultas[0]["em"].astimezone(assistente_interno.BRASILIA)
+    assert (em.date(), em.hour, em.minute) == (date(2026, 9, 30), 23, 59)
+    assert estoque.consultas[0]["id_unidade"] == 5
+    assert r["momento"] == "no fim de 30/09/2026" and r["onde"] == "na unidade Vulto Savassi"
+    assert r["links"][0]["url"] == "/interno/estoque/historico?data=2026-09-30&hora=23:59&unidade=5"
+
+
+def test_muitas_pecas_pede_para_escolher(estoque, monkeypatch):
+    monkeypatch.setattr(ferramentas_internas, "PECAS_POR_RESPOSTA", 2)
+
+    r = em_estoque(estoque, {"peca": "camisa"})
+
+    assert r["precisa_escolher"] is True and r["variacoes_encontradas"] == "3"
+    assert r["total_de_pecas"] == "17"
+    assert "pecas" not in r
+    assert r["exemplos"] == ["Camisa Cuban Ampla (Azul Marinho)", "Camisa Cuban Ampla (Bege)"]
+    assert r["texto"].startswith('Achei 3 variações (cor e tamanho) com "camisa", somando 17 peças')
+
+
+@pytest.mark.parametrize("pedido, cor, bate", [
+    ("preta", "Preto", True), ("branca", "Branco", True), ("lilas", "Lilás", True), ("azul", "Azul Marinho", True),
+    ("rosa", "Rosa", True), ("preta", "Bege", False),
+])
+def test_cor_como_a_pessoa_fala(pedido, cor, bate):
+    assert ferramentas_internas._bate(cor, pedido) is bate
+
+
+def test_peca_que_nao_existe(estoque):
+    estoque.linhas = []
+    r = em_estoque(estoque, {"peca": "xyz"})
+    assert r["vazio"] is True and "Não achei" in r["texto"]
+
+
+@pytest.mark.parametrize("parametros", [
+    {"peca": "x"}, {"peca": "cuban", "data": "2026-10-29"}, {"peca": "cuban", "data": "2024-12-31"},
+    {"peca": "cuban", "data": "30/09/2026"},
+])
+def test_estoque_com_parametro_invalido(estoque, parametros):
+    with pytest.raises(RegraDeNegocio):
+        em_estoque(estoque, parametros)
+
+
+def test_estoque_pede_permissao_de_estoque_e_a_marca(estoque):
+    estoque.pode = False
+    with pytest.raises(SemPermissao):
+        em_estoque(estoque, {"peca": "cuban"})
+    estoque.pode, estoque.marcas = True, {"lorenzi"}
+    with pytest.raises(SemPermissao):
+        em_estoque(estoque, {"peca": "cuban", "id_unidade": 5})
+
+
+# ---------- pecas_paradas ----------
+
+def test_consulta_de_paradas_usa_a_ultima_venda_ou_a_chegada():
+    from sqlalchemy.dialects import postgresql
+    from src.repositories import estoque_repository
+
+    texto = str(estoque_repository.consulta_pecas_paradas(datetime.now(timezone.utc), id_unidade=5, marca="vulto")
+                .compile(dialect=postgresql.dialect()))
+
+    assert "max(movimentacao_estoque.criado_em) FILTER (WHERE movimentacao_estoque.tipo = %(tipo_1)s" in texto
+    assert "min(movimentacao_estoque.criado_em) AS chegou_em" in texto
+    assert "WHERE coalesce(anon_2.ultima_venda, anon_2.chegou_em) <" in texto
+    assert "HAVING sum(estoque.quantidade) > %(sum_1)s" in texto
+    assert "estoque.id_unidade = %(id_unidade_1)s" in texto and "unidade.marca = %(marca_1)s" in texto
+
+
+def parada(produto, unidade, quantidade, ultima_venda, desde, total_linhas=40, total_pecas=300):
+    return {"id_variante": 1, "sku": "SKU", "produto": produto, "cor": "Preto", "tamanho": "M", "id_unidade": 5,
+            "unidade": unidade, "quantidade": quantidade, "ultima_venda": ultima_venda, "parada_desde": desde,
+            "total_linhas": total_linhas, "total_pecas": total_pecas}
+
+
+def test_paradas_trazem_o_total_e_as_mais_antigas(estoque):
+    venda = datetime(2026, 8, 1, 15, 0, tzinfo=timezone.utc)
+    chegada = datetime(2025, 1, 1, 3, 0, tzinfo=timezone.utc)
+    estoque.linhas = [parada("Bomber Clássica", "Vulto Savassi", 20, None, chegada),
+                      parada("Calça Jogger", "Vulto Batel", 3, venda, venda)]
+    r = ferramentas_internas.pecas_paradas(BancoDeEstoque(estoque.linhas), USUARIO, {}, QUARTA)
+
+    # 60 dias antes de 28/10/2026, no começo do dia em Brasília
+    corte = estoque.consultas[0]["corte"]
+    assert corte.astimezone(assistente_interno.BRASILIA).replace(tzinfo=None) == datetime(2026, 8, 29)
+    assert (r["linhas_paradas"], r["pecas_paradas"], r["dias"]) == ("40", "300", "60")
+    assert r["mais_antigas"][0]["ultima_venda"] == "nunca vendeu nessa unidade"
+    assert r["mais_antigas"][0]["dias_parada"] == "665"
+    assert r["mais_antigas"][1]["ultima_venda"] == "01/08/2026" and r["mais_antigas"][1]["dias_parada"] == "88"
+    assert r["texto"].startswith("40 variações paradas há mais de 60 dias na rede inteira, somando 300 peças.")
+
+
+def test_nada_parado(estoque):
+    estoque.linhas = []
+    r = ferramentas_internas.pecas_paradas(BancoDeEstoque([]), USUARIO, {"dias": 30}, QUARTA)
+    assert r["vazio"] is True and r["texto"] == "Nenhuma peça parada há mais de 30 dias na rede inteira."
+
+
+@pytest.mark.parametrize("dias", [0, 10, 400])
+def test_dias_fora_do_limite(estoque, dias):
+    with pytest.raises(RegraDeNegocio):
+        ferramentas_internas.pecas_paradas(BancoDeEstoque([]), USUARIO, {"dias": dias}, QUARTA)
+
+
+def test_paradas_pedem_permissao_de_estoque(estoque):
+    estoque.pode = False
+    with pytest.raises(SemPermissao):
+        ferramentas_internas.pecas_paradas(BancoDeEstoque([]), USUARIO, {}, QUARTA)
+
+
+# ---------- pontos_vencendo ----------
+
+@pytest.fixture
+def pontos(monkeypatch):
+    estado = SimpleNamespace(pode=True, marcas={"lorenzi", "vulto"}, vencendo=[], proximos=[], chamadas=[])
+
+    def vencendo(db, desde, ate, marca=None):
+        estado.chamadas.append({"desde": desde, "ate": ate, "marca": marca})
+        return estado.vencendo
+
+    m = monkeypatch.setattr
+    m(ferramentas_internas.fidelidade_repository, "pontos_vencendo", vencendo)
+    m(ferramentas_internas.fidelidade_repository, "proximo_vencimento", lambda db, desde, marca=None: estado.proximos)
+    m(ferramentas_internas, "usuario_tem_permissao", lambda db, u, *codigos: estado.pode and codigos == (
+        "gerenciar_fidelidade",))
+    m(ferramentas_internas, "marcas_visiveis", lambda db, u: estado.marcas)
+    return estado
+
+
+def test_pontos_vencendo_por_marca_sem_somar_as_marcas(pontos):
+    vence = datetime(2026, 11, 10, 3, 0, tzinfo=timezone.utc)
+    ganho = {"ganho_desde": datetime(2025, 1, 1, 15, 0, tzinfo=timezone.utc),
+             "ganho_ate": datetime(2026, 9, 30, 15, 0, tzinfo=timezone.utc)}
+    mesmo_dia = {"ganho_desde": datetime(2026, 10, 22, 15, 0, tzinfo=timezone.utc),
+                 "ganho_ate": datetime(2026, 10, 22, 18, 0, tzinfo=timezone.utc)}
+    pontos.vencendo = [
+        {"marca": "lorenzi", "clientes": 2, "pontos": 1398, "reais": Decimal("69.9"), "primeiro": vence, **mesmo_dia},
+        {"marca": "vulto", "clientes": 2548, "pontos": 7128540, "reais": Decimal("514385.9"), "primeiro": vence,
+         **ganho},
+    ]
+
+    r = ferramentas_internas.pontos_vencendo(None, USUARIO, {}, QUARTA)
+
+    assert [m["marca"] for m in r["por_marca"]] == ["Casa Lorenzi", "Vulto"]
+    assert r["por_marca"][1] == {"marca": "Vulto", "clientes": "2.548", "pontos": "7.128.540",
+                                 "valor": "R$ 514.385,90", "primeiro_vencimento": "10/11/2026",
+                                 "ganhos_entre": "de 01/01/2025 a 30/09/2026"}
+    assert r["por_marca"][0]["ganhos_entre"] == "em 22/10/2026"
+    assert r["prazo"] == "até 27/11/2026 (30 dias)"
+    # até o fim do último dia do prazo, no horário de Brasília
+    ate = pontos.chamadas[0]["ate"].astimezone(assistente_interno.BRASILIA)
+    assert (ate.date(), ate.hour) == (date(2026, 11, 28), 0)
+    assert "8.526.938" not in r["texto"]  # a soma das duas marcas não aparece
+
+
+def test_nada_vencendo_diz_o_proximo_vencimento(pontos):
+    pontos.proximos = [{"marca": "vulto", "dia": date(2027, 10, 1), "pontos": 7126923,
+                        "ganho_desde": datetime(2025, 1, 1, 15, 0, tzinfo=timezone.utc),
+                        "ganho_ate": datetime(2026, 9, 30, 15, 0, tzinfo=timezone.utc)}]
+
+    r = ferramentas_internas.pontos_vencendo(None, USUARIO, {"marca": "vulto"}, QUARTA)
+
+    assert r["vazio"] is True
+    assert r["texto"] == ("Nenhum ponto vence até 27/11/2026 na Vulto. O próximo vencimento: na Vulto, 01/10/2027 "
+                          "(7.126.923 pontos).")
+    assert pontos.chamadas[0]["marca"] == "vulto"
+    assert r["proximo_vencimento"][0]["ganhos_entre"] == "de 01/01/2025 a 30/09/2026"
+
+
+def test_pontos_pedem_permissao_de_fidelidade_e_a_marca(pontos):
+    pontos.pode = False
+    with pytest.raises(SemPermissao):
+        ferramentas_internas.pontos_vencendo(None, USUARIO, {}, QUARTA)
+    pontos.pode, pontos.marcas = True, {"vulto"}
+    with pytest.raises(SemPermissao):
+        ferramentas_internas.pontos_vencendo(None, USUARIO, {"marca": "lorenzi"}, QUARTA)
+
+
+@pytest.mark.parametrize("dias", [0, 367])
+def test_prazo_de_pontos_fora_do_limite(pontos, dias):
+    with pytest.raises(RegraDeNegocio):
+        ferramentas_internas.pontos_vencendo(None, USUARIO, {"dias": dias}, QUARTA)
+
+
+def test_consultas_de_pontos_montam_para_o_postgres():
+    from sqlalchemy.dialects import postgresql
+    from src.repositories import fidelidade_repository
+
+    class Capturar:
+        def execute(self, consulta):
+            self.sql = str(consulta.compile(dialect=postgresql.dialect()))
+            return SimpleNamespace(mappings=lambda: SimpleNamespace(all=lambda: []))
+
+    agora = datetime.now(timezone.utc)
+    db = Capturar()
+    fidelidade_repository.pontos_vencendo(db, agora, agora, "vulto")
+    assert "count(distinct(coalesce(" in db.sql and "lote_pontos.restante > " in db.sql
+    fidelidade_repository.proximo_vencimento(db, agora, "vulto")
+    assert "date(timezone(%(timezone_1)s" in db.sql and "lote_pontos.vence_em))" in db.sql
+
+
+# ---------- desempenho_equipe ----------
+
+@pytest.fixture
+def equipe(monkeypatch):
+    estado = SimpleNamespace(admin=True, marcas={"lorenzi", "vulto"}, consultas=[], vendas=[
+        {"vendedor": "Fernanda Kowalski", "pedidos": 53, "valor": Decimal("21817.33"), "unidades": 1},
+        {"vendedor": "Patrícia Wolff", "pedidos": 53, "valor": Decimal("20335.73"), "unidades": 1},
+    ], chamados=[{"atendente": "Júlia", "concluidos": 13, "mediana_horas": None},
+                 {"atendente": "Renata", "concluidos": 7, "mediana_horas": 5.25}])
+
+    def vendas(db, desde, ate, id_unidade, marca):
+        estado.consultas.append(("vendas", desde, ate, id_unidade, marca))
+        return estado.vendas
+
+    def chamados(db, desde, ate, id_unidade, marca):
+        estado.consultas.append(("chamados", desde, ate, id_unidade, marca))
+        return estado.chamados
+
+    m = monkeypatch.setattr
+    m(resumo_repository, "vendas_por_vendedor", vendas)
+    m(resumo_repository, "chamados_por_atendente", chamados)
+    m(ferramentas_internas.permissao_repository, "modelo_eh_admin", lambda db, i: estado.admin)
+    m(ferramentas_internas, "marcas_visiveis", lambda db, u: estado.marcas)
+    return estado
+
+
+def test_desempenho_traz_vendedores_e_atendentes_do_periodo(equipe):
+    r = ferramentas_internas.desempenho_equipe(None, USUARIO, {"periodo": "mes_passado"}, QUARTA)
+
+    assert r["vendas_por_vendedor"][0] == {"vendedor": "Fernanda Kowalski", "pedidos": "53",
+                                           "faturamento": "R$ 21.817,33", "ticket_medio": "R$ 411,65"}
+    assert r["chamados_por_atendente"] == [
+        {"atendente": "Júlia", "concluidos": "13", "mediana_horas_ate_concluir": None},
+        {"atendente": "Renata", "concluidos": "7", "mediana_horas_ate_concluir": "5,3"},
+    ]
+    assert (r["vendedores"], r["atendentes"]) == ("2", "2")
+    assert r["texto"] == ("Desempenho da equipe na rede inteira de 01/09/2026 a 30/09/2026: quem mais vendeu na "
+                          "loja física foi Fernanda Kowalski, com R$ 21.817,33 em 53 pedidos; quem mais concluiu "
+                          "chamados foi Júlia, com 13.")
+    _, desde, ate, _, _ = equipe.consultas[0]
+    assert desde.astimezone(assistente_interno.BRASILIA).date() == date(2026, 9, 1)
+    assert ate.astimezone(assistente_interno.BRASILIA).date() == date(2026, 10, 1)
+
+
+def test_desempenho_de_uma_area_so(equipe):
+    r = ferramentas_internas.desempenho_equipe(None, USUARIO, {"periodo": "este_mes", "area": "atendimento"}, QUARTA)
+
+    assert "vendas_por_vendedor" not in r and [c[0] for c in equipe.consultas] == ["chamados"]
+
+
+def test_desempenho_sem_nada_no_periodo(equipe):
+    equipe.vendas, equipe.chamados = [], []
+    r = ferramentas_internas.desempenho_equipe(None, USUARIO, {"periodo": "hoje"}, QUARTA)
+    assert r["vazio"] is True and r["texto"].startswith("Nenhuma venda na loja física nem chamado concluído")
+
+
+def test_desempenho_so_para_o_admin(equipe):
+    equipe.admin = False
+    with pytest.raises(SemPermissao):
+        ferramentas_internas.desempenho_equipe(None, USUARIO, {"periodo": "hoje"}, QUARTA)
+
+
+def test_consultas_de_desempenho_montam_para_o_postgres():
+    from sqlalchemy.dialects import postgresql
+
+    class Capturar:
+        def execute(self, consulta):
+            self.sql = str(consulta.compile(dialect=postgresql.dialect()))
+            return SimpleNamespace(mappings=lambda: SimpleNamespace(all=lambda: []))
+
+    agora = datetime.now(timezone.utc)
+    db = Capturar()
+    resumo_repository.vendas_por_vendedor(db, agora, agora, 5, "vulto")
+    assert "pedido.canal_venda = " in db.sql and "pedido.id_registrado_por" in db.sql
+    assert "pedido.status != " in db.sql
+    resumo_repository.chamados_por_atendente(db, agora, agora, None, None)
+    # os migrados (concluído = aberto) ficam fora da mediana
+    assert "CASE WHEN (chamado.concluido_em > chamado.criado_em)" in db.sql
+    assert "percentile_cont(" in db.sql
+
+
+# ---------- metricas_assistente ----------
+
+@pytest.fixture
+def metricas(monkeypatch):
+    estado = SimpleNamespace(admin=False, atende=True, marcas={"lorenzi", "vulto"}, chamadas=[], numeros={
+        "conversas": 80, "resolvidas": 62, "viraram_chamado": 10, "negativas": 5, "erro_do_sistema": 3,
+        "se_identificaram": 30, "avaliadas": 40, "positivas": 34, "so_fora_do_tema": 6, "sem_assunto": 9,
+        "por_assunto": [{"assunto": "estoque", "conversas": 41}, {"assunto": "pecas", "conversas": 35}],
+    })
+
+    def resumo(db, desde, ate, fechadas_antes, canal=None):
+        estado.chamadas.append({"desde": desde, "ate": ate, "fechadas_antes": fechadas_antes, "canal": canal})
+        return estado.numeros
+
+    m = monkeypatch.setattr
+    m(ferramentas_internas.assistente_interno_repository, "resumo_das_conversas", resumo)
+    m(ferramentas_internas.permissao_repository, "modelo_eh_admin", lambda db, i: estado.admin)
+    m(ferramentas_internas, "usuario_tem_permissao", lambda db, u, *codigos: estado.atende and codigos == (
+        "atender_chamado",))
+    m(ferramentas_internas, "marcas_visiveis", lambda db, u: estado.marcas)
+    return estado
+
+
+def test_metricas_no_formato_combinado_com_a_nicole(metricas):
+    r = ferramentas_internas.metricas_assistente(None, USUARIO, {"periodo": "este_mes"}, QUARTA)
+
+    assert r["grupos"] == {"resolvidas": "62", "viraram_chamado": "10", "avaliacao_negativa": "5",
+                           "erro_do_sistema": "3"}
+    assert (r["conversas"], r["taxa_resolvidas"]) == ("80", "78%")
+    assert (r["se_identificaram"], r["taxa_se_identificaram"]) == ("30", "38%")
+    # a avaliação é opcional: a porcentagem positiva é só entre as avaliadas
+    assert (r["avaliadas"], r["positivas_entre_avaliadas"]) == ("40", "85%")
+    assert r["por_assunto"] == [{"assunto": "estoque", "conversas": "41"}, {"assunto": "peças", "conversas": "35"}]
+    assert (r["so_fora_do_tema"], r["sem_assunto"]) == ("6", "9")
+    assert r["texto"] == ("Assistente do cliente no WhatsApp e no chat de 01/10/2026 a 28/10/2026: 80 conversas, 62 "
+                          "resolvidas, 10 viraram chamado, 5 com 👎 e 3 com erro do sistema.")
+
+
+def test_metricas_deixam_de_fora_as_conversas_em_andamento(metricas):
+    ferramentas_internas.metricas_assistente(None, USUARIO, {"periodo": "hoje", "canal": "chat"}, QUARTA)
+
+    chamada = metricas.chamadas[0]
+    assert chamada["canal"] == "chat"
+    assert datetime.now(timezone.utc) - chamada["fechadas_antes"] >= timedelta(minutes=59)
+
+
+def test_metricas_sem_periodo_usam_os_ultimos_30_dias(metricas):
+    r = ferramentas_internas.metricas_assistente(None, USUARIO, {}, QUARTA)
+    assert r["periodo"] == {"de": "29/09/2026", "ate": "28/10/2026"}
+
+
+def test_sem_conversas(metricas):
+    metricas.numeros = {**metricas.numeros, "conversas": 0, "por_assunto": []}
+    r = ferramentas_internas.metricas_assistente(None, USUARIO, {"periodo": "hoje"}, QUARTA)
+    assert r["vazio"] is True and r["texto"] == "Nenhuma conversa do assistente do cliente no WhatsApp e no chat em 28/10/2026."
+
+
+def test_metricas_pedem_atendimento_ou_admin_e_as_duas_marcas(metricas):
+    metricas.atende = False
+    with pytest.raises(SemPermissao):
+        ferramentas_internas.metricas_assistente(None, USUARIO, {"periodo": "hoje"}, QUARTA)
+    metricas.admin = True
+    assert ferramentas_internas.metricas_assistente(None, USUARIO, {"periodo": "hoje"}, QUARTA)["conversas"] == "80"
+    # o resumo não guarda a marca: quem só vê uma não consulta
+    metricas.marcas = {"vulto"}
+    with pytest.raises(SemPermissao):
+        ferramentas_internas.metricas_assistente(None, USUARIO, {"periodo": "hoje"}, QUARTA)
+
+
+def test_consulta_das_metricas_monta_para_o_postgres():
+    from sqlalchemy.dialects import postgresql
+
+    # as contagens (uma linha) e os assuntos (várias linhas, vazias aqui)
+    class Resultado(list):
+        def mappings(self):
+            return SimpleNamespace(one=lambda: {})
+
+    class Capturar:
+        def __init__(self):
+            self.sqls = []
+
+        def execute(self, consulta):
+            self.sqls.append(str(consulta.compile(dialect=postgresql.dialect())))
+            return Resultado()
+
+    agora = datetime.now(timezone.utc)
+    db = Capturar()
+    assistente_interno_repository.resumo_das_conversas(db, agora, agora, agora, "chat")
+    contagens, assuntos = db.sqls
+    assert "unnest(resumo_conversa.assuntos)" in assuntos
+    assert "resumo_conversa.assuntos && ARRAY[" in contagens
+    assert "count(*) FILTER (WHERE" in contagens and "cardinality(resumo_conversa.assuntos)" in contagens
+    assert "resumo_conversa.avaliacao IS DISTINCT FROM" in contagens
+    assert "resumo_conversa.canal = " in contagens
+
+
+# ---------- anomalias ----------
+
+@pytest.fixture
+def anomalias(monkeypatch):
+    agosto = datetime(2026, 8, 14, 14, 42, tzinfo=timezone.utc)
+    estado = SimpleNamespace(admin=True, marcas={"lorenzi", "vulto"}, chamadas=[], resultados={
+        "precos_fora_do_catalogo": [{"codigo_venda": "VLT-17274", "pago_em": agosto, "unidade": "Vulto Pinheiros",
+                                     "produto": "Camiseta Boxy Logo", "sku": "VLT-CAM-004-BRA-P",
+                                     "preco_unitario": Decimal("59.90"), "preco_catalogo": Decimal("149.90"),
+                                     "total": 4}],
+        "vendas_fora_do_padrao": [{"codigo_venda": "VLT-17274", "pago_em": agosto, "canal_venda": "loja",
+                                   "unidade": "Vulto Pinheiros", "valor": Decimal("23960.00"), "mediana": 339.9,
+                                   "total": 1}],
+        "pedidos_repetidos": [],
+    })
+    m = monkeypatch.setattr
+    for nome, linhas in estado.resultados.items():
+        def consulta(db, desde, ate, id_unidade, marca, _nome=nome, _linhas=linhas):
+            estado.chamadas.append((_nome, desde, ate, id_unidade, marca))
+            return _linhas
+        m(resumo_repository, nome, consulta)
+    m(resumo_repository, "estoque_negativo", lambda db, id_unidade, marca: [])
+    m(ferramentas_internas.permissao_repository, "modelo_eh_admin", lambda db, i: estado.admin)
+    m(ferramentas_internas, "marcas_visiveis", lambda db, u: estado.marcas)
+    return estado
+
+
+def test_anomalias_trazem_contagem_e_exemplos_com_o_codigo_da_venda(anomalias):
+    r = ferramentas_internas.anomalias(None, USUARIO, {"periodo": "mes_passado"}, QUARTA)
+
+    preco = r["verificacoes"]["preco_fora_do_catalogo"]
+    assert preco["itens"] == "4"
+    assert preco["exemplos"][0] == {"venda": "VLT-17274", "dia": "14/08/2026", "unidade": "Vulto Pinheiros",
+                                    "peca": "Camiseta Boxy Logo (VLT-CAM-004-BRA-P)", "vendido_por": "R$ 59,90",
+                                    "catalogo_na_epoca": "R$ 149,90"}
+    assert r["verificacoes"]["venda_fora_do_padrao"]["exemplos"][0]["mediana_do_canal"] == "R$ 339,90"
+    assert r["verificacoes"]["pedido_repetido"] == {"pares": "0", "exemplos": []}
+    assert r["vazio"] is False
+    assert r["texto"] == ("Anomalias na rede inteira de 01/09/2026 a 30/09/2026: 4 itens vendidos longe do preço do "
+                          "catálogo; 1 venda muito acima do normal do canal; 0 pares de pedidos repetidos; 0 saldos "
+                          "de estoque negativos (agora).")
+
+
+def test_anomalias_sem_periodo_usam_os_ultimos_30_dias(anomalias):
+    r = ferramentas_internas.anomalias(None, USUARIO, {}, QUARTA)
+    assert r["periodo"] == {"de": "29/09/2026", "ate": "28/10/2026"}
+
+
+def test_anomalias_so_para_o_admin(anomalias):
+    anomalias.admin = False
+    with pytest.raises(SemPermissao):
+        ferramentas_internas.anomalias(None, USUARIO, {}, QUARTA)
+
+
+def test_consultas_de_anomalias_montam_para_o_postgres():
+    from sqlalchemy.dialects import postgresql
+
+    class Capturar:
+        def execute(self, consulta):
+            self.sql = str(consulta.compile(dialect=postgresql.dialect()))
+            return SimpleNamespace(mappings=lambda: [])
+
+    agora = datetime.now(timezone.utc)
+    db = Capturar()
+    resumo_repository.precos_fora_do_catalogo(db, agora, agora, 5, "vulto")
+    # o preço da época: faixas do histórico (lead), e sem histórico o de hoje
+    assert "lead(historico_preco.alterado_em) OVER (PARTITION BY historico_preco.id_variante" in db.sql
+    assert "coalesce(anon_1.preco, variante.preco) > " in db.sql
+    resumo_repository.vendas_fora_do_padrao(db, agora, agora, None, None)
+    assert "percentile_cont(" in db.sql and "HAVING count(*) >= " in db.sql
+    resumo_repository.pedidos_repetidos(db, agora, agora, None, None)
+    assert "outro.id_pedido > pedido.id_pedido" in db.sql and "outro.status != " in db.sql
+    resumo_repository.estoque_negativo(db, 5, "vulto")
+    assert "estoque.quantidade < " in db.sql and "unidade.marca = " in db.sql
+
+
 # ---------- conferência dos números ----------
 
 RESULTADO = {"faturamento": "R$ 48.230,00", "pedidos": "112", "periodo": {"de": "20/10/2026", "ate": "26/10/2026"}}
@@ -168,13 +692,48 @@ def test_numero_sem_origem_nao_passa(texto):
     assert not numeros_conferem(texto, [RESULTADO], "quanto vendeu?")
 
 
-def test_data_valida_e_numero_das_instrucoes_passam():
-    texto = "Não faço previsão. Amanhã é 29/10/2026; posso ver vendas de 01/01/2025 a 31/12/2025 na unidade 45."
-    assert numeros_conferem(texto, [], "quanto vamos vender amanhã?", "Hoje é quarta, 28/10/2026.\n- 45: Vulto")
+def test_ontem_hoje_e_amanha_passam_e_o_numero_das_instrucoes_tambem():
+    texto = "Não faço previsão. Amanhã é 29/10/2026 e ontem foi 27/10/2026. A unidade 45 é a Savassi."
+    instrucoes = "Hoje é quarta, 28/10/2026. Unidades: 45: Vulto Savassi"
+    assert numeros_conferem(texto, [], "quanto vamos vender amanhã?", instrucoes, QUARTA)
 
 
-def test_data_curta_passa():
-    assert numeros_conferem("Posso consultar de 01/01 a 30/06 e de 1/7 a 31/12.", [], "e em 2025?")
+def test_pontas_do_ano_e_do_mes_citados_passam():
+    assert numeros_conferem("De 01/01/2025 a 31/12/2025.", [], "quanto vendemos em 2025?", hoje=QUARTA)
+    assert numeros_conferem("De 01/09/2025 a 30/09/2025.", [], "e em setembro de 2025?", hoje=QUARTA)
+    # mês sem ano: o deste ano
+    assert numeros_conferem("De 01/03/2026 a 31/03/2026.", [], "e em março?", hoje=QUARTA)
+
+
+@pytest.mark.parametrize("pergunta, texto", [
+    ("quem foi o melhor vendedor do mês?", "Este mês vai de 01/10/2026 a 31/10/2026; o passado, de 01/09/2026 a 30/09/2026."),
+    ("e a semana passada?", "A semana passada foi de 19/10/2026 a 25/10/2026; esta começou em 26/10/2026."),
+    ("e este ano?", "Este ano vai de 01/01/2026 a 31/12/2026."),
+])
+def test_pontas_dos_periodos_relativos_citados_passam(pergunta, texto):
+    assert numeros_conferem(texto, [], pergunta, hoje=QUARTA)
+
+
+def test_periodo_relativo_nao_libera_outras_datas():
+    assert numeros_sem_origem("A semana passada foi de 20/10/2026 a 26/10/2026.", [], "e a semana passada?",
+                              hoje=QUARTA) == {"20/10/2026"}
+
+
+def test_data_calculada_pelo_modelo_nao_passa():
+    texto = "Vencem em 01/10/2027, então foram ganhos por volta de 01/10/2026."
+    resultado = {"proximo_vencimento": [{"dia": "01/10/2027"}]}
+    pergunta = "sabendo que os pontos valem por um ano, quando foram ganhos?"
+    assert numeros_sem_origem(texto, [resultado], pergunta, "Hoje é 28/10/2026.", QUARTA) == {"01/10/2026"}
+
+
+def test_data_que_veio_da_ferramenta_passa_inteira_ou_curta():
+    resultado = {"periodo": {"de": "19/10/2026", "ate": "25/10/2026"}}
+    assert numeros_conferem("De 19/10/2026 a 25/10/2026, ou seja, de 19/10 a 25/10.", [resultado], "e semana passada?")
+
+
+def test_data_curta_sem_origem_nao_passa():
+    # 01/01 é a ponta do ano citado; 30/06 o modelo inventou para dividir o ano
+    assert numeros_sem_origem("Posso consultar de 01/01 a 30/06.", [], "e em 2025?", hoje=QUARTA) == {"30/06"}
 
 
 def test_data_que_nao_existe_e_conferida_como_numero():
@@ -183,7 +742,7 @@ def test_data_que_nao_existe_e_conferida_como_numero():
 
 
 def test_data_nao_libera_valor_inventado():
-    assert numeros_sem_origem("Em 29/10/2026 vamos vender R$ 1.500,00.", [], "amanhã?") == {"1.500,00"}
+    assert numeros_sem_origem("Em 29/10/2026 vamos vender R$ 1.500,00.", [], "amanhã?", hoje=QUARTA) == {"1.500,00"}
 
 
 def test_digito_sozinho_e_numero_da_pergunta_passam():
@@ -428,6 +987,32 @@ def test_conversa_de_outra_pessoa(conversa):
         assistente_interno.responder(BancoFalso(), USUARIO, "oi", 9)
 
 
+def test_unidade_do_topo_vai_junto_da_pergunta_e_volta_na_resposta(conversa, monkeypatch):
+    monkeypatch.setattr(unidade_repository, "buscar_unidade", lambda db, i: SAVASSI if i == 5 else None)
+    monkeypatch.setattr(assistente_interno, "marcas_visiveis", lambda db, u: {"vulto"})
+    conversa.rodadas = [rodada("Qual período?")]
+
+    r = assistente_interno.responder(BancoFalso(), USUARIO, "quanto vendemos?", id_unidade_em_foco=5)
+
+    enviada = conversa.recebido[0][-1]["content"]
+    assert enviada.startswith("quanto vendemos?\n\n[Tela: unidade Vulto Savassi (id 5) selecionada no topo.")
+    assert r["unidade_em_foco"] == {"id_unidade": 5, "nome": "Vulto Savassi"}
+    # o histórico guarda só a pergunta, sem o contexto da tela
+    assert conversa.mensagens[0]["texto"] == "quanto vendemos?"
+
+
+@pytest.mark.parametrize("id_unidade, marcas", [(None, {"vulto"}), (5, {"lorenzi"}), (99, {"vulto"})])
+def test_sem_unidade_no_topo_ou_de_marca_que_nao_ve_vale_a_rede(conversa, monkeypatch, id_unidade, marcas):
+    monkeypatch.setattr(unidade_repository, "buscar_unidade", lambda db, i: SAVASSI if i == 5 else None)
+    monkeypatch.setattr(assistente_interno, "marcas_visiveis", lambda db, u: marcas)
+    conversa.rodadas = [rodada("Ok.")]
+
+    r = assistente_interno.responder(BancoFalso(), USUARIO, "vendas?", id_unidade_em_foco=id_unidade)
+
+    assert "\"Todas as unidades\" selecionado no topo" in conversa.recebido[0][-1]["content"]
+    assert r["unidade_em_foco"] is None
+
+
 def test_cliente_nao_usa_o_assistente_interno(conversa):
     cliente = SimpleNamespace(id_usuario=uuid.uuid4(), tipo_conta="cliente", id_modelo_acesso=None)
 
@@ -453,14 +1038,16 @@ def test_instrucoes_levam_hoje_e_so_as_unidades_que_a_pessoa_ve(monkeypatch):
 def test_rota_usa_o_login_e_nao_a_chave_do_n8n(monkeypatch):
     app.dependency_overrides[get_usuario_ativo] = lambda: USUARIO
     app.dependency_overrides[get_db] = lambda: None
-    monkeypatch.setattr(assistente_interno, "responder", lambda db, u, texto, id_conversa: {
-        "id_conversa": 1, "resposta": f"eco: {texto}", "links": [], "ferramentas": [], "numeros_conferidos": None})
+    monkeypatch.setattr(assistente_interno, "responder", lambda db, u, texto, id_conversa, em_foco: {
+        "id_conversa": 1, "resposta": f"eco: {texto} ({em_foco})", "links": [], "ferramentas": [],
+        "numeros_conferidos": None, "unidade_em_foco": {"id_unidade": 5, "nome": "Vulto Savassi"} if em_foco else None})
     try:
         cliente = TestClient(app)
-        resposta = cliente.post("/assistente/interno/mensagens", json={"texto": "  oi  "})
+        resposta = cliente.post("/assistente/interno/mensagens", json={"texto": "  oi  ", "id_unidade_em_foco": 5})
         vazia = cliente.post("/assistente/interno/mensagens", json={"texto": "   "})
     finally:
         app.dependency_overrides.clear()
 
-    assert resposta.status_code == 200 and resposta.json()["resposta"] == "eco: oi"
+    assert resposta.status_code == 200 and resposta.json()["resposta"] == "eco: oi (5)"
+    assert resposta.json()["unidade_em_foco"] == {"id_unidade": 5, "nome": "Vulto Savassi"}
     assert vazia.status_code == 422

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from src.models.assistente_interno import ConversaInterna
 from src.models.contas import Usuario
 from src.repositories import assistente_interno_repository as repo
-from src.repositories import permissao_repository, resumo_repository
+from src.repositories import permissao_repository, resumo_repository, unidade_repository
 from src.use_cases.conferencia_numeros import numeros_sem_origem
 from src.use_cases.erros import ErroNegocio, RecursoNaoEncontrado, ServicoIndisponivel, SemPermissao
 from src.use_cases.estoque import BRASILIA
@@ -39,15 +39,22 @@ Regras:
 conta própria. Se a pergunta precisa de um número que nenhuma ferramenta dá, diga que não sabe e o que você \
 consegue responder.
 - Copie os números exatamente como a ferramenta devolveu (R$ 1.234,56, datas dd/mm/aaaa).
+- Ao oferecer outra consulta, não proponha um número (prazo, quantidade): diga "outro prazo" ou pergunte qual.
+- Não deduza uma data a partir de outra (ex.: quando os pontos foram ganhos a partir do vencimento), nem quando a \
+pessoa dá a regra. Se a pergunta pede algo que a resposta anterior não trouxe, consulte a ferramenta de novo.
 - Diga sempre o período e onde (unidade ou marca) e, em poucas palavras, o que entrou na conta.
+- Se a pergunta não diz um prazo e a ferramenta tem um padrão (ex.: 30 dias), use o padrão e diga qual usou.
 - Se faltar o que a ferramenta precisa (qual loja, qual período), pergunte antes. Se o nome da loja combinar com \
 mais de uma unidade da lista, pergunte qual.
 - Se a ferramenta recusar por permissão, diga que a pessoa não tem acesso a esse dado, sem número nenhum.
 - Você só consulta. Não altera estoque, pedidos, pontos nem pagamentos; se pedirem, diga em que tela da \
 plataforma isso se faz.
 - Para comparar unidades ("qual loja vendeu mais"), consulte uma vez sem unidade e use a lista por unidade.
+- Unidade é loja ou CD (o tipo está na lista). Ao listar, separe lojas e CDs ("Lojas da Vulto: ...; CD: ...") e \
+não chame só as lojas de "unidades".
 - Pergunta fora do negócio: não responda o assunto; diga em uma frase o que você consegue consultar.
-- Responda em português, curto e direto, em texto simples (no máximo uma lista curta).
+- Responda em português, curto e direto, em texto simples, sem Markdown (sem **negrito** nem #títulos; no \
+máximo uma lista curta com "- ").
 - As suas respostas anteriores nesta conversa já passaram pela conferência: os números delas vieram das \
 ferramentas, mesmo que as chamadas não apareçam aqui. Não comente de onde vieram.
 
@@ -111,27 +118,50 @@ def _executar(db: Session, usuario: Usuario, nome: str, parametros: dict, hoje: 
         return "sem_permissao", {"erro": erro.mensagem, "sem_permissao": True}
     except ErroNegocio as erro:
         return "invalido", {"erro": erro.mensagem}
-    vazio = resultado.get("pedidos") in ("0", 0)
-    return ("vazio" if vazio else "dado"), resultado
+    # cada ferramenta diz se não achou nada (busca vazia, período sem venda): não é erro
+    return ("vazio" if resultado.get("vazio") else "dado"), resultado
 
 
 class _FalhaDeFerramenta(Exception):
     pass
 
 
-def responder(db: Session, usuario: Usuario, texto: str, id_conversa: int | None = None) -> dict:
+# a unidade escolhida no topo da plataforma, se existe e é de uma marca que a pessoa vê (senão, como "todas")
+def _unidade_em_foco(db: Session, usuario: Usuario, id_unidade: int | None):
+    if id_unidade is None:
+        return None
+    unidade = unidade_repository.buscar_unidade(db, id_unidade)
+    if unidade is None or unidade.marca not in marcas_visiveis(db, usuario):
+        return None
+    return unidade
+
+
+# o contexto da tela vai junto da pergunta (e não nas instruções, que ficam em cache): sem unidade na pergunta,
+# vale a do topo, e a resposta diz que usou essa
+def _com_contexto_da_tela(texto: str, unidade) -> str:
+    if unidade is None:
+        return (f"{texto}\n\n[Tela: \"Todas as unidades\" selecionado no topo. Se a pergunta não disser a "
+                "unidade, responda da rede (as marcas que a pessoa vê).]")
+    return (f"{texto}\n\n[Tela: unidade {unidade.nome} (id {unidade.id_unidade}) selecionada no topo. Se a "
+            "pergunta não disser a unidade nem pedir a rede ou uma marca, use esta e diga que é a unidade "
+            "selecionada no topo.]")
+
+
+def responder(db: Session, usuario: Usuario, texto: str, id_conversa: int | None = None,
+              id_unidade_em_foco: int | None = None) -> dict:
     if usuario.tipo_conta != "interna":
         raise SemPermissao("Só para contas internas")
     agora, hoje, inicio = _agora(), _hoje(), relogio.monotonic()
     conversa = _conversa(db, usuario, id_conversa, agora)
     mensagens = _historico(db, conversa)
     instrucoes = _instrucoes(db, usuario, hoje)
+    em_foco = _unidade_em_foco(db, usuario, id_unidade_em_foco)
     conversa.ultima_msg_em = agora
     repo.adicionar_mensagem(db, conversa, papel="usuario", texto=texto)
     # a pergunta fica gravada antes de chamar o modelo: se algo falhar no meio, ela não se perde
     db.commit()
 
-    mensagens.append({"role": "user", "content": texto})
+    mensagens.append({"role": "user", "content": _com_contexto_da_tela(texto, em_foco)})
     definicoes = [f.definicao() for f in FERRAMENTAS.values()]
     resultados: list[dict] = []
     recusas: list[str] = []  # motivo de cada recusa por permissão, escrito pelo backend
@@ -191,7 +221,7 @@ def responder(db: Session, usuario: Usuario, texto: str, id_conversa: int | None
         resposta = NAO_TERMINOU
     elif resposta not in (NAO_CONSULTOU, NAO_TERMINOU, RECUSA):
         # trava da CFO: número que não veio das ferramentas não chega à pessoa
-        sem_origem = numeros_sem_origem(resposta, resultados, texto, instrucoes)
+        sem_origem = numeros_sem_origem(resposta, resultados, texto, instrucoes, hoje)
         conferidos = not sem_origem
         if sem_origem:
             # só os números barrados, sem o texto (que pode trazer dado de cliente)
@@ -207,7 +237,8 @@ def responder(db: Session, usuario: Usuario, texto: str, id_conversa: int | None
     db.commit()
     links = list({link["url"]: link for r in resultados for link in r.get("links", [])}.values())
     return {"id_conversa": conversa.id_conversa, "resposta": resposta, "links": links,
-            "ferramentas": usadas, "numeros_conferidos": conferidos}
+            "ferramentas": usadas, "numeros_conferidos": conferidos,
+            "unidade_em_foco": {"id_unidade": em_foco.id_unidade, "nome": em_foco.nome} if em_foco else None}
 
 
 def _ms(inicio: float) -> int:

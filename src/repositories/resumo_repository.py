@@ -1,11 +1,12 @@
 from datetime import datetime
 
-from sqlalchemy import and_, case, distinct, func, literal, or_, select, union_all
-from sqlalchemy.orm import Session
+from sqlalchemy import String, and_, case, distinct, func, literal, or_, select, union_all
+from sqlalchemy.orm import Session, aliased
 
 from src.models.atendimento import Chamado, Mensagem
 from src.models.avaliacoes import Avaliacao, DenunciaAvaliacao
-from src.models.catalogo import Produto, Variante
+from src.models.catalogo import HistoricoPreco, Produto, Variante
+from src.models.contas import Usuario
 from src.models.estoque import Estoque, Transferencia, Unidade
 from src.models.vendas import ItemPedido, Pagamento, Pedido
 from src.repositories import atendimento_repository
@@ -325,3 +326,145 @@ def transferencias_por_unidade(db: Session) -> tuple[dict[int, int], dict[int, i
     chegando = select(Transferencia.id_unidade_destino, func.count()).where(Transferencia.status == "enviada")
     return (dict(db.execute(esperando.group_by(Transferencia.id_unidade_origem)).all()),
             dict(db.execute(chegando.group_by(Transferencia.id_unidade_destino)).all()))
+
+
+# ---------- desempenho da equipe (assistente interno, só Admin) ----------
+
+# vendas da loja física no período por quem registrou (a venda online não tem vendedor): pedido pago no período,
+# sem cancelados, sem o frete. Devoluções não são descontadas aqui
+def vendas_por_vendedor(db: Session, desde: datetime, ate: datetime, id_unidade: int | None,
+                        marca: str | None) -> list:
+    valor = Pedido.valor_total - Pedido.valor_frete
+    consulta = (
+        select(Usuario.nome.label("vendedor"), func.count().label("pedidos"), func.sum(valor).label("valor"),
+               func.count(distinct(Pedido.id_unidade)).label("unidades"))
+        .join(Usuario, Usuario.id_usuario == Pedido.id_registrado_por)
+        .where(*_vendas(desde, ate, id_unidade, marca), Pedido.canal_venda == "loja")
+        .group_by(Usuario.id_usuario, Usuario.nome)
+        .order_by(func.sum(valor).desc(), Usuario.nome)
+    )
+    return list(db.execute(consulta).mappings().all())
+
+
+# chamados concluídos no período por responsável, com a mediana de horas da abertura até a conclusão. Os migrados
+# da Vulto não guardam quando foram concluídos (concluido_em = criado_em): ficam fora da mediana, que sem
+# nenhum chamado com tempo de verdade vem vazia
+def chamados_por_atendente(db: Session, desde: datetime, ate: datetime, id_unidade: int | None,
+                           marca: str | None) -> list:
+    horas = case((Chamado.concluido_em > Chamado.criado_em,
+                  func.extract("epoch", Chamado.concluido_em - Chamado.criado_em) / 3600))
+    consulta = (
+        select(Usuario.nome.label("atendente"), func.count().label("concluidos"),
+               func.percentile_cont(0.5).within_group(horas).label("mediana_horas"))
+        .join(Usuario, Usuario.id_usuario == Chamado.id_responsavel)
+        .where(Chamado.status == "concluido", *_entre(Chamado.concluido_em, desde, ate),
+               *_chamados_da(id_unidade, marca))
+        .group_by(Usuario.id_usuario, Usuario.nome)
+        .order_by(func.count().desc(), Usuario.nome)
+    )
+    return list(db.execute(consulta).mappings().all())
+
+
+# ---------- anomalias (assistente interno, só Admin) ----------
+
+EXEMPLOS_DE_ANOMALIA = 5
+PRECO_FORA_DO_CATALOGO = 0.5  # mais de 50% acima ou abaixo do preço da época
+VEZES_A_MEDIANA = 5
+PEDIDOS_PARA_MEDIANA = 20  # com menos pedidos no canal, a mediana não diz o que é normal
+REPETIDO_EM = 600  # segundos entre dois pedidos iguais
+
+
+# item vendido longe do preço que valia na data da venda (o do histórico de preços; sem histórico, o de hoje).
+# Sem preço de referência (ex.: a peça "sem cadastro" da migração) não dá para comparar
+def precos_fora_do_catalogo(db: Session, desde: datetime, ate: datetime, id_unidade: int | None,
+                            marca: str | None) -> list:
+    # cada preço do histórico vale da alteração até a próxima: uma faixa por preço, cruzada de uma vez com as vendas
+    # (buscar o preço da época item a item levava segundos num período longo)
+    h = HistoricoPreco
+    faixas = select(
+        h.id_variante, h.preco_novo.label("preco"), h.alterado_em.label("desde"),
+        func.lead(h.alterado_em).over(partition_by=h.id_variante, order_by=(h.alterado_em, h.id_historico_preco))
+        .label("ate"),
+    ).subquery()
+    referencia = func.coalesce(faixas.c.preco, Variante.preco)
+    consulta = (
+        select(Pedido.codigo_venda, Pedido.pago_em, Unidade.nome.label("unidade"), Produto.nome.label("produto"),
+               Variante.sku, ItemPedido.preco_unitario, referencia.label("preco_catalogo"),
+               func.count().over().label("total"))
+        .select_from(ItemPedido)
+        .join(Pedido, Pedido.id_pedido == ItemPedido.id_pedido)
+        .outerjoin(faixas, and_(faixas.c.id_variante == ItemPedido.id_variante, faixas.c.desde <= Pedido.pago_em,
+                                or_(faixas.c.ate.is_(None), Pedido.pago_em < faixas.c.ate)))
+        .join(Variante, Variante.id_variante == ItemPedido.id_variante)
+        .join(Produto, Produto.id_produto == Variante.id_produto)
+        .join(Unidade, Unidade.id_unidade == Pedido.id_unidade)
+        .where(*_vendas(desde, ate, id_unidade, marca), referencia > 0,
+               func.abs(ItemPedido.preco_unitario - referencia) > referencia * PRECO_FORA_DO_CATALOGO)
+        .order_by(Pedido.pago_em.desc(), Pedido.id_pedido.desc())
+        .limit(EXEMPLOS_DE_ANOMALIA)
+    )
+    return list(db.execute(consulta).mappings())
+
+
+# pedido muito acima do normal do canal no período (mais que VEZES_A_MEDIANA a mediana, sem o frete)
+def vendas_fora_do_padrao(db: Session, desde: datetime, ate: datetime, id_unidade: int | None,
+                          marca: str | None) -> list:
+    valor = Pedido.valor_total - Pedido.valor_frete
+    medianas = (
+        select(Pedido.canal_venda, func.percentile_cont(0.5).within_group(valor).label("mediana"))
+        .where(*_vendas(desde, ate, id_unidade, marca))
+        .group_by(Pedido.canal_venda)
+        .having(func.count() >= PEDIDOS_PARA_MEDIANA)
+        .subquery()
+    )
+    consulta = (
+        select(Pedido.codigo_venda, Pedido.pago_em, Pedido.canal_venda, Unidade.nome.label("unidade"),
+               valor.label("valor"), medianas.c.mediana, func.count().over().label("total"))
+        .join(medianas, medianas.c.canal_venda == Pedido.canal_venda)
+        .join(Unidade, Unidade.id_unidade == Pedido.id_unidade)
+        .where(*_vendas(desde, ate, id_unidade, marca), valor > medianas.c.mediana * VEZES_A_MEDIANA)
+        .order_by(valor.desc())
+        .limit(EXEMPLOS_DE_ANOMALIA)
+    )
+    return list(db.execute(consulta).mappings())
+
+
+# dois pedidos não cancelados do mesmo cliente (ou CPF da nota), na mesma unidade, com o mesmo valor, em até
+# REPETIDO_EM segundos: pode ser venda lançada duas vezes
+def pedidos_repetidos(db: Session, desde: datetime, ate: datetime, id_unidade: int | None,
+                      marca: str | None) -> list:
+    outro = aliased(Pedido, name="outro")
+    dono = func.coalesce(func.cast(Pedido.id_cliente, String), Pedido.cpf_nota)
+    dono_do_outro = func.coalesce(func.cast(outro.id_cliente, String), outro.cpf_nota)
+    consulta = (
+        select(Pedido.codigo_venda, outro.codigo_venda.label("repetido"), Pedido.pago_em,
+               Unidade.nome.label("unidade"), Pedido.valor_total, func.count().over().label("total"))
+        .join(outro, and_(outro.id_pedido > Pedido.id_pedido, outro.id_unidade == Pedido.id_unidade,
+                          outro.valor_total == Pedido.valor_total, dono_do_outro == dono,
+                          outro.status != "cancelado",
+                          func.abs(func.extract("epoch", outro.criado_em - Pedido.criado_em)) <= REPETIDO_EM))
+        .join(Unidade, Unidade.id_unidade == Pedido.id_unidade)
+        .where(*_vendas(desde, ate, id_unidade, marca), dono.is_not(None))
+        .order_by(Pedido.pago_em.desc())
+        .limit(EXEMPLOS_DE_ANOMALIA)
+    )
+    return list(db.execute(consulta).mappings())
+
+
+# saldo negativo agora (o banco recusa saída maior que o disponível; negativo só vindo de dado antigo ou ajuste)
+def estoque_negativo(db: Session, id_unidade: int | None, marca: str | None) -> list:
+    consulta = (
+        select(Variante.sku, Produto.nome.label("produto"), Variante.cor, Variante.tamanho,
+               Unidade.nome.label("unidade"), Estoque.canal, Estoque.quantidade, func.count().over().label("total"))
+        .join(Variante, Variante.id_variante == Estoque.id_variante)
+        .join(Produto, Produto.id_produto == Variante.id_produto)
+        .join(Unidade, Unidade.id_unidade == Estoque.id_unidade)
+        .where(Estoque.quantidade < 0)
+        .order_by(Estoque.quantidade, Produto.nome)
+        .limit(EXEMPLOS_DE_ANOMALIA)
+    )
+    if id_unidade is not None:
+        consulta = consulta.where(Estoque.id_unidade == id_unidade)
+    if marca is not None:
+        consulta = consulta.where(Unidade.marca == marca)
+    return list(db.execute(consulta).mappings())

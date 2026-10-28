@@ -28,7 +28,7 @@ def perguntar(
     usuario: Usuario = Depends(get_usuario_ativo),
     db: Session = Depends(get_db),
 ):
-    return assistente_interno.responder(db, usuario, dados.texto, dados.id_conversa)
+    return assistente_interno.responder(db, usuario, dados.texto, dados.id_conversa, dados.id_unidade_em_foco)
 
 
 @router.get(
