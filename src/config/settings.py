@@ -25,5 +25,11 @@ CORS_ORIGINS = [
 # Opcional: expressão regular para liberar vários endereços, como os previews da Vercel
 CORS_ORIGIN_REGEX = os.getenv("CORS_ORIGIN_REGEX") or None
 
+# Endereço da plataforma do cliente, para os links que o assistente manda (peça, carrinho)
+SITE_URL = (os.getenv("SITE_URL") or "http://localhost:5173").rstrip("/")
+
+# Chave das rotas /assistente: o n8n manda no cabeçalho X-Assistente-Chave. Vazia, as rotas ficam fechadas
+ASSISTENTE_CHAVE = os.getenv("ASSISTENTE_CHAVE") or None
+
 # Pasta data/ do vulto-legado-back, lida pela migração da Vulto (migracao_vulto/); a API não usa
 VULTO_DATA_DIR = os.getenv("VULTO_DATA_DIR") or None
