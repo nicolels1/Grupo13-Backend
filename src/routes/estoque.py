@@ -6,7 +6,7 @@ from src.dependencies.permissoes import exige_permissao, marca_da_variante, marc
 from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Lista, Pagina
 from src.entities.estoque import (
     Canal, Divergencia, EmTransitoItem, EstoqueHistoricoItem, EstoqueItem, Evolucao, Granularidade, MovimentacaoItem,
-    MovimentacaoSaida, NovaMovimentacao, NovaRealocacao, NovoMinimo,
+    MovimentacaoSaida, NovaMovimentacao, NovaRealocacao, NovoMinimo, PaginaComparacao,
 )
 from src.models.contas import Usuario
 from src.use_cases import estoque
@@ -51,6 +51,30 @@ def listar_estoque(
     )
 
 
+@router.get(
+    "/estoque/por-produto",
+    response_model=Pagina[EstoqueItem],
+    responses=ERROS_COMUNS,
+    description="Uma página de produtos: limit, offset e total contam produtos; os itens são todas as linhas "
+                "(variante, unidade e canal) dos produtos da página.",
+)
+def listar_estoque_por_produto(
+    id_unidade: int | None = None,
+    canal: Canal | None = None,
+    busca: str | None = Query(
+        None, description="Parte do SKU ou do nome do produto, ou o código de barras (EAN) inteiro"
+    ),
+    so_abaixo: bool = Query(False, description="Só os produtos com alguma linha abaixo do mínimo"),
+    marca: str | None = Depends(marca_permitida),
+    paginacao: dict = Depends(_paginacao),
+    _: Usuario = Depends(VER_ESTOQUE),
+    db: Session = Depends(get_db),
+):
+    return estoque.listar_estoque_por_produto(
+        db, **paginacao, id_unidade=id_unidade, canal=canal, busca=busca, so_abaixo=so_abaixo, marca=marca,
+    )
+
+
 @router.get("/estoque/historico", response_model=Pagina[EstoqueHistoricoItem], responses=ERROS_COMUNS)
 def estoque_em(
     em: str = Query(description="AAAA-MM-DD (fim do dia) ou AAAA-MM-DDTHH:MM, no horário de Brasília"),
@@ -65,6 +89,28 @@ def estoque_em(
 ):
     return estoque.estoque_em(
         db, em, **paginacao, id_unidade=id_unidade, id_variante=id_variante, canal=canal, busca=busca, marca=marca
+    )
+
+
+@router.get(
+    "/estoque/comparacao",
+    response_model=PaginaComparacao,
+    responses=ERROS_COMUNS,
+    description="Cada peça numa unidade naquele momento e agora (somando os canais do filtro), uma página por vez.",
+)
+def comparacao(
+    em: str = Query(description="AAAA-MM-DD (fim do dia) ou AAAA-MM-DDTHH:MM, no horário de Brasília"),
+    id_unidade: int | None = None,
+    canal: Canal | None = None,
+    busca: str | None = None,
+    so_mudou: bool = Query(False, description="Só as peças com saldo diferente naquele momento e agora"),
+    marca: str | None = Depends(marca_permitida),
+    paginacao: dict = Depends(_paginacao),
+    _: Usuario = Depends(VER_ESTOQUE),
+    db: Session = Depends(get_db),
+):
+    return estoque.comparar_com_agora(
+        db, em, **paginacao, id_unidade=id_unidade, canal=canal, busca=busca, so_mudou=so_mudou, marca=marca
     )
 
 

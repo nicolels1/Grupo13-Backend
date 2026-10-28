@@ -140,6 +140,11 @@ def listar_estoque(db: Session, limit: int, offset: int, **filtros) -> dict:
     return _pagina(*repo.listar_estoque(db, limit, offset, **filtros), limit, offset)
 
 
+# a tela Estoque: limit, offset e total contam produtos; os itens são as linhas desses produtos
+def listar_estoque_por_produto(db: Session, limit: int, offset: int, **filtros) -> dict:
+    return _pagina(*repo.listar_estoque_por_produto(db, limit, offset, **filtros), limit, offset)
+
+
 def listar_movimentacoes(
     db: Session, limit: int, offset: int, de: str | None = None, ate: str | None = None, **filtros
 ) -> dict:
@@ -169,6 +174,12 @@ def interpretar_momento(texto: str, fim_do_dia: bool = True) -> datetime:
 def estoque_em(db: Session, em: str, limit: int, offset: int, **filtros) -> dict:
     momento = interpretar_momento(em)
     return _pagina(*repo.listar_historico(db, momento, limit, offset, **filtros), limit, offset)
+
+
+# a tela do histórico: cada peça naquele momento e agora, uma página por vez
+def comparar_com_agora(db: Session, em: str, limit: int, offset: int, **filtros) -> dict:
+    itens, total, mudaram = repo.listar_comparacao(db, interpretar_momento(em), limit, offset, **filtros)
+    return {**_pagina(itens, total, limit, offset), "mudaram": mudaram}
 
 
 # peças de transferências enviadas e ainda não recebidas no momento pedido (padrão: agora).

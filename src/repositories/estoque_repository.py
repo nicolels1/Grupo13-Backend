@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Select, and_, func, literal_column, or_, select
+from sqlalchemy import Integer, Select, and_, case, cast, func, literal, literal_column, or_, select, union_all
 from sqlalchemy.orm import Session, aliased
 
 from src.models.catalogo import Produto, Variante
@@ -85,10 +85,14 @@ def _filtros_comuns(colunas, id_unidade, id_variante, canal, busca, marca=None) 
 
 # ---------- estoque atual ----------
 
+def _abaixo_do_minimo():
+    return and_(Estoque.estoque_minimo.is_not(None), Estoque.quantidade < Estoque.estoque_minimo)
+
+
 def consulta_estoque(id_unidade=None, id_variante=None, canal=None, busca=None, abaixo_minimo=None,
                      marca=None) -> Select:
     disponivel = Estoque.quantidade - Estoque.quantidade_reservada
-    abaixo = and_(Estoque.estoque_minimo.is_not(None), Estoque.quantidade < Estoque.estoque_minimo)
+    abaixo = _abaixo_do_minimo()
     consulta = (
         select(
             Estoque.id_variante, Variante.sku, Produto.nome.label("produto"), Variante.cor, Variante.tamanho,
@@ -110,6 +114,29 @@ def consulta_estoque(id_unidade=None, id_variante=None, canal=None, busca=None, 
 
 def listar_estoque(db: Session, limit: int, offset: int, **filtros) -> tuple[list, int]:
     return _paginar(db, consulta_estoque(**filtros), limit, offset)
+
+
+# a página de produtos da tela Estoque: com os mesmos filtros, escolhe os produtos e o total numa consulta
+# (só_abaixo: produtos com alguma linha abaixo do mínimo). Agrupa pelo nome, como a tela
+def consulta_produtos_do_estoque(so_abaixo=False, **filtros) -> Select:
+    consulta = (
+        consulta_estoque(**filtros)
+        .with_only_columns(Produto.nome, func.count().over().label("total"))
+        .group_by(Produto.nome)
+        .order_by(None)
+        .order_by(Produto.nome)
+    )
+    return consulta.having(func.bool_or(_abaixo_do_minimo())) if so_abaixo else consulta
+
+
+# devolve as linhas (variante, unidade e canal) só dos produtos da página, e o total de produtos
+def listar_estoque_por_produto(db: Session, limit: int, offset: int, so_abaixo=False, **filtros) -> tuple[list, int]:
+    produtos = db.execute(consulta_produtos_do_estoque(so_abaixo, **filtros).limit(limit).offset(offset)).all()
+    if not produtos:
+        total = db.scalar(select(func.count()).select_from(consulta_produtos_do_estoque(so_abaixo, **filtros).subquery()))
+        return [], total
+    consulta = consulta_estoque(**filtros).where(Produto.nome.in_([p.nome for p in produtos]))
+    return list(db.execute(consulta).mappings().all()), produtos[0].total
 
 
 # ---------- histórico: soma das movimentações até a data (ADR 0006) ----------
@@ -136,6 +163,73 @@ def consulta_historico(em: datetime, id_unidade=None, id_variante=None, canal=No
 
 def listar_historico(db: Session, em: datetime, limit: int, offset: int, **filtros) -> tuple[list, int]:
     return _paginar(db, consulta_historico(em, **filtros), limit, offset)
+
+
+# ---------- histórico comparado com agora: uma linha por peça e unidade, somando os canais do filtro ----------
+
+ORDEM_TAMANHOS = ["PP", "P", "M", "G", "GG", "XG", "U"]
+
+
+# a ordem da grade (PP, P, M...), depois os números (36, 38...), depois o resto em ordem alfabética
+def _ordem_do_tamanho(tamanho) -> list:
+    grade = case({t: i for i, t in enumerate(ORDEM_TAMANHOS)}, value=func.upper(tamanho), else_=len(ORDEM_TAMANHOS))
+    numero = case((tamanho.regexp_match(r"^\d+$"), cast(tamanho, Integer)))
+    return [grade, numero, tamanho]
+
+
+def consulta_comparacao(em: datetime, id_unidade=None, canal=None, busca=None, so_mudou=False,
+                        marca=None) -> Select:
+    m = MovimentacaoEstoque
+    filtros_m, filtros_e = [m.criado_em <= em], []
+    if id_unidade is not None:
+        filtros_m.append(m.id_unidade == id_unidade)
+        filtros_e.append(Estoque.id_unidade == id_unidade)
+    if canal is not None:
+        filtros_m.append(m.canal == canal)
+        filtros_e.append(Estoque.canal == canal)
+    # as movimentações até o momento (naquele) e o saldo de agora numa lista só, somadas por ids;
+    # os nomes entram depois: ordenar texto antes de agrupar era o passo mais lento
+    linhas = union_all(
+        select(m.id_variante, m.id_unidade, m.quantidade.label("naquele"), literal(0).label("agora"))
+        .where(*filtros_m),
+        select(Estoque.id_variante, Estoque.id_unidade, literal(0), Estoque.quantidade).where(*filtros_e),
+    ).subquery()
+    por_peca = (
+        select(linhas.c.id_variante, linhas.c.id_unidade, func.sum(linhas.c.naquele).label("naquele"),
+               func.sum(linhas.c.agora).label("agora"))
+        .group_by(linhas.c.id_variante, linhas.c.id_unidade)
+        .subquery()
+    )
+    mudou = por_peca.c.naquele != por_peca.c.agora
+    consulta = (
+        select(
+            por_peca.c.id_variante, Variante.sku, Produto.nome.label("produto"), Variante.cor, Variante.tamanho,
+            por_peca.c.id_unidade, Unidade.nome.label("unidade"), por_peca.c.naquele, por_peca.c.agora,
+            # o total e quantas mudaram vêm na mesma consulta, sem contar de novo
+            func.count().over().label("total"), func.count().filter(mudou).over().label("mudaram"),
+        )
+        .join(Variante, Variante.id_variante == por_peca.c.id_variante)
+        .join(Produto, Produto.id_produto == Variante.id_produto)
+        .join(Unidade, Unidade.id_unidade == por_peca.c.id_unidade)
+        .order_by(Produto.nome, Variante.cor, *_ordem_do_tamanho(Variante.tamanho), Unidade.nome)
+    )
+    colunas = {"id_unidade": por_peca.c.id_unidade, "id_variante": por_peca.c.id_variante, "canal": None}
+    filtros = _filtros_comuns(colunas, None, None, None, busca, marca)
+    if so_mudou:
+        filtros.append(mudou)
+    return consulta.where(*filtros)
+
+
+# devolve a página, o total e quantas mudaram (com "só o que mudou", total e mudaram são iguais)
+def listar_comparacao(db: Session, em: datetime, limit: int, offset: int, **filtros) -> tuple[list, int, int]:
+    consulta = consulta_comparacao(em, **filtros)
+    linhas = db.execute(consulta.limit(limit).offset(offset)).mappings().all()
+    if not linhas and offset > 0:
+        # página além do fim (a lista mudou entre uma página e outra): a primeira linha traz os totais
+        primeira = db.execute(consulta.limit(1)).mappings().first()
+        return [], primeira["total"] if primeira else 0, primeira["mudaram"] if primeira else 0
+    total, mudaram = (linhas[0]["total"], linhas[0]["mudaram"]) if linhas else (0, 0)
+    return [dict(linha) for linha in linhas], total, mudaram
 
 
 def _filtro_variante_unidade(id_variante: int, id_unidade: int | None) -> list:
