@@ -248,6 +248,22 @@ def test_cor_como_a_pessoa_fala(pedido, cor, bate):
     assert ferramentas_internas._bate(cor, pedido) is bate
 
 
+def test_sem_peca_e_o_total_da_unidade_por_canal(estoque):
+    r = em_estoque(estoque, {"data": "2026-10-01", "id_unidade": 5})
+
+    assert estoque.consultas[0]["busca"] is None
+    assert (r["total_de_pecas"], r["loja_fisica"], r["online"], r["variacoes_com_saldo"]) == ("17", "12", "5", "3")
+    assert r["por_unidade"][0] == {"unidade": "Vulto Savassi", "loja_fisica": "10", "online": "1", "total": "11"}
+    assert r["texto"] == ("Estoque na unidade Vulto Savassi no fim de 01/10/2026: 17 peças (12 na loja física e 5 no "
+                          "online), em 3 variações com saldo.")
+
+
+def test_total_sem_peca_aceita_cor(estoque):
+    r = em_estoque(estoque, {"cor": "azul"})
+    assert (r["total_de_pecas"], r["filtro"]) == ("2", "azul")
+    assert r["texto"].startswith("Estoque (azul) na rede inteira agora: 2 peças")
+
+
 def test_peca_que_nao_existe(estoque):
     estoque.linhas = []
     r = em_estoque(estoque, {"peca": "xyz"})
