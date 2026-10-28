@@ -232,6 +232,48 @@ def listar_comparacao(db: Session, em: datetime, limit: int, offset: int, **filt
     return [dict(linha) for linha in linhas], total, mudaram
 
 
+# ---------- peças paradas: com saldo e sem venda há tempo (assistente interno) ----------
+
+# cada peça numa unidade com saldo hoje, com a última venda ali e a primeira movimentação ali (a chegada):
+# parada = desde a última venda, ou desde a chegada se nunca vendeu ali, antes do corte. Com o total de linhas
+# e de peças paradas na mesma consulta; as mais antigas e com mais peças primeiro
+def consulta_pecas_paradas(corte: datetime, id_unidade=None, marca=None) -> Select:
+    m = MovimentacaoEstoque
+    saldo = (
+        select(Estoque.id_variante, Estoque.id_unidade, func.sum(Estoque.quantidade).label("quantidade"))
+        .group_by(Estoque.id_variante, Estoque.id_unidade)
+        .having(func.sum(Estoque.quantidade) > 0)
+    )
+    if id_unidade is not None:
+        saldo = saldo.where(Estoque.id_unidade == id_unidade)
+    saldo = saldo.subquery()
+    datas = (
+        select(m.id_variante, m.id_unidade,
+               func.max(m.criado_em).filter(m.tipo == "venda").label("ultima_venda"),
+               func.min(m.criado_em).label("chegou_em"))
+        .group_by(m.id_variante, m.id_unidade)
+        .subquery()
+    )
+    desde = func.coalesce(datas.c.ultima_venda, datas.c.chegou_em)
+    consulta = (
+        select(
+            saldo.c.id_variante, Variante.sku, Produto.nome.label("produto"), Variante.cor, Variante.tamanho,
+            saldo.c.id_unidade, Unidade.nome.label("unidade"), saldo.c.quantidade, datas.c.ultima_venda,
+            desde.label("parada_desde"), func.count().over().label("total_linhas"),
+            func.sum(saldo.c.quantidade).over().label("total_pecas"),
+        )
+        .join(datas, and_(datas.c.id_variante == saldo.c.id_variante, datas.c.id_unidade == saldo.c.id_unidade))
+        .join(Variante, Variante.id_variante == saldo.c.id_variante)
+        .join(Produto, Produto.id_produto == Variante.id_produto)
+        .join(Unidade, Unidade.id_unidade == saldo.c.id_unidade)
+        .where(desde < corte)
+        .order_by(desde, saldo.c.quantidade.desc(), Produto.nome, Variante.cor, Variante.tamanho)
+    )
+    if marca is not None:
+        consulta = consulta.where(Unidade.marca == marca)
+    return consulta
+
+
 def _filtro_variante_unidade(id_variante: int, id_unidade: int | None) -> list:
     m = MovimentacaoEstoque
     filtros = [m.id_variante == id_variante]

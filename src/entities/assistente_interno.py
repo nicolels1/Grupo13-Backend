@@ -11,6 +11,10 @@ TAMANHO_DA_PERGUNTA = 1000
 class PerguntaEntrada(BaseModel):
     texto: str = Field(min_length=1, max_length=TAMANHO_DA_PERGUNTA)
     id_conversa: int | None = Field(None, description="Vazio, ou parada há 30 min: começa uma conversa nova")
+    id_unidade_em_foco: int | None = Field(
+        None, description="A unidade selecionada no topo da plataforma; vazio = todas. Vale quando a pergunta "
+                          "não diz a unidade"
+    )
 
     _sem_espacos = field_validator("texto", mode="before")(sem_espacos)
 
@@ -18,6 +22,11 @@ class PerguntaEntrada(BaseModel):
 class Link(BaseModel):
     rotulo: str
     url: str
+
+
+class UnidadeEmFoco(BaseModel):
+    id_unidade: int
+    nome: str
 
 
 class RespostaAssistente(BaseModel):
@@ -28,6 +37,9 @@ class RespostaAssistente(BaseModel):
     numeros_conferidos: bool | None = Field(
         description="A resposta passou na conferência dos números (falso: veio o texto fixo da ferramenta); "
                     "vazio quando não houve resposta do modelo para conferir"
+    )
+    unidade_em_foco: UnidadeEmFoco | None = Field(
+        description="A unidade do topo que valeu nesta pergunta; vazio = todas (ou uma que a pessoa não vê)"
     )
 
 

@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Select, and_, func, or_, select
+from sqlalchemy import Select, String, and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from src.models.contas import ClienteSemConta
@@ -154,3 +154,52 @@ def passivo_por_valor(db: Session, em: datetime | None = None) -> list:
         .having(pontos > 0)
         .order_by(LotePontos.marca, LotePontos.valor_ponto.desc())
     ).mappings().all())
+
+
+# ---------- pontos vencendo (assistente interno) ----------
+
+FUSO = "America/Sao_Paulo"
+
+# o que sobra nos lotes com vencimento no intervalo (desde, ate], por marca: quantos clientes, quantos pontos e
+# quanto valem (cada ponto pelo valor da época em que foi ganho), o primeiro vencimento e de quando são (o lote
+# mais antigo e o mais recente). Cliente = a conta ou,
+# sem ela, o cliente da Vulto que ainda não criou conta (P2)
+def pontos_vencendo(db: Session, desde: datetime, ate: datetime | None, marca: str | None = None) -> list:
+    lote = LotePontos
+    dono = func.coalesce(func.cast(lote.id_cliente, String), "sem_conta_" + func.cast(lote.id_cliente_sem_conta, String))
+    consulta = (
+        select(lote.marca, func.count(func.distinct(dono)).label("clientes"), func.sum(lote.restante).label("pontos"),
+               func.sum(lote.restante * lote.valor_ponto).label("reais"), func.min(lote.vence_em).label("primeiro"),
+               func.min(lote.ganho_em).label("ganho_desde"), func.max(lote.ganho_em).label("ganho_ate"))
+        .where(lote.restante > 0, lote.vence_em > desde)
+        .group_by(lote.marca)
+        .order_by(lote.marca)
+    )
+    if ate is not None:
+        consulta = consulta.where(lote.vence_em <= ate)
+    if marca is not None:
+        consulta = consulta.where(lote.marca == marca)
+    return list(db.execute(consulta).mappings().all())
+
+
+# o próximo dia (no horário de Brasília) com pontos vencendo depois de "desde", por marca, com o que vence nele
+def proximo_vencimento(db: Session, desde: datetime, marca: str | None = None) -> list:
+    lote = LotePontos
+    dia = func.date(func.timezone(FUSO, lote.vence_em))
+    primeiro = (
+        select(lote.marca, func.min(dia).label("dia"))
+        .where(lote.restante > 0, lote.vence_em > desde)
+        .group_by(lote.marca)
+    )
+    if marca is not None:
+        primeiro = primeiro.where(lote.marca == marca)
+    primeiro = primeiro.subquery()
+    consulta = (
+        select(lote.marca, primeiro.c.dia, func.sum(lote.restante).label("pontos"),
+               func.min(lote.ganho_em).label("ganho_desde"), func.max(lote.ganho_em).label("ganho_ate"))
+        .join(primeiro, and_(primeiro.c.marca == lote.marca, primeiro.c.dia == dia))
+        .where(lote.restante > 0, lote.vence_em > desde)
+        .group_by(lote.marca, primeiro.c.dia)
+        .order_by(lote.marca)
+    )
+    return list(db.execute(consulta).mappings().all())
