@@ -27,8 +27,8 @@ NOME_DA_MARCA = {"lorenzi": "Casa Lorenzi", "vulto": "Vulto"}
 FORA_DO_AR = "O assistente está fora do ar agora. Tente de novo em instantes."
 NAO_CONSULTOU = "Não consegui consultar agora. Tente de novo em instantes."
 NAO_TERMINOU = "Não consegui terminar essa consulta. Tente perguntar uma coisa de cada vez."
-SEM_NUMERO_CONFIRMADO = ("Não consegui confirmar esse número no sistema. Diga o período e a loja que quer ver, "
-                         "ou pergunte de outro jeito.")
+SEM_NUMERO_CONFIRMADO = ("Não tenho uma consulta que confirme esse número. Pergunte de outro jeito, ou diga a "
+                         "peça, a loja e o período que quer ver.")
 RECUSA = "Não posso ajudar com isso por aqui."
 
 INSTRUCOES = """Você é o assistente interno da Casa Lorenzi, uma rede de moda com duas marcas: Casa Lorenzi e \

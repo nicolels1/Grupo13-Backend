@@ -224,7 +224,7 @@ def estoque_em_um_dia(db: Session, usuario: Usuario, p: dict, hoje: date) -> dic
     if not usuario_tem_permissao(db, usuario, *VER_ESTOQUE):
         raise SemPermissao("Sem permissão para ver o estoque")
     peca = (p.get("peca") or "").strip()
-    if len(peca) < 2:
+    if len(peca) == 1:
         raise RegraDeNegocio("Diga a peça: parte do nome, a etiqueta (SKU) ou o código de barras")
     texto_data = p.get("data") or hoje.isoformat()
     try:
@@ -240,8 +240,9 @@ def estoque_em_um_dia(db: Session, usuario: Usuario, p: dict, hoje: date) -> dic
 
     # o dia inteiro, no horário de Brasília; hoje = o saldo de agora
     momento = fim_do_dia(dia) - timedelta(microseconds=1)
-    consulta = estoque_repository.consulta_historico(momento, id_unidade=id_unidade, busca=peca, marca=marca)
-    linhas = [l for l in db.execute(consulta.limit(LINHAS_DA_BUSCA)).mappings()
+    consulta = estoque_repository.consulta_historico(momento, id_unidade=id_unidade, busca=peca or None, marca=marca)
+    # sem peça é o total da unidade (ou da rede): todas as linhas; com peça, a busca tem um teto
+    linhas = [l for l in db.execute(consulta if not peca else consulta.limit(LINHAS_DA_BUSCA)).mappings()
               if _bate(l["cor"], p.get("cor")) and _bate(l["tamanho"], p.get("tamanho"))]
 
     pecas: dict[int, dict] = {}
@@ -259,6 +260,8 @@ def estoque_em_um_dia(db: Session, usuario: Usuario, p: dict, hoje: date) -> dic
                      + (f"&unidade={id_unidade}" if id_unidade else "")}]
     regras = ("Saldo = soma das movimentações até o momento (o histórico começa em 01/01/2025); reservas de "
               "pedidos online e peças em trânsito entre lojas não entram.")
+    if not peca:
+        return _total_do_estoque(pecas, dia, quando, onde, filtro, regras, links)
     if not pecas:
         return {"vazio": True, "data": data(dia), "onde": onde, "busca": filtro, "regras": regras, "links": links,
                 "texto": f"Não achei peça com \"{filtro}\" {onde} {quando}."}
@@ -288,25 +291,51 @@ def estoque_em_um_dia(db: Session, usuario: Usuario, p: dict, hoje: date) -> dic
     }
 
 
+# sem peça: o total de peças (com a cor e o tamanho pedidos, se houver) por canal e por unidade
+def _total_do_estoque(pecas: dict, dia: date, quando: str, onde: str, filtro: str, regras: str, links: list) -> dict:
+    por_unidade: dict[str, dict] = defaultdict(lambda: {"loja_fisica": 0, "online": 0})
+    for item in pecas.values():
+        for unidade, q in item["unidades"].items():
+            por_unidade[unidade]["loja_fisica"] += q["loja_fisica"]
+            por_unidade[unidade]["online"] += q["online"]
+    fisica = sum(q["loja_fisica"] for q in por_unidade.values())
+    online = sum(q["online"] for q in por_unidade.values())
+    com_saldo = sum(1 for item in pecas.values() if sum(q["loja_fisica"] + q["online"]
+                                                        for q in item["unidades"].values()) > 0)
+    so = f" ({filtro})" if filtro else ""
+    return {
+        "vazio": not pecas, "data": data(dia), "momento": quando, "onde": onde, "filtro": filtro or None,
+        "total_de_pecas": numero(fisica + online), "loja_fisica": numero(fisica), "online": numero(online),
+        "variacoes_com_saldo": numero(com_saldo),
+        "por_unidade": [{"unidade": u, "loja_fisica": numero(q["loja_fisica"]), "online": numero(q["online"]),
+                         "total": numero(q["loja_fisica"] + q["online"])}
+                        for u, q in sorted(por_unidade.items(), key=lambda x: -(x[1]["loja_fisica"] + x[1]["online"]))],
+        "regras": regras, "links": links,
+        "texto": f"Estoque{so} {onde} {quando}: {numero(fisica + online)} peças ({numero(fisica)} na loja física e "
+                 f"{numero(online)} no online), em {numero(com_saldo)} variações com saldo.",
+    }
+
+
 ESTOQUE_EM_UM_DIA = Ferramenta(
     nome="estoque_em_um_dia",
     descricao=(
-        "Quantas peças havia (ou há agora) de uma peça, por unidade e canal (loja física e online). A peça é "
-        "buscada por parte do nome, pela etiqueta (SKU) ou pelo código de barras; cor e tamanho afinam a busca. "
-        "Sem data, é o saldo de agora. Datas desde 01/01/2025. Se vierem muitas variações (cor e tamanho), a "
-        "resposta traz o total somado e pede para a pessoa dizer qual."
+        "Quantas peças havia (ou há agora), por unidade e canal (loja física e online). Com peça: a peça é "
+        "buscada por parte do nome, pela etiqueta (SKU) ou pelo código de barras, e cor e tamanho afinam a busca; "
+        "se vierem muitas variações (cor e tamanho), a resposta traz o total somado e pede para a pessoa dizer "
+        "qual. Sem peça: o total de peças da unidade, da marca ou da rede (ex.: 'quantas peças tinha na loja'). "
+        "Sem data, é o saldo de agora. Datas desde 01/01/2025."
     ),
     parametros={
         "type": "object",
         "properties": {
-            "peca": {"type": "string", "description": "Parte do nome do produto, a etiqueta (SKU) ou o código de barras"},
+            "peca": {"type": "string", "description": "Parte do nome do produto, a etiqueta (SKU) ou o código de "
+                                                      "barras. Vazio: o total de todas as peças"},
             "cor": {"type": "string"},
             "tamanho": {"type": "string", "description": "Ex.: P, M, G, 38"},
             "data": {"type": "string", "description": "AAAA-MM-DD; vazio = agora. O saldo vale no fim desse dia"},
             "id_unidade": {"type": "integer", "description": "Id da lista de unidades das instruções"},
             "marca": {"type": "string", "enum": list(MARCAS)},
         },
-        "required": ["peca"],
         "additionalProperties": False,
     },
     executar=estoque_em_um_dia,
