@@ -37,4 +37,9 @@ VULTO_DATA_DIR = os.getenv("VULTO_DATA_DIR") or None
 # E-mail que o sistema manda (código do assistente), pela API do Brevo: o Render grátis bloqueia SMTP.
 # Sem a chave, o envio falha com aviso no log
 BREVO_API_KEY = os.getenv("BREVO_API_KEY") or None
+
+# Assistente interno: o backend chama o modelo direto (sem n8n). Sem a chave, o assistente responde que está
+# fora do ar. O modelo fica na variável para o teste trocar sem mudar o código
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY") or None
+MODELO_INTERNO = os.getenv("MODELO_INTERNO") or "claude-sonnet-5-5"
 EMAIL_REMETENTE = os.getenv("EMAIL_REMETENTE") or "casa.lorenzi.contato@gmail.com"
