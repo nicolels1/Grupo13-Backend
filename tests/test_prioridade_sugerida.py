@@ -75,7 +75,7 @@ def test_grava_a_sugestao_sem_mexer_na_prioridade(sugestao):
 
 
 def test_o_modelo_le_o_chamado_e_o_pedido_sem_o_nome_do_cliente(sugestao):
-    sugestao.chamado = chamado(id_pedido=3, canal_externo="chat")
+    sugestao.chamado = chamado(id_pedido=3, canal_externo="telegram")
     sugestao.pedido = SimpleNamespace(status="pago", canal_venda="site", valor_total=Decimal("349.90"),
                                       pago_em=datetime(2026, 10, 27, 15, 0, tzinfo=timezone.utc))
 
@@ -84,7 +84,7 @@ def test_o_modelo_le_o_chamado_e_o_pedido_sem_o_nome_do_cliente(sugestao):
     texto = sugestao.textos[0]
     assert "Categoria: pagamento" in texto and "Assunto: Cobrança duplicada" in texto
     assert "Pedido ligado: status pago, canal site, total R$ 349.90, pago em 27/10/2026" in texto
-    assert "Aberto pelo canal: chat" in texto
+    assert "Aberto pelo canal: telegram" in texto
     assert "Bruna" not in texto
 
 

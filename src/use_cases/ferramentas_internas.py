@@ -604,7 +604,7 @@ DESEMPENHO_EQUIPE = Ferramenta(
 CONVERSA_EM_ANDAMENTO = timedelta(hours=1)  # a linha nasce no começo da conversa: antes disso, sem resultado
 NOME_DO_ASSUNTO = {"pecas": "peças", "carrinho": "link de compra", "estoque": "estoque", "lojas": "lojas e horário",
                    "pontos": "pontos", "pedidos": "pedidos", "chamado": "chamado"}
-ONDE_NO_CANAL = {"whatsapp": "no WhatsApp", "telegram": "no Telegram", "chat": "no chat"}
+ONDE_NO_CANAL = {"whatsapp": "no WhatsApp", "telegram": "no Telegram"}
 
 
 def _pct(parte: int, todo: int) -> str | None:
@@ -627,7 +627,7 @@ def metricas_assistente(db: Session, usuario: Usuario, p: dict, hoje: date) -> d
         db, inicio_dos_ultimos(1, inicio), fim_do_dia(fim), agora - CONVERSA_EM_ANDAMENTO, canal
     )
     periodo = _descrever_periodo(inicio, fim)
-    onde = ONDE_NO_CANAL[canal] if canal else "no WhatsApp, no Telegram e no chat"
+    onde = ONDE_NO_CANAL[canal] if canal else "no WhatsApp e no Telegram"
     regras = ("Conversas do assistente do cliente, anônimas, da rede inteira (o resumo não guarda a marca). Entram "
               "só as com algum assunto além de fora do tema e que começaram há mais de 1 hora. Cada conversa cai "
               "num grupo só: erro do sistema (uma ferramenta falhou), virou chamado, avaliação negativa ou "
@@ -659,7 +659,7 @@ def metricas_assistente(db: Session, usuario: Usuario, p: dict, hoje: date) -> d
 METRICAS_ASSISTENTE = Ferramenta(
     nome="metricas_assistente",
     descricao=(
-        "Como foi o assistente do cliente (WhatsApp, Telegram e chat) num período: quantas conversas, quantas resolveu "
+        "Como foi o assistente do cliente (WhatsApp e Telegram) num período: quantas conversas, quantas resolveu "
         "sozinho, quantas viraram chamado, avaliações, erros do sistema, quantos clientes se identificaram e os "
         "assuntos mais perguntados. Anônimo e da rede inteira. O período segue os nomes de vendas_do_periodo; "
         "sem período, os últimos 30 dias."
