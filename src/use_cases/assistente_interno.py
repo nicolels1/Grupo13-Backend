@@ -138,13 +138,16 @@ def _unidade_em_foco(db: Session, usuario: Usuario, id_unidade: int | None):
 
 # o contexto da tela vai junto da pergunta (e não nas instruções, que ficam em cache): sem unidade na pergunta,
 # vale a do topo, e a resposta diz que usou essa
+# a ordem: o que a pergunta diz; senão, a unidade de que a conversa vinha falando ("e há mais de 6 meses?" segue na
+# mesma loja); senão, a do topo
 def _com_contexto_da_tela(texto: str, unidade) -> str:
     if unidade is None:
         return (f"{texto}\n\n[Tela: \"Todas as unidades\" selecionado no topo. Se a pergunta não disser a "
-                "unidade, responda da rede (as marcas que a pessoa vê).]")
+                "unidade e for continuação de uma pergunta sobre uma unidade, siga nela; senão, responda da rede "
+                "(as marcas que a pessoa vê).]")
     return (f"{texto}\n\n[Tela: unidade {unidade.nome} (id {unidade.id_unidade}) selecionada no topo. Se a "
-            "pergunta não disser a unidade nem pedir a rede ou uma marca, use esta e diga que é a unidade "
-            "selecionada no topo.]")
+            "pergunta não disser a unidade nem pedir a rede ou uma marca, siga na unidade de que a conversa vinha "
+            "falando; se não houver, use esta e diga que é a unidade selecionada no topo.]")
 
 
 def responder(db: Session, usuario: Usuario, texto: str, id_conversa: int | None = None,
