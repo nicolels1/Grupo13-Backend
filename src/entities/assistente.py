@@ -88,10 +88,10 @@ class VocabularioSaida(BaseModel):
 
 # ---------- conversa e ferramentas com login ----------
 
-# a conversa vem do canal (telefone do WhatsApp, chat_id do Telegram ou sessão do chat), tirada pelo n8n;
+# a conversa vem do canal (telefone do WhatsApp ou chat_id do Telegram), tirada pelo n8n;
 # nunca do modelo. Vai no corpo, não na URL, para o telefone não aparecer no log de acesso
 class ConversaEntrada(BaseModel):
-    canal: Literal["whatsapp", "telegram", "chat"]
+    canal: Literal["whatsapp", "telegram"]
     id_externo: str = Field(min_length=1, max_length=100)
 
 
