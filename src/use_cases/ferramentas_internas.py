@@ -604,6 +604,7 @@ DESEMPENHO_EQUIPE = Ferramenta(
 CONVERSA_EM_ANDAMENTO = timedelta(hours=1)  # a linha nasce no começo da conversa: antes disso, sem resultado
 NOME_DO_ASSUNTO = {"pecas": "peças", "carrinho": "link de compra", "estoque": "estoque", "lojas": "lojas e horário",
                    "pontos": "pontos", "pedidos": "pedidos", "chamado": "chamado"}
+ONDE_NO_CANAL = {"whatsapp": "no WhatsApp", "telegram": "no Telegram", "chat": "no chat"}
 
 
 def _pct(parte: int, todo: int) -> str | None:
@@ -626,7 +627,7 @@ def metricas_assistente(db: Session, usuario: Usuario, p: dict, hoje: date) -> d
         db, inicio_dos_ultimos(1, inicio), fim_do_dia(fim), agora - CONVERSA_EM_ANDAMENTO, canal
     )
     periodo = _descrever_periodo(inicio, fim)
-    onde = f"no {'WhatsApp' if canal == 'whatsapp' else 'chat'}" if canal else "no WhatsApp e no chat"
+    onde = ONDE_NO_CANAL[canal] if canal else "no WhatsApp, no Telegram e no chat"
     regras = ("Conversas do assistente do cliente, anônimas, da rede inteira (o resumo não guarda a marca). Entram "
               "só as com algum assunto além de fora do tema e que começaram há mais de 1 hora. Cada conversa cai "
               "num grupo só: erro do sistema (uma ferramenta falhou), virou chamado, avaliação negativa ou "
@@ -658,7 +659,7 @@ def metricas_assistente(db: Session, usuario: Usuario, p: dict, hoje: date) -> d
 METRICAS_ASSISTENTE = Ferramenta(
     nome="metricas_assistente",
     descricao=(
-        "Como foi o assistente do cliente (WhatsApp e chat) num período: quantas conversas, quantas resolveu "
+        "Como foi o assistente do cliente (WhatsApp, Telegram e chat) num período: quantas conversas, quantas resolveu "
         "sozinho, quantas viraram chamado, avaliações, erros do sistema, quantos clientes se identificaram e os "
         "assuntos mais perguntados. Anônimo e da rede inteira. O período segue os nomes de vendas_do_periodo; "
         "sem período, os últimos 30 dias."
@@ -669,7 +670,7 @@ METRICAS_ASSISTENTE = Ferramenta(
             "periodo": {"type": "string", "enum": list(PERIODOS), "description": "Padrão: ultimos_30_dias"},
             "de": {"type": "string", "description": "Só com periodo = intervalo. AAAA-MM-DD"},
             "ate": {"type": "string", "description": "Só com periodo = intervalo. AAAA-MM-DD, até hoje"},
-            "canal": {"type": "string", "enum": ["whatsapp", "chat"], "description": "Vazio: os dois"},
+            "canal": {"type": "string", "enum": list(ONDE_NO_CANAL), "description": "Vazio: todos"},
         },
         "additionalProperties": False,
     },

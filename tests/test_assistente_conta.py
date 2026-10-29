@@ -421,8 +421,15 @@ def test_rota_da_conversa_responde_o_estado(cliente):
     assert resposta.json()["etapa"] == "livre"
 
 
+def test_rota_aceita_o_telegram(cliente):
+    resposta = cliente.post("/assistente/conversa", json={"canal": "telegram", "id_externo": "123456789"},
+                            headers={"X-Assistente-Chave": CHAVE})
+    assert resposta.status_code == 200
+
+
 def test_rota_recusa_canal_desconhecido(cliente):
-    resposta = cliente.post("/assistente/conversa", json={"canal": "telegram", "id_externo": TELEFONE},
+    # instagram existe no chamado migrado da Vulto, não no assistente
+    resposta = cliente.post("/assistente/conversa", json={"canal": "instagram", "id_externo": TELEFONE},
                             headers={"X-Assistente-Chave": CHAVE})
     assert resposta.status_code == 422
 

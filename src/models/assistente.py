@@ -9,7 +9,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database.base import Base
 
-CANAIS = ("whatsapp", "chat")
+# whatsapp é o produto; telegram e chat (Chat Trigger do n8n) são a demonstração da banca
+CANAIS = ("whatsapp", "telegram", "chat")
 ETAPAS = ("livre", "esperando_cpf", "esperando_codigo", "confirmando_chamado", "em_chamado")
 # assunto de cada ferramenta do assistente; fora_do_tema vem do n8n
 ASSUNTOS = ("pecas", "carrinho", "estoque", "lojas", "pontos", "pedidos", "chamado", "fora_do_tema")
@@ -43,7 +44,8 @@ class ResumoConversa(Base):
     )
 
 
-# uma pessoa num canal do assistente do cliente: telefone no WhatsApp, sessão do navegador no chat.
+# uma pessoa num canal do assistente do cliente: telefone no WhatsApp, chat_id no Telegram, sessão do
+# navegador no chat.
 # A chave vem do canal, nunca do modelo. id_cliente (ou o cliente sem conta, ADR 0016) é a conta
 # confirmada pelo código por e-mail na conversa em andamento; vale até confirmado_ate
 class ConversaCanal(Base):
