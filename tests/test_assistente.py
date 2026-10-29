@@ -166,27 +166,67 @@ def variante_50(monkeypatch):
 def test_link_so_com_estoque_para_o_site(banco, variante_50):
     banco.estoque = [(CD, "online", 1)]
 
-    resposta = assistente.link_carrinho(SessaoFalsa(), 50)
+    resposta = assistente.link_carrinho(SessaoFalsa(), [50])
 
     assert resposta["link"] == "https://loja.exemplo/loja/carrinho/adicionar?produto=5&variante=50"
+    assert resposta["items"] == [{"id_variante": 50, "produto": "Camisa Social", "cor": "Azul", "tamanho": "G"}]
+    assert resposta["fora_do_link"] == []
 
 
 def test_sem_estoque_para_o_site_diz_as_lojas_que_tem(banco, variante_50):
     banco.estoque = [(PINHEIROS, "loja_fisica", 2)]
     with pytest.raises(RegraDeNegocio, match="sem estoque para o site. Tem na loja: Loja Pinheiros."):
-        assistente.link_carrinho(SessaoFalsa(), 50)
+        assistente.link_carrinho(SessaoFalsa(), [50])
 
 
 def test_sem_estoque_em_lugar_nenhum(banco, variante_50):
     with pytest.raises(RegraDeNegocio, match="Também não tem nas lojas."):
-        assistente.link_carrinho(SessaoFalsa(), 50)
+        assistente.link_carrinho(SessaoFalsa(), [50])
 
 
 def test_link_de_peca_desativada_ou_inexistente(banco, variante_50):
     variante_50.ativo = False
     for id_variante in (50, 99):
         with pytest.raises(RecursoNaoEncontrado):
-            assistente.link_carrinho(SessaoFalsa(), id_variante)
+            assistente.link_carrinho(SessaoFalsa(), [id_variante])
+
+
+@pytest.fixture
+def tres_pecas(banco, monkeypatch):
+    pecas = {i: Variante(id_variante=i, id_produto=5, cor=cor, tamanho="G", ativo=True)
+             for i, cor in ((50, "Azul"), (51, "Branca"), (52, "Preta"))}
+    estoque = {50: [(CD, "online", 3)], 51: [(PINHEIROS, "loja_fisica", 1)], 52: [(CD, "online", 1)]}
+    monkeypatch.setattr(catalogo_repository, "buscar_variante", lambda db, i: pecas.get(i))
+    monkeypatch.setattr(assistente_repository, "disponivel_por_unidade", lambda db, i: estoque.get(i, []))
+    return pecas
+
+
+def test_link_com_varias_pecas_na_ordem_escolhida(tres_pecas):
+    resposta = assistente.link_carrinho(SessaoFalsa(), [52, 50])
+
+    assert resposta["link"] == ("https://loja.exemplo/loja/carrinho/adicionar?produto=5&variante=52"
+                                "&produto=5&variante=50")
+    assert [p["cor"] for p in resposta["items"]] == ["Preta", "Azul"]
+
+
+def test_peca_sem_estoque_fica_fora_do_link_com_o_motivo(tres_pecas):
+    resposta = assistente.link_carrinho(SessaoFalsa(), [50, 51, 99])
+
+    assert resposta["link"].endswith("?produto=5&variante=50")
+    assert [(p["id_variante"], p["motivo"]) for p in resposta["fora_do_link"]] == [
+        (51, "Camisa Social (Branca, G) está sem estoque para o site. Tem na loja: Loja Pinheiros."),
+        (99, "Peça não encontrada"),
+    ]
+
+
+def test_peca_repetida_entra_uma_vez(tres_pecas):
+    resposta = assistente.link_carrinho(SessaoFalsa(), [50, 50])
+    assert resposta["link"].endswith("?produto=5&variante=50")
+
+
+def test_nenhuma_peca_com_estoque_nao_gera_link(tres_pecas):
+    with pytest.raises(RegraDeNegocio, match="Branca, G.*Peça não encontrada"):
+        assistente.link_carrinho(SessaoFalsa(), [51, 99])
 
 
 # ---------- lojas e vocabulário ----------
@@ -275,3 +315,17 @@ def test_sem_estoque_para_o_site_responde_422_com_as_lojas(cliente, banco, varia
 
     assert resposta.status_code == 422
     assert "Loja Pinheiros" in resposta.json()["detail"]
+
+
+def test_rota_do_link_aceita_varias_pecas(cliente, tres_pecas):
+    resposta = cliente.get("/assistente/link-carrinho", params=[("id_variante", 50), ("id_variante", 52)],
+                           headers={"X-Assistente-Chave": CHAVE})
+
+    assert resposta.status_code == 200
+    assert resposta.json()["link"].endswith("?produto=5&variante=50&produto=5&variante=52")
+
+
+def test_rota_do_link_recusa_mais_de_10_pecas(cliente):
+    resposta = cliente.get("/assistente/link-carrinho", params=[("id_variante", i) for i in range(1, 12)],
+                           headers={"X-Assistente-Chave": CHAVE})
+    assert resposta.status_code == 422
