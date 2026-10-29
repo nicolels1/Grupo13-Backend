@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, aliased
 from src.models.atendimento import Chamado, Mensagem
 from src.models.avaliacoes import Avaliacao, DenunciaAvaliacao
 from src.models.catalogo import HistoricoPreco, Produto, Variante
-from src.models.contas import Usuario
+from src.models.contas import ClienteSemConta, Usuario
 from src.models.estoque import Estoque, Transferencia, Unidade
 from src.models.vendas import ItemPedido, Pagamento, Pedido
 from src.repositories import atendimento_repository
@@ -50,11 +50,12 @@ def _lancamentos():
                  .where(Pagamento.id_pedido == Pedido.id_pedido, estorno).scalar_subquery())
     frete = case((devolvido >= Pedido.valor_total, 0), else_=Pedido.valor_frete)
     vendas = (select(Pedido.pago_em.label("quando"), Pedido.canal_venda, Pedido.id_unidade, Unidade.marca,
-                     literal(1).label("pedidos"), (Pedido.valor_total - frete).label("valor"), frete.label("frete"))
+                     literal(1).label("pedidos"), (Pedido.valor_total - frete).label("valor"), frete.label("frete"),
+                     Pedido.id_cliente, Pedido.id_cliente_sem_conta)
               .join(Unidade, Unidade.id_unidade == Pedido.id_unidade)
               .where(Pedido.pago_em.is_not(None), Pedido.status != "cancelado"))
     estornos = (select(Pagamento.criado_em, Pedido.canal_venda, Pedido.id_unidade, Unidade.marca, literal(0),
-                       -Pagamento.valor, literal(0))
+                       -Pagamento.valor, literal(0), Pedido.id_cliente, Pedido.id_cliente_sem_conta)
                 .join(Pedido, Pedido.id_pedido == Pagamento.id_pedido)
                 .join(Unidade, Unidade.id_unidade == Pedido.id_unidade)
                 .where(estorno, Pedido.status != "cancelado"))
@@ -126,6 +127,39 @@ def faturamento_por_mes(db: Session, desde: datetime, ate: datetime, id_unidade:
         .order_by(mes, Unidade.nome, lancamento.c.canal_venda)
     )
     return list(db.execute(consulta).mappings().all())
+
+
+def maiores_clientes(db: Session, desde: datetime, ate: datetime, id_unidade: int | None, marca: str | None,
+                     limite: int) -> tuple[list, dict]:
+    """Os clientes que mais compraram no período (só os ids, sem nome) e o que foi vendido sem cliente."""
+    lancamento = _lancamentos()
+    com_cliente = or_(lancamento.c.id_cliente.is_not(None), lancamento.c.id_cliente_sem_conta.is_not(None))
+    valor = func.sum(lancamento.c.valor)
+    filtros = _no_periodo(lancamento, desde, ate, id_unidade, marca)
+    ranking = (
+        select(lancamento.c.id_cliente, lancamento.c.id_cliente_sem_conta,
+               func.sum(lancamento.c.pedidos).label("pedidos"), valor.label("valor"))
+        .where(*filtros, com_cliente)
+        .group_by(lancamento.c.id_cliente, lancamento.c.id_cliente_sem_conta)
+        .having(valor > 0)
+        .order_by(valor.desc(), func.sum(lancamento.c.pedidos).desc())
+        .limit(limite)
+    )
+    # venda no balcão sem CPF não tem cliente: fica fora do ranking, mas a resposta diz quanto foi
+    sem_cliente = (select(func.coalesce(func.sum(lancamento.c.pedidos), 0).label("pedidos"),
+                          func.coalesce(valor, 0).label("valor"))
+                   .where(*filtros, ~com_cliente))
+    return list(db.execute(ranking).mappings().all()), dict(db.execute(sem_cliente).mappings().one())
+
+
+def nomes_dos_clientes(db: Session, ids_conta: list, ids_sem_conta: list[int]) -> tuple[dict, dict]:
+    """O nome de cada cliente do ranking: {id_usuario: nome} e {id_cliente_sem_conta: nome}."""
+    com_conta = dict(db.execute(select(Usuario.id_usuario, Usuario.nome)
+                                .where(Usuario.id_usuario.in_(ids_conta))).all()) if ids_conta else {}
+    sem_conta = dict(db.execute(select(ClienteSemConta.id_cliente_sem_conta, ClienteSemConta.nome)
+                                .where(ClienteSemConta.id_cliente_sem_conta.in_(ids_sem_conta))).all()) \
+        if ids_sem_conta else {}
+    return com_conta, sem_conta
 
 
 def mais_vendidas(db: Session, desde: datetime, ate: datetime, id_unidade: int | None, marca: str | None,

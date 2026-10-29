@@ -93,7 +93,8 @@ def datas_do_periodo(periodo: str, hoje: date, de: str | None = None, ate: str |
         if fim > hoje:
             raise RegraDeNegocio("O período não pode terminar no futuro")
         if (fim - inicio).days >= PERIODO_MAXIMO:
-            raise RegraDeNegocio("Período maior que um ano: divida em partes")
+            raise RegraDeNegocio(f"Período maior que um ano (no máximo {PERIODO_MAXIMO} dias por consulta): "
+                                 "divida em partes de até um ano, uma consulta para cada")
         return inicio, fim
     raise RegraDeNegocio(f"Período desconhecido: {periodo}")
 
@@ -116,6 +117,9 @@ def _onde(db: Session, usuario: Usuario, id_unidade: int | None, marca: str | No
 
 
 # ---------- vendas_do_periodo ----------
+
+INICIO_DAS_VENDAS = date(2025, 1, 1)  # os pedidos migrados da Vulto começam nessa data
+
 
 def vendas_do_periodo(db: Session, usuario: Usuario, p: dict, hoje: date) -> dict:
     if not usuario_tem_permissao(db, usuario, *VENDAS):
@@ -147,8 +151,20 @@ def vendas_do_periodo(db: Session, usuario: Usuario, p: dict, hoje: date) -> dic
     so_canal = f", só {NOME_DO_CANAL[canal]}" if canal else ""
     texto = (f"Vendas {onde} {periodo}{so_canal}: {reais(valor)} em {numero(pedidos)} pedidos"
              + (f" (ticket médio de {reais(ticket)})" if ticket else "")
-             + ". Conta só vendas pagas, sem o frete, menos as devoluções; pedidos cancelados não entram.")
+             + ". Conta só vendas pagas, já com os descontos (pontos, cupons e promoções) tirados, sem o frete, "
+               "menos as devoluções; pedidos cancelados não entram.")
+    # antes do começo dos pedidos, zero não é "não vendeu": a plataforma não tem o dado
+    aviso = None
+    if fim < INICIO_DAS_VENDAS:
+        aviso = (f"A plataforma não tem vendas antes de {data(INICIO_DAS_VENDAS)} (ano {INICIO_DAS_VENDAS.year}): "
+                 "os pedidos começam nessa data, então não dá para dizer quanto se vendeu nesse período.")
+        texto = aviso
+    elif inicio < INICIO_DAS_VENDAS:
+        aviso = (f"Os pedidos da plataforma começam em {data(INICIO_DAS_VENDAS)} (ano {INICIO_DAS_VENDAS.year}); "
+                 "antes disso não há vendas registradas, e o total acima cobre só a parte do período a partir dessa data.")
+        texto = f"{texto} {aviso}"
     return {
+        **({"aviso": aviso, "sem_dados_antes_de": data(INICIO_DAS_VENDAS)} if aviso else {}),
         "vazio": pedidos == 0,
         "periodo": {"de": data(inicio), "ate": data(fim), "dia_da_semana_de": DIAS_DA_SEMANA[inicio.weekday()],
                     "dia_da_semana_ate": DIAS_DA_SEMANA[fim.weekday()]},
@@ -163,7 +179,9 @@ def vendas_do_periodo(db: Session, usuario: Usuario, p: dict, hoje: date) -> dic
         "por_unidade": [{"unidade": u, "faturamento": reais(v["valor"]), "pedidos": numero(v["pedidos"])}
                         for u, v in sorted(por_unidade.items(), key=lambda item: -item[1]["valor"])],
         "regras": "Vendas pagas no período (horário de Brasília), sem o frete (à parte), menos as devoluções no dia "
-                  "do estorno; pedidos cancelados não entram. É a mesma conta dos três números da Vulto.",
+                  "do estorno; pedidos cancelados não entram. É a mesma conta dos três números da Vulto. O total "
+                  "de cada pedido já vem com o desconto (pontos de fidelidade, cupom ou promoção): o valor é o que "
+                  "o cliente pagou. Quanto foi de desconto não é separado aqui.",
         "texto": texto,
         "links": [{"rotulo": "Abrir a Visão geral", "url": "/interno"}],
     }
@@ -172,8 +190,9 @@ def vendas_do_periodo(db: Session, usuario: Usuario, p: dict, hoje: date) -> dic
 VENDAS_DO_PERIODO = Ferramenta(
     nome="vendas_do_periodo",
     descricao=(
-        "Faturamento, número de pedidos e ticket médio de um período, por canal e por unidade. Use para qualquer "
-        "pergunta sobre quanto vendeu, faturou ou quantos pedidos teve. O período é um nome fixo; só use "
+        "Faturamento, número de pedidos e ticket médio de um período, por canal e por unidade. Os valores já vêm "
+        "com os descontos tirados. Use para qualquer pergunta sobre quanto vendeu, faturou ou quantos pedidos "
+        "teve. O período é um nome fixo; só use "
         "'intervalo' (com de e ate) quando a pessoa disser datas que nenhum nome cobre. O intervalo vai até 1 ano "
         "(366 dias) por consulta: um ano inteiro cabe numa consulta só. Sem unidade e sem marca, "
         "responde das marcas que a pessoa vê, com a lista por unidade: para comparar unidades, uma chamada basta."
@@ -194,6 +213,115 @@ VENDAS_DO_PERIODO = Ferramenta(
         "additionalProperties": False,
     },
     executar=vendas_do_periodo,
+)
+
+# ---------- maiores_clientes ----------
+
+CLIENTES_PADRAO = 5
+CLIENTES_MAXIMO = 10
+CLIENTES_NA_TABELA = 10  # a tabela da tela mostra sempre os 10 maiores, mesmo quando a pergunta é por um só
+DIAS_CLIENTES_PADRAO = 365
+
+
+# o modelo nunca recebe nome, CPF nem e-mail: só a posição no ranking. O nome fica na ficha, aberta pelo link,
+# com a permissão da tela de Clientes (dado pessoal não sai da plataforma para a IA)
+def maiores_clientes(db: Session, usuario: Usuario, p: dict, hoje: date) -> dict:
+    if not usuario_tem_permissao(db, usuario, *VENDAS):
+        raise SemPermissao("Sem permissão para ver vendas")
+    quantos = p.get("quantos")
+    if quantos is None:
+        quantos = CLIENTES_PADRAO
+    if not 1 <= quantos <= CLIENTES_MAXIMO:
+        raise RegraDeNegocio(f"Use de 1 a {CLIENTES_MAXIMO} clientes")
+    # sem período na pergunta: o último ano, que é o que "o cliente que mais comprou" costuma querer dizer
+    if p.get("periodo"):
+        inicio, fim = datas_do_periodo(p["periodo"], hoje, p.get("de"), p.get("ate"))
+    else:
+        inicio, fim = hoje - timedelta(days=DIAS_CLIENTES_PADRAO - 1), hoje
+    id_unidade = p.get("id_unidade")
+    marca, onde = _onde(db, usuario, id_unidade, p.get("marca"))
+
+    linhas, sem_cliente = resumo_repository.maiores_clientes(
+        db, inicio_dos_ultimos(1, inicio), fim_do_dia(fim), id_unidade, marca, max(quantos, CLIENTES_NA_TABELA)
+    )
+    periodo = _descrever_periodo(inicio, fim)
+    com_conta, sem_conta = resumo_repository.nomes_dos_clientes(
+        db, [l["id_cliente"] for l in linhas if l["id_cliente"] is not None],
+        [l["id_cliente_sem_conta"] for l in linhas if l["id_cliente"] is None],
+    )
+    ranking, linhas_da_tabela = [], []
+    for posicao, linha in enumerate(linhas, start=1):
+        valor, pedidos = linha["valor"] or ZERO, int(linha["pedidos"])
+        tem_conta = linha["id_cliente"] is not None
+        # o modelo recebe só os que a pergunta pediu; a tabela, todos
+        if posicao <= quantos:
+            ranking.append({
+                "posicao": f"{posicao}º", "faturamento": reais(valor), "pedidos": numero(pedidos),
+                "ticket_medio": reais((valor / pedidos).quantize(Decimal("0.01"))) if pedidos else None,
+                "cadastro": "com conta" if tem_conta else "sem conta (comprador migrado da Vulto)",
+            })
+        if tem_conta:
+            nome, url = com_conta.get(linha["id_cliente"]), f"/interno/clientes/conta/{linha['id_cliente']}"
+        else:
+            nome = sem_conta.get(linha["id_cliente_sem_conta"])
+            url = f"/interno/clientes/sem-conta/{linha['id_cliente_sem_conta']}"
+        linhas_da_tabela.append({"celulas": [f"{posicao}º", nome or "Cliente sem nome (só CPF)", reais(valor),
+                                             numero(pedidos)], "url": url})
+
+    balcao = (f" Vendas sem cliente identificado (balcão sem CPF) ficam fora: {reais(sem_cliente['valor'] or ZERO)} "
+              f"em {numero(int(sem_cliente['pedidos']))} pedidos.")
+    regras = ("Mesma conta da vendas_do_periodo (o que o cliente pagou: vendas pagas, já com os descontos de pontos, "
+              "cupons e promoções tirados, sem o frete, menos as devoluções; cancelados não "
+              "entram), somada por cliente. O cliente aparece só pela posição: o nome não vem para cá, de propósito "
+              "(dado pessoal não passa pelo assistente). A tela mostra, abaixo da sua resposta, uma tabela montada "
+              f"pelo sistema com os {len(linhas)} maiores, cada um com o nome e o link da ficha. Se a pergunta é "
+              "por um cliente só, diga \"o maior cliente\" (não \"o 1º do ranking\"); com vários, use a posição. "
+              "Diga uma vez que os nomes estão na tabela, sem comentar o cadastro. Não invente nem peça o nome."
+              + balcao)
+    base = {"periodo": {"de": data(inicio), "ate": data(fim),
+                        **({} if p.get("periodo") else {"padrao": f"últimos {DIAS_CLIENTES_PADRAO} dias"})},
+            "onde": onde, "regras": regras,
+            "sem_cliente": {"faturamento": reais(sem_cliente["valor"] or ZERO),
+                            "pedidos": numero(int(sem_cliente["pedidos"]))}}
+    if fim < INICIO_DAS_VENDAS or inicio < INICIO_DAS_VENDAS:
+        base["aviso"] = f"Os pedidos da plataforma começam em {data(INICIO_DAS_VENDAS)}; antes não há dado."
+    if not ranking:
+        return {**base, "vazio": True, "texto": f"Nenhuma compra de cliente identificado {onde} {periodo}." + balcao}
+
+    primeiro = ranking[0]
+    return {
+        **base, "vazio": False, "maiores_clientes": ranking,
+        "texto": (f"Maiores clientes {onde} {periodo}: o 1º comprou {primeiro['faturamento']} em "
+                  f"{primeiro['pedidos']} pedidos. Os nomes estão na tabela abaixo." + balcao),
+        # só para a tela: fica fora do que vai ao modelo e do histórico gravado
+        "tabela": {"titulo": f"Maiores clientes {onde} {periodo}",
+                   "colunas": ["Posição", "Cliente", "Total", "Pedidos"], "linhas": linhas_da_tabela},
+    }
+
+
+MAIORES_CLIENTES = Ferramenta(
+    nome="maiores_clientes",
+    descricao=(
+        "Ranking dos clientes que mais compraram num período (faturamento e pedidos de cada um), sem o nome: "
+        "cada cliente vem pela posição, e a tela mostra o nome numa tabela. Use para 'qual cliente mais comprou', 'melhores "
+        "clientes', 'maiores compradores'. Mesmas regras da vendas_do_periodo."
+    ),
+    parametros={
+        "type": "object",
+        "properties": {
+            "periodo": {"type": "string", "enum": list(PERIODOS),
+                        "description": "Só se a pessoa disser o período. Vazio: os últimos 365 dias (diga que "
+                                       "usou o padrão)"},
+            "de": {"type": "string", "description": "Só com periodo = intervalo. AAAA-MM-DD"},
+            "ate": {"type": "string", "description": "Só com periodo = intervalo. AAAA-MM-DD, até hoje"},
+            "id_unidade": {"type": "integer", "description": "Id da lista de unidades das instruções"},
+            "marca": {"type": "string", "enum": list(MARCAS)},
+            "quantos": {"type": "integer", "description": f"Quantos clientes no ranking, de 1 a {CLIENTES_MAXIMO}. "
+                                                         f"Vazio: {CLIENTES_PADRAO}"},
+        },
+        "additionalProperties": False,
+    },
+    executar=maiores_clientes,
 )
 
 # ---------- estoque_em_um_dia ----------
@@ -394,7 +522,9 @@ def pecas_paradas(db: Session, usuario: Usuario, p: dict, hoje: date) -> dict:
                   f"último ano (entre {DIAS_PARADA_MINIMO} e {DIAS_PARADA_MAXIMO} dias; categoria com pouca venda "
                   f"usa {DIAS_PARADA_SEM_HISTORICO}). A pessoa pode pedir um prazo único.")
     regras += (" Se a peça nunca vendeu na unidade, conta desde que chegou nela; o histórico começa em 01/01/2025. "
-               "Cada linha é uma cor num tamanho numa unidade.")
+               "Quando dias_parada diz 'pelo menos', a peça já estava na unidade nesse começo e nunca vendeu: diga "
+               "'parada desde antes de 01/01/2025, pelo menos N dias', não 'há N dias'. "
+               "Cada linha é uma cor num tamanho numa unidade. 'lojas' e 'cds' trazem o total de cada unidade.")
     base = {"regra": regra, "onde": onde, "regras": regras, "links": links,
             "prazos_por_categoria": [{"categoria": nome, "dias": numero(d)}
                                      for nome, d in sorted(prazos.values(), key=lambda x: (x[1], x[0]))]}
@@ -404,17 +534,29 @@ def pecas_paradas(db: Session, usuario: Usuario, p: dict, hoje: date) -> dict:
         return {**base, "vazio": True, "texto": f"Nenhuma peça parada ({regra}) {onde}."}
 
     total_linhas, total_pecas = linhas[0]["total_linhas"], int(linhas[0]["total_pecas"])
+    por_unidade = [{"unidade": u["unidade"], "tipo": u["tipo_unidade"], "variacoes": numero(u["variacoes"]),
+                    "pecas": numero(int(u["pecas"]))}
+                   for u in db.execute(estoque_repository.consulta_paradas_por_unidade(consulta)).mappings()]
+
+    def dias_parada(l) -> str:
+        desde = l["parada_desde"].astimezone(BRASILIA).date()
+        dias = numero((hoje - desde).days)
+        # estava na unidade quando o histórico começou e nunca vendeu: o tempo real é maior, e não dá para saber
+        return f"pelo menos {dias}" if l["ultima_venda"] is None and desde <= INICIO_DO_HISTORICO else dias
+
     pecas = [{
         "produto": l["produto"], "cor": l["cor"], "tamanho": l["tamanho"], "sku": l["sku"], "unidade": l["unidade"],
         "quantidade": numero(int(l["quantidade"])),
         "ultima_venda": data(l["ultima_venda"].astimezone(BRASILIA).date()) if l["ultima_venda"] else
         "nunca vendeu nessa unidade",
-        "dias_parada": numero((hoje - l["parada_desde"].astimezone(BRASILIA).date()).days),
+        "dias_parada": dias_parada(l),
         **({"normal_da_categoria": f"{numero(prazos[l['id_categoria']][1])} dias ({prazos[l['id_categoria']][0]})"}
            if l["id_categoria"] in prazos else {}),
     } for l in linhas]
     return {
         **base, "linhas_paradas": numero(total_linhas), "pecas_paradas": numero(total_pecas),
+        "lojas": [{k: v for k, v in u.items() if k != "tipo"} for u in por_unidade if u["tipo"] == "loja"],
+        "cds": [{k: v for k, v in u.items() if k != "tipo"} for u in por_unidade if u["tipo"] == "cd"],
         "mostrando": numero(len(pecas)), "mais_antigas": pecas,
         "texto": f"{numero(total_linhas)} variações paradas ({regra}) {onde}, somando {numero(total_pecas)} peças. "
                  f"A mais antiga: {pecas[0]['produto']} {pecas[0]['cor']} {pecas[0]['tamanho']} na "
@@ -428,7 +570,7 @@ PECAS_PARADAS = Ferramenta(
         "Peças paradas: com saldo hoje e sem venda naquela unidade há mais tempo que o normal da categoria (o "
         "tempo em que 9 de cada 10 peças dela vendem de novo, medido no último ano; acessórios vendem rápido, "
         "jaquetas devagar). Com 'dias', usa esse prazo para todas. Traz quantas variações (cor e tamanho por "
-        "unidade) e peças estão paradas, o prazo de cada categoria e as mais antigas. Use para 'o que está "
+        "unidade) e peças estão paradas, no total e em cada loja e CD, o prazo de cada categoria e as mais antigas. Use para 'o que está "
         "parado', 'o que não vende', 'estoque encalhado'."
     ),
     parametros={
@@ -770,5 +912,5 @@ ANOMALIAS = Ferramenta(
     executar=anomalias,
 )
 
-FERRAMENTAS = {f.nome: f for f in (VENDAS_DO_PERIODO, ESTOQUE_EM_UM_DIA, PECAS_PARADAS, PONTOS_VENCENDO,
+FERRAMENTAS = {f.nome: f for f in (VENDAS_DO_PERIODO, MAIORES_CLIENTES, ESTOQUE_EM_UM_DIA, PECAS_PARADAS, PONTOS_VENCENDO,
                                    DESEMPENHO_EQUIPE, METRICAS_ASSISTENTE, ANOMALIAS)}
