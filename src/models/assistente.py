@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 
 from sqlalchemy import (
-    CheckConstraint, Date, DateTime, ForeignKey, ForeignKeyConstraint, Index, String, Uuid, func,
+    CheckConstraint, Date, DateTime, ForeignKey, ForeignKeyConstraint, Index, String, Text, Uuid, func,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -15,6 +15,7 @@ ETAPAS = ("livre", "esperando_cpf", "esperando_codigo", "confirmando_chamado", "
 # assunto de cada ferramenta do assistente; fora_do_tema vem do n8n
 ASSUNTOS = ("pecas", "carrinho", "estoque", "lojas", "pontos", "pedidos", "chamado", "fora_do_tema")
 AVALIACOES = ("positiva", "negativa")
+PAPEIS = ("cliente", "assistente")
 
 
 # resumo anônimo de cada conversa, fonte das métricas do assistente interno (metricas_assistente).
@@ -68,6 +69,8 @@ class ConversaCanal(Base):
         ForeignKey("resumo_conversa.id_resumo", ondelete="RESTRICT")
     )
     ultima_msg_cliente_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # começo da conversa em andamento: ao confirmar a conta, o texto guardado desde aqui passa para ela
+    conversa_iniciada_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # limite diário de mensagens, no dia de Brasília
     msgs_hoje: Mapped[int] = mapped_column(default=0, server_default="0")
     dia_contagem: Mapped[date | None] = mapped_column(Date)
@@ -109,6 +112,35 @@ class CodigoVerificacao(Base):
         ),
         CheckConstraint("id_cliente IS NULL OR id_cliente_sem_conta IS NULL", name="um_dono_so"),
         Index("ix_codigo_verificacao_conversa", "canal", "id_externo", "criado_em"),
+    )
+
+
+# texto da conversa, para revisar onde o assistente falhou. Anônimo até o cliente confirmar a conta; aí o
+# texto da conversa em andamento passa para ela. CPF e código saem mascarados. O pg_cron apaga o que passou
+# de 90 dias (a conversa que virou chamado continua no chamado)
+class MensagemConversa(Base):
+    __tablename__ = "mensagem_conversa"
+
+    id_mensagem: Mapped[int] = mapped_column(primary_key=True)
+    canal: Mapped[str] = mapped_column(String(10))
+    id_externo: Mapped[str] = mapped_column(String(100))
+    id_cliente: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("usuario.id_usuario", ondelete="RESTRICT"))
+    id_cliente_sem_conta: Mapped[int | None] = mapped_column(
+        ForeignKey("cliente_sem_conta.id_cliente_sem_conta", ondelete="RESTRICT")
+    )
+    papel: Mapped[str] = mapped_column(String(10))
+    texto: Mapped[str] = mapped_column(Text)
+    criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["canal", "id_externo"], ["conversa_canal.canal", "conversa_canal.id_externo"],
+            ondelete="CASCADE", name="fk_mensagem_conversa_conversa_canal",
+        ),
+        CheckConstraint(f"papel IN {PAPEIS}", name="papel_valido"),
+        CheckConstraint("id_cliente IS NULL OR id_cliente_sem_conta IS NULL", name="um_dono_so"),
+        Index("ix_mensagem_conversa_conversa", "canal", "id_externo", "criado_em"),
+        Index("ix_mensagem_conversa_criado_em", "criado_em"),
     )
 
 

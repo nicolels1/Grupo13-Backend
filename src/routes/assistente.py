@@ -7,9 +7,9 @@ from src.database.session import get_db
 from src.dependencies.assistente import conversa_do_cabecalho, exige_chave_assistente
 from src.entities.assistente import (
     BuscaPecasSaida, ChamadoAbertoSaida, ChamadoDoAssistenteEntrada, CodigoEntrada, CodigoEnviado, ConfirmacaoSaida,
-    ConversaEntrada, CpfEntrada, EstadoConversa, EstoqueSaida, EtapaEntrada, LinkCarrinhoSaida, LojasDaMarca,
-    MensagemNoChamadoEntrada, MeusPedidosSaida, MeusPontosSaida, PedidosEntrada, RascunhoDoChamadoEntrada,
-    RascunhoSaida, ResumoDoN8nEntrada, VocabularioSaida,
+    ConversaEntrada, CpfEntrada, EstadoConversa, EstoqueSaida, EtapaEntrada, LembreteEntrada, LembreteSaida,
+    LinkCarrinhoSaida, LojasDaMarca, MensagemNoChamadoEntrada, MeusPedidosSaida, MeusPontosSaida, PedidosEntrada,
+    RascunhoDoChamadoEntrada, RascunhoSaida, ResumoDoN8nEntrada, TextoDaConversaEntrada, VocabularioSaida,
 )
 from src.entities.atendimento import MensagemSaida
 from src.entities.comum import Lista, Marca
@@ -104,7 +104,8 @@ def vocabulario(db: Session = Depends(get_db)):
     "/conversa",
     response_model=EstadoConversa,
     description="Registra a mensagem do cliente: chamada no começo de toda mensagem. Diz a etapa, se a conta "
-                "está confirmada, se a conversa é nova (30 min parada: apagar a memória curta) e o limite do dia.",
+                "está confirmada, se a conversa é nova (30 min parada: apagar a memória curta), o limite do dia "
+                "e, fora do horário da equipe, quando ela volta.",
 )
 def registrar_mensagem(dados: ConversaEntrada, db: Session = Depends(get_db)):
     return assistente_conta.registrar_mensagem(db, dados.canal, dados.id_externo, datetime.now(BRASILIA))
@@ -129,6 +130,18 @@ def mudar_etapa(dados: EtapaEntrada, db: Session = Depends(get_db)):
 )
 def registrar_no_resumo(dados: ResumoDoN8nEntrada, db: Session = Depends(get_db)):
     resumo_conversa.registrar_do_n8n(db, dados.canal, dados.id_externo, dados.avaliacao, dados.fora_do_tema)
+
+
+@router.post(
+    "/conversa/mensagens",
+    status_code=204,
+    responses={404: {"description": "Conversa não registrada"}},
+    description="Guarda, depois de cada resposta, a mensagem do cliente e a resposta do assistente, por 90 dias. "
+                "CPF e código saem mascarados; o texto passa para a conta quando o cliente se confirma.",
+)
+def guardar_texto(dados: TextoDaConversaEntrada, db: Session = Depends(get_db)):
+    assistente_conta.guardar_texto(db, dados.canal, dados.id_externo, dados.cliente, dados.assistente,
+                                   datetime.now(BRASILIA))
 
 
 @router.post(
@@ -167,12 +180,31 @@ def conferir_codigo(dados: CodigoEntrada, db: Session = Depends(get_db)):
     response_model=MeusPontosSaida,
     responses={401: {"description": "Conta não confirmada nesta conversa: pedir o CPF"}},
     description="Pontos por marca: saldo, valor, categoria, vencimento e quanto falta para subir. Fica registrado "
-                "o que foi entregue (auditoria).",
+                "o que foi entregue (auditoria). oferecer_lembrete diz se o assistente oferece o e-mail antes "
+                "de os pontos vencerem (uma vez por conta).",
 )
 def meus_pontos(dados: ConversaEntrada, db: Session = Depends(get_db)):
     return resumo_conversa.com_assunto(
         db, dados.canal, dados.id_externo, "pontos",
         lambda: assistente_conta.meus_pontos(db, dados.canal, dados.id_externo, datetime.now(BRASILIA)),
+    )
+
+
+@router.put(
+    "/lembrete-pontos",
+    response_model=LembreteSaida,
+    responses={
+        401: {"description": "Conta não confirmada nesta conversa: pedir o CPF"},
+        422: {"description": "Cliente sem conta no site (a mensagem traz o link de cadastro)"},
+    },
+    description="Guarda o aceite (ou a recusa) do e-mail antes de os pontos vencerem. Recusar desliga um aceite "
+                "anterior.",
+)
+def responder_lembrete(dados: LembreteEntrada, db: Session = Depends(get_db)):
+    return resumo_conversa.com_assunto(
+        db, dados.canal, dados.id_externo, "pontos",
+        lambda: assistente_conta.responder_lembrete(db, dados.canal, dados.id_externo, dados.aceita,
+                                                    datetime.now(BRASILIA)),
     )
 
 

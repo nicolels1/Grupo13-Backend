@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import logging
+import re
 import secrets
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
@@ -9,7 +10,7 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
 from src.config import settings
-from src.models.assistente import AfirmacaoAssistente, CodigoVerificacao, ConversaCanal
+from src.models.assistente import AfirmacaoAssistente, CodigoVerificacao, ConversaCanal, MensagemConversa
 from src.models.estoque import Unidade
 from src.repositories import assistente_repository as repo
 from src.repositories import atendimento_repository, cliente_sem_conta_repository, fidelidade_repository
@@ -17,7 +18,7 @@ from src.repositories import pedido_repository, usuario_repository
 from src.use_cases import atendimento, fidelidade, resumo_conversa
 from src.use_cases.assistente import endereco
 from src.use_cases.erros import Conflito, MuitasTentativas, NaoAutenticado, RecursoNaoEncontrado, RegraDeNegocio
-from src.use_cases.horarios import BRASILIA
+from src.use_cases.horarios import BRASILIA, DIAS_DA_SEMANA, feriado_nacional, formatar_hora
 from src.utils.cpf import cpf_valido, normalizar_cpf
 from src.utils.email import ErroEmail, enviar_email
 
@@ -46,6 +47,16 @@ SEM_PEDIDOS_NO_SITE ="Não encontrei pedidos do site no seu cadastro."
 
 PROXIMA_CATEGORIA = {"bronze": ("prata", "limite_prata"), "prata": ("ouro", "limite_ouro")}
 
+# horário da equipe de atendimento, exemplo do case igual ao das lojas de rua; domingo e feriado nacional
+# fechado. Fora dele, o assistente diz quando a equipe volta, em vez de deixar o cliente sem resposta
+HORARIO_DA_EQUIPE = {dia: (time(10), time(20)) for dia in range(5)} | {5: (time(10), time(18))}
+HORARIO_DA_EQUIPE_EM_TEXTO = "de segunda a sexta das 10h às 20h e aos sábados das 10h às 18h"
+DIAS_PARA_ACHAR_A_VOLTA = 14  # folga para qualquer sequência de domingo e feriados
+
+# CPF (com ou sem pontos) e o código de 6 números não ficam no texto guardado da conversa
+CPF_NO_TEXTO = re.compile(r"\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b")
+CODIGO_NO_TEXTO = re.compile(r"\b\d{6}\b")
+
 
 # ---------- texto pronto ----------
 
@@ -69,6 +80,43 @@ def _primeiro_nome(nome: str | None) -> str | None:
     return nome.split()[0] if nome else None
 
 
+# ---------- horário da equipe ----------
+
+def _intervalo_da_equipe(dia: date) -> tuple[time, time] | None:
+    return None if feriado_nacional(dia) else HORARIO_DA_EQUIPE.get(dia.weekday())
+
+
+# quando a equipe volta a atender; vazio enquanto ela está atendendo
+def equipe_volta_em(momento: datetime) -> datetime | None:
+    agora = momento.astimezone(BRASILIA)
+    for n in range(DIAS_PARA_ACHAR_A_VOLTA):
+        dia = agora.date() + timedelta(days=n)
+        intervalo = _intervalo_da_equipe(dia)
+        if intervalo is None:
+            continue
+        abre, fecha = (datetime.combine(dia, hora, BRASILIA) for hora in intervalo)
+        if agora < fecha:
+            return None if agora >= abre else abre
+    return None
+
+
+def _quando_volta(volta: datetime, momento: datetime) -> str:
+    hoje = momento.astimezone(BRASILIA).date()
+    hora = formatar_hora(volta.time())
+    if volta.date() == hoje:
+        return f"hoje às {hora}"
+    if volta.date() == hoje + timedelta(days=1):
+        return f"amanhã às {hora}"
+    return f"{DIAS_DA_SEMANA[volta.weekday()]} ({volta.strftime('%d/%m')}) às {hora}"
+
+
+def _aviso_da_equipe(volta: datetime | None, momento: datetime) -> str | None:
+    if volta is None:
+        return None
+    return (f"A nossa equipe atende {HORARIO_DA_EQUIPE_EM_TEXTO}. Ela volta {_quando_volta(volta, momento)} "
+            "e responde por aqui.")
+
+
 # ---------- estado da conversa ----------
 
 def _confirmado(conversa: ConversaCanal, momento: datetime) -> bool:
@@ -87,6 +135,7 @@ def _bloqueado_ate(conversa: ConversaCanal, momento: datetime) -> datetime | Non
 
 
 def _estado(conversa: ConversaCanal, momento: datetime, conversa_nova: bool = False) -> dict:
+    volta = equipe_volta_em(momento)
     return {
         "etapa": conversa.etapa,
         "confirmado": _confirmado(conversa, momento),
@@ -96,6 +145,9 @@ def _estado(conversa: ConversaCanal, momento: datetime, conversa_nova: bool = Fa
         "avisar_limite": conversa.msgs_hoje == MENSAGENS_POR_DIA + 1,
         "bloqueado_ate": _bloqueado_ate(conversa, momento),
         "id_chamado": conversa.id_chamado,
+        "equipe_disponivel": volta is None,
+        "equipe_volta_em": volta,
+        "aviso_equipe": _aviso_da_equipe(volta, momento),
     }
 
 
@@ -139,6 +191,8 @@ def registrar_mensagem(db: Session, canal: str, id_externo: str, momento: dateti
     # cada conversa tem o seu resumo anônimo; a conversa aberta antes do resumo existir também ganha um
     if conversa_nova or conversa.id_resumo_atual is None:
         resumo_conversa.abrir(db, conversa, momento)
+    if conversa_nova or conversa.conversa_iniciada_em is None:
+        conversa.conversa_iniciada_em = momento
     hoje = momento.astimezone(BRASILIA).date()
     if conversa.dia_contagem != hoje:
         conversa.dia_contagem = hoje
@@ -270,6 +324,10 @@ def conferir_codigo(db: Session, canal: str, id_externo: str, codigo: str, momen
     conversa.confirmado_ate = momento + DURACAO_DA_CONVERSA
     conversa.etapa = _etapa_sem_verificacao(conversa)
     resumo_conversa.marcar_autenticou(db, conversa)
+    # o texto anônimo desta conversa passa para a conta (como a conversa do cliente sem conta, ADR 0016)
+    if conversa.conversa_iniciada_em is not None:
+        repo.passar_texto_para_a_conta(db, canal, id_externo, conversa.conversa_iniciada_em,
+                                       aberto.id_cliente, aberto.id_cliente_sem_conta)
     if aberto.id_cliente is not None:
         nome = usuario_repository.buscar_por_id(db, aberto.id_cliente).nome
     else:
@@ -356,7 +414,41 @@ def meus_pontos(db: Session, canal: str, id_externo: str, momento: datetime) -> 
     texto = "\n".join(m["texto"] for m in marcas) or "Você ainda não tem pontos na Lorenzi nem na Vulto."
     resultado = {"marcas": marcas, "texto": texto}
     _afirmar(db, conversa, "meus_pontos", resultado, momento)
+    resultado["oferecer_lembrete"] = _oferecer_lembrete(db, conversa, marcas, momento)
     return resultado
+
+
+# o lembrete por e-mail antes de os pontos vencerem é oferecido uma vez por conta, a quem tem pontos e ainda
+# não aceitou; fica marcado já aqui, quando o assistente recebe o aviso para oferecer. Cliente sem conta da
+# migração não recebe lembrete até criar a conta
+def _oferecer_lembrete(db: Session, conversa: ConversaCanal, marcas: list[dict], momento: datetime) -> bool:
+    if conversa.id_cliente is None or not any(m["saldo"] > 0 for m in marcas):
+        return False
+    cliente = usuario_repository.buscar_por_id(db, conversa.id_cliente)
+    if cliente.lembrete_pontos_aceito_em is not None or cliente.lembrete_pontos_oferecido_em is not None:
+        return False
+    cliente.lembrete_pontos_oferecido_em = momento
+    db.commit()
+    return True
+
+
+# o cliente aceitou ou recusou o lembrete na conversa; recusar também desliga um aceite anterior
+def responder_lembrete(db: Session, canal: str, id_externo: str, aceita: bool, momento: datetime) -> dict:
+    conversa = _conversa_confirmada(db, canal, id_externo, momento)
+    if conversa.id_cliente is None:
+        raise RegraDeNegocio(f"O lembrete de pontos é para quem tem conta no site. Crie a sua em "
+                             f"{settings.SITE_URL}/cadastro e depois me chame de novo por aqui.")
+    cliente = usuario_repository.buscar_por_id(db, conversa.id_cliente)
+    cliente.lembrete_pontos_oferecido_em = cliente.lembrete_pontos_oferecido_em or momento
+    if aceita:
+        cliente.lembrete_pontos_aceito_em = cliente.lembrete_pontos_aceito_em or momento
+        mensagem = ("Combinado! Vou te avisar por e-mail antes de os seus pontos vencerem. "
+                    "Se quiser parar, é só me pedir por aqui.")
+    else:
+        cliente.lembrete_pontos_aceito_em = None
+        mensagem = "Tudo bem, não vou mandar o lembrete. Se mudar de ideia, é só me pedir por aqui."
+    db.commit()
+    return {"aceita": aceita, "mensagem": mensagem}
 
 
 STATUS_DO_PEDIDO = {
@@ -520,10 +612,8 @@ def abrir_chamado(db: Session, canal: str, id_externo: str, falas: list[dict], m
     conversa.etapa = "em_chamado"
     resumo_conversa.marcar_virou_chamado(db, conversa)
     db.commit()
-    return {
-        "id_chamado": chamado["id_chamado"],
-        "mensagem": f"Pronto, abri o chamado #{chamado['id_chamado']}. A equipe responde por aqui mesmo.",
-    }
+    aviso = _aviso_da_equipe(equipe_volta_em(momento), momento) or "A equipe responde por aqui mesmo."
+    return {"id_chamado": chamado["id_chamado"], "mensagem": f"Pronto, abri o chamado #{chamado['id_chamado']}. {aviso}"}
 
 
 # enquanto o chamado está aberto, o n8n grava aqui toda mensagem do cliente (e também a passa para a IA).
@@ -537,3 +627,26 @@ def mensagem_no_chamado(db: Session, canal: str, id_externo: str, texto: str) ->
     chamado = atendimento_repository.buscar_chamado(db, conversa.id_chamado)
     cliente = usuario_repository.buscar_por_id(db, chamado.id_cliente)
     return atendimento.enviar_mensagem_do_cliente(db, cliente, chamado.id_chamado, texto)
+
+
+# ---------- texto da conversa (90 dias, para revisar onde o assistente falhou) ----------
+
+def _mascarar(texto: str) -> str:
+    return CODIGO_NO_TEXTO.sub("[código]", CPF_NO_TEXTO.sub("[CPF]", texto))
+
+
+# o n8n manda, depois de cada resposta, a mensagem do cliente e a resposta do assistente (que pode não ter
+# saído, como no limite do dia). Fica ligado à conta só se ela está confirmada na conversa
+def guardar_texto(db: Session, canal: str, id_externo: str, cliente: str, assistente: str | None,
+                  momento: datetime) -> None:
+    conversa = _conversa(db, canal, id_externo)
+    confirmado = _confirmado(conversa, momento)
+    falas = [("cliente", cliente)] + ([("assistente", assistente)] if assistente else [])
+    for papel, texto in falas:
+        db.add(MensagemConversa(
+            canal=canal, id_externo=id_externo,
+            id_cliente=conversa.id_cliente if confirmado else None,
+            id_cliente_sem_conta=conversa.id_cliente_sem_conta if confirmado else None,
+            papel=papel, texto=_mascarar(texto), criado_em=momento,
+        ))
+    db.commit()

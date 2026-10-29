@@ -152,6 +152,24 @@ class MensagemNoChamadoEntrada(ConversaEntrada):
     _limpa = field_validator("texto", mode="before")(sem_espacos)
 
 
+# depois de cada resposta, o que o cliente mandou e o que o assistente respondeu; CPF e código saem mascarados
+class TextoDaConversaEntrada(ConversaEntrada):
+    cliente: str = Field(min_length=1, max_length=5000)
+    assistente: str | None = Field(default=None, max_length=5000,
+                                   description="Vazio quando não houve resposta (ex.: limite do dia)")
+
+    _limpa = field_validator("cliente", "assistente", mode="before")(sem_espacos)
+
+
+class LembreteEntrada(ConversaEntrada):
+    aceita: bool = Field(description="Aceitou (true) ou recusou (false) o lembrete antes de os pontos vencerem")
+
+
+class LembreteSaida(BaseModel):
+    aceita: bool
+    mensagem: str = Field(description="Texto pronto para o cliente")
+
+
 class EstadoConversa(BaseModel):
     etapa: str
     confirmado: bool = Field(description="Conta confirmada pelo código nesta conversa")
@@ -160,6 +178,9 @@ class EstadoConversa(BaseModel):
     avisar_limite: bool = Field(description="Primeira mensagem acima do limite: mandar o aviso uma vez")
     bloqueado_ate: datetime | None = Field(description="Confirmação pausada por código errado")
     id_chamado: int | None = Field(description="Chamado aberto pela conversa: a mensagem também vai para ele")
+    equipe_disponivel: bool = Field(description="A equipe de atendimento está no horário agora")
+    equipe_volta_em: datetime | None = Field(description="Quando a equipe volta; vazio se ela está atendendo")
+    aviso_equipe: str | None = Field(description="Fora do horário: texto pronto dizendo quando a equipe volta")
 
 
 class ChamadoAbertoSaida(BaseModel):
@@ -197,6 +218,7 @@ class PontosDaMarca(BaseModel):
 class MeusPontosSaida(BaseModel):
     marcas: list[PontosDaMarca]
     texto: str = Field(description="Resposta pronta, para quando a da IA não bater com os números")
+    oferecer_lembrete: bool = Field(description="Oferecer o e-mail antes de os pontos vencerem (uma vez por conta)")
 
 
 class ItemDoPedido(BaseModel):

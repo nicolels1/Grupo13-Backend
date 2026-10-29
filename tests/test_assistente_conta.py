@@ -10,7 +10,9 @@ from fastapi.testclient import TestClient
 from src.app import app
 from src.config import settings
 from src.database.session import get_db
-from src.models.assistente import AfirmacaoAssistente, CodigoVerificacao, ConversaCanal, ResumoConversa
+from src.models.assistente import (
+    AfirmacaoAssistente, CodigoVerificacao, ConversaCanal, MensagemConversa, ResumoConversa,
+)
 from src.models.atendimento import Chamado, Mensagem
 from src.models.contas import ClienteSemConta, Usuario
 from src.models.estoque import Unidade
@@ -47,7 +49,7 @@ PAULISTA = Unidade(id_unidade=2, nome="Loja Paulista", tipo="loja", marca="loren
 
 @pytest.fixture
 def banco(monkeypatch):
-    estado = SimpleNamespace(conversas={}, emails=[], erro_email=None, db=SessaoFalsa())
+    estado = SimpleNamespace(conversas={}, emails=[], erro_email=None, db=SessaoFalsa(), texto_para_a_conta=[])
 
     def garantir(db, canal, id_externo):
         chave = (canal, id_externo)
@@ -89,6 +91,12 @@ def banco(monkeypatch):
     m(cliente_sem_conta_repository, "buscar_por_cpf", lambda db, cpf: SEM_CONTA if cpf == CPF_SEM_CONTA else None)
     m(cliente_sem_conta_repository, "buscar", lambda db, id_cliente_sem_conta: SEM_CONTA)
     m(assistente_conta, "enviar_email", email)
+    m(assistente_repository, "passar_texto_para_a_conta",
+      lambda db, canal, id_externo, desde, id_cliente, id_cliente_sem_conta:
+      estado.texto_para_a_conta.append((desde, id_cliente, id_cliente_sem_conta)))
+    # ANA é a mesma em todos os testes: o lembrete volta ao começo em cada um
+    m(ANA, "lembrete_pontos_aceito_em", None)
+    m(ANA, "lembrete_pontos_oferecido_em", None)
     return estado
 
 
@@ -112,7 +120,8 @@ def test_primeira_mensagem_cria_a_conversa(banco):
     estado = mensagem(banco)
 
     assert estado == {"etapa": "livre", "confirmado": False, "conversa_nova": True, "limite_atingido": False,
-                      "avisar_limite": False, "bloqueado_ate": None, "id_chamado": None}
+                      "avisar_limite": False, "bloqueado_ate": None, "id_chamado": None,
+                      "equipe_disponivel": True, "equipe_volta_em": None, "aviso_equipe": None}
     assert banco.conversas[(CANAL, TELEFONE)].ultima_msg_cliente_em == AGORA
 
 
@@ -828,3 +837,206 @@ def test_rota_da_mensagem_sem_chamado_responde_422(cliente, banco, chamados):
                             headers={"X-Assistente-Chave": CHAVE})
 
     assert resposta.status_code == 422
+
+
+# ---------- horário da equipe ----------
+
+QUARTA_21H = datetime(2026, 10, 28, 21, 0, tzinfo=BRASILIA)
+
+
+def test_no_horario_a_equipe_esta_atendendo():
+    assert assistente_conta.equipe_volta_em(AGORA) is None
+
+
+def test_fora_do_horario_diz_quando_a_equipe_volta():
+    quinta_8h = datetime(2026, 10, 29, 8, 0, tzinfo=BRASILIA)
+
+    assert assistente_conta.equipe_volta_em(QUARTA_21H) == datetime(2026, 10, 29, 10, 0, tzinfo=BRASILIA)
+    assert assistente_conta.equipe_volta_em(quinta_8h) == datetime(2026, 10, 29, 10, 0, tzinfo=BRASILIA)
+
+
+def test_domingo_e_feriado_a_equipe_nao_atende():
+    # sábado à noite: domingo fechado e segunda é Finados, então volta na terça
+    sabado_19h = datetime(2026, 10, 31, 19, 0, tzinfo=BRASILIA)
+    assert assistente_conta.equipe_volta_em(sabado_19h) == datetime(2026, 11, 3, 10, 0, tzinfo=BRASILIA)
+
+
+def test_estado_da_conversa_traz_o_aviso_fora_do_horario(banco):
+    estado = mensagem(banco, QUARTA_21H)
+
+    assert estado["equipe_disponivel"] is False
+    assert estado["aviso_equipe"] == ("A nossa equipe atende de segunda a sexta das 10h às 20h e aos sábados das "
+                                      "10h às 18h. Ela volta amanhã às 10h e responde por aqui.")
+
+
+def test_aviso_com_dia_da_semana_quando_nao_e_amanha(banco):
+    estado = mensagem(banco, datetime(2026, 10, 31, 19, 0, tzinfo=BRASILIA))
+    assert "Ela volta terça (03/11) às 10h" in estado["aviso_equipe"]
+
+
+def test_chamado_fora_do_horario_avisa_quando_a_equipe_volta(banco, chamados,
+                                                             sem_prioridade_sugerida_em_segundo_plano):
+    confirmar(banco, momento=QUARTA_21H)
+
+    resposta = abrir(banco, QUARTA_21H)
+
+    assert resposta["mensagem"].startswith(f"Pronto, abri o chamado #{resposta['id_chamado']}. A nossa equipe")
+    assert "volta amanhã às 10h" in resposta["mensagem"]
+
+
+def test_chamado_no_horario_nao_fala_do_horario(banco, chamados, sem_prioridade_sugerida_em_segundo_plano):
+    confirmar(banco)
+    assert abrir(banco)["mensagem"].endswith("A equipe responde por aqui mesmo.")
+
+
+# ---------- texto da conversa (90 dias) ----------
+
+def textos(banco) -> list[MensagemConversa]:
+    return [o for o in banco.db.adicionados if isinstance(o, MensagemConversa)]
+
+
+def test_texto_anonimo_sai_com_cpf_e_codigo_mascarados(banco):
+    mensagem(banco)
+    cpf = f"{CPF_ANA[:3]}.{CPF_ANA[3:6]}.{CPF_ANA[6:9]}-{CPF_ANA[9:]}"
+
+    assistente_conta.guardar_texto(banco.db, CANAL, TELEFONE, f"meu cpf é {cpf} e o código 482913", "Obrigado!",
+                                   AGORA)
+
+    cliente, resposta = textos(banco)
+    assert (cliente.papel, cliente.texto) == ("cliente", "meu cpf é [CPF] e o código [código]")
+    assert (resposta.papel, resposta.texto) == ("assistente", "Obrigado!")
+    assert cliente.id_cliente is None and cliente.id_cliente_sem_conta is None
+
+
+def test_cpf_sem_pontos_tambem_sai_mascarado(banco):
+    mensagem(banco)
+    assistente_conta.guardar_texto(banco.db, CANAL, TELEFONE, CPF_ANA, None, AGORA)
+    assert [t.texto for t in textos(banco)] == ["[CPF]"]
+
+
+def test_sem_resposta_guarda_so_a_mensagem_do_cliente(banco):
+    mensagem(banco)
+    assistente_conta.guardar_texto(banco.db, CANAL, TELEFONE, "oi", None, AGORA)
+    assert [t.papel for t in textos(banco)] == ["cliente"]
+
+
+def test_texto_com_a_conta_confirmada_fica_na_conta(banco):
+    confirmar(banco)
+
+    assistente_conta.guardar_texto(banco.db, CANAL, TELEFONE, "quantos pontos tenho?", "Você tem 1.220.", AGORA)
+
+    assert {t.id_cliente for t in textos(banco)} == {ANA.id_usuario}
+
+
+def test_confirmar_passa_o_texto_da_conversa_para_a_conta(banco):
+    confirmar(banco)
+    assert banco.texto_para_a_conta == [(AGORA, ANA.id_usuario, None)]
+
+
+def test_cliente_sem_conta_tambem_recebe_o_texto(banco):
+    confirmar(banco, cpf=CPF_SEM_CONTA)
+    assert banco.texto_para_a_conta == [(AGORA, None, SEM_CONTA.id_cliente_sem_conta)]
+
+
+def test_conversa_nova_comeca_o_texto_de_novo(banco):
+    mensagem(banco)
+    mensagem(banco, AGORA + timedelta(minutes=10))
+    assert banco.conversas[(CANAL, TELEFONE)].conversa_iniciada_em == AGORA
+
+    mensagem(banco, AGORA + timedelta(hours=1))
+    assert banco.conversas[(CANAL, TELEFONE)].conversa_iniciada_em == AGORA + timedelta(hours=1)
+
+
+def test_guardar_texto_sem_a_conversa_registrada(banco):
+    with pytest.raises(RecursoNaoEncontrado):
+        assistente_conta.guardar_texto(banco.db, CANAL, TELEFONE, "oi", None, AGORA)
+
+
+def test_rota_do_texto_da_conversa(cliente, banco):
+    mensagem(banco)
+
+    resposta = cliente.post("/assistente/conversa/mensagens",
+                            json={"canal": CANAL, "id_externo": TELEFONE, "cliente": "oi", "assistente": "Olá!"},
+                            headers={"X-Assistente-Chave": CHAVE})
+
+    assert resposta.status_code == 204
+    assert [t.texto for t in textos(banco)] == ["oi", "Olá!"]
+
+
+def test_rota_do_texto_recusa_mensagem_vazia(cliente, banco):
+    mensagem(banco)
+    resposta = cliente.post("/assistente/conversa/mensagens",
+                            json={"canal": CANAL, "id_externo": TELEFONE, "cliente": "   "},
+                            headers={"X-Assistente-Chave": CHAVE})
+    assert resposta.status_code == 422
+
+
+# ---------- lembrete de pontos ----------
+
+def test_oferece_o_lembrete_uma_vez_por_conta(banco, pontos):
+    confirmar(banco)
+
+    primeira = assistente_conta.meus_pontos(banco.db, CANAL, TELEFONE, AGORA)
+    segunda = assistente_conta.meus_pontos(banco.db, CANAL, TELEFONE, AGORA)
+
+    assert (primeira["oferecer_lembrete"], segunda["oferecer_lembrete"]) == (True, False)
+    assert ANA.lembrete_pontos_oferecido_em == AGORA
+
+
+def test_nao_oferece_a_quem_ja_aceitou(banco, pontos):
+    ANA.lembrete_pontos_aceito_em = AGORA - timedelta(days=30)
+    confirmar(banco)
+    assert assistente_conta.meus_pontos(banco.db, CANAL, TELEFONE, AGORA)["oferecer_lembrete"] is False
+
+
+def test_nao_oferece_a_quem_nao_tem_pontos(banco, pontos):
+    pontos.saldos, pontos.sem_data = [], {}
+    confirmar(banco)
+    assert assistente_conta.meus_pontos(banco.db, CANAL, TELEFONE, AGORA)["oferecer_lembrete"] is False
+    assert ANA.lembrete_pontos_oferecido_em is None
+
+
+def test_cliente_sem_conta_nao_recebe_o_lembrete(banco, pontos):
+    confirmar(banco, cpf=CPF_SEM_CONTA)
+
+    assert assistente_conta.meus_pontos(banco.db, CANAL, TELEFONE, AGORA)["oferecer_lembrete"] is False
+    with pytest.raises(RegraDeNegocio, match="/cadastro"):
+        assistente_conta.responder_lembrete(banco.db, CANAL, TELEFONE, True, AGORA)
+
+
+def test_lembrete_exige_a_conta_confirmada(banco):
+    mensagem(banco)
+    with pytest.raises(NaoAutenticado):
+        assistente_conta.responder_lembrete(banco.db, CANAL, TELEFONE, True, AGORA)
+
+
+def test_aceitar_e_depois_recusar_o_lembrete(banco):
+    confirmar(banco)
+
+    aceitou = assistente_conta.responder_lembrete(banco.db, CANAL, TELEFONE, True, AGORA)
+    assert aceitou["aceita"] is True and "por e-mail" in aceitou["mensagem"]
+    assert (ANA.lembrete_pontos_aceito_em, ANA.lembrete_pontos_oferecido_em) == (AGORA, AGORA)
+
+    recusou = assistente_conta.responder_lembrete(banco.db, CANAL, TELEFONE, False, AGORA + timedelta(minutes=5))
+    assert recusou["aceita"] is False
+    assert ANA.lembrete_pontos_aceito_em is None
+    assert ANA.lembrete_pontos_oferecido_em == AGORA
+
+
+def test_aceitar_de_novo_mantem_a_data_do_primeiro_aceite(banco):
+    confirmar(banco)
+    assistente_conta.responder_lembrete(banco.db, CANAL, TELEFONE, True, AGORA)
+    assistente_conta.responder_lembrete(banco.db, CANAL, TELEFONE, True, AGORA + timedelta(minutes=5))
+    assert ANA.lembrete_pontos_aceito_em == AGORA
+
+
+def test_rota_do_lembrete(cliente, banco):
+    confirmar(banco, momento=datetime.now(BRASILIA))
+
+    resposta = cliente.put("/assistente/lembrete-pontos", json={"canal": CANAL, "id_externo": TELEFONE, "aceita": True},
+                           headers={"X-Assistente-Chave": CHAVE})
+
+    assert resposta.status_code == 200
+    assert resposta.json()["aceita"] is True
+    assert ANA.lembrete_pontos_aceito_em is not None
+    assert "pontos" in resumo_atual(banco).assuntos
