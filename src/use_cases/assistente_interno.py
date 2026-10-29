@@ -157,6 +157,8 @@ def responder(db: Session, usuario: Usuario, texto: str, id_conversa: int | None
     agora, hoje, inicio = _agora(), _hoje(), relogio.monotonic()
     conversa = _conversa(db, usuario, id_conversa, agora)
     mensagens = _historico(db, conversa)
+    # as perguntas e respostas anteriores já passaram pela conferência: os números delas valem nesta resposta
+    ja_conferido = "\n".join(m["content"] for m in mensagens)
     instrucoes = _instrucoes(db, usuario, hoje)
     em_foco = _unidade_em_foco(db, usuario, id_unidade_em_foco)
     conversa.ultima_msg_em = agora
@@ -224,7 +226,7 @@ def responder(db: Session, usuario: Usuario, texto: str, id_conversa: int | None
         resposta = NAO_TERMINOU
     elif resposta not in (NAO_CONSULTOU, NAO_TERMINOU, RECUSA):
         # trava da CFO: número que não veio das ferramentas não chega à pessoa
-        sem_origem = numeros_sem_origem(resposta, resultados, texto, instrucoes, hoje)
+        sem_origem = numeros_sem_origem(resposta, resultados, texto, f"{instrucoes}\n{ja_conferido}", hoje)
         conferidos = not sem_origem
         if sem_origem:
             # só os números barrados, sem o texto (que pode trazer dado de cliente)

@@ -937,6 +937,18 @@ def test_numero_inventado_troca_pela_resposta_fixa_da_ferramenta(conversa, caplo
     assert "50.000,00" in caplog.text and "Bruna" not in caplog.text
 
 
+def test_numero_de_resposta_anterior_da_conversa_vale_sem_consultar_de_novo(conversa):
+    conversa.rodadas = [rodada(chamadas=[VENDAS]), rodada("A Savassi vendeu R$ 48.230,00 em 112 pedidos.")]
+    primeira = assistente_interno.responder(BancoFalso(), USUARIO, "quanto a savassi vendeu?")
+
+    # explicar a resposta anterior repete os números dela: já foram conferidos, então passam
+    conversa.rodadas = [rodada("Foram 112 pedidos, como eu disse: a conta é só de vendas pagas.")]
+    segunda = assistente_interno.responder(BancoFalso(), USUARIO, "como você contou?", primeira["id_conversa"])
+
+    assert segunda["numeros_conferidos"] is True
+    assert segunda["resposta"].startswith("Foram 112 pedidos")
+
+
 def test_numero_sem_ferramenta_nenhuma_nao_chega_a_pessoa(conversa):
     conversa.rodadas = [rodada("A rede vendeu R$ 1.000.000,00 no ano.")]
 
