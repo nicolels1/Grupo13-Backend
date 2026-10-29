@@ -74,6 +74,8 @@ def _nao_lidas_do_outro_lado(lado: str):
 
 
 ORDEM_DA_PRIORIDADE = {"alta": 0, "media": 1, "baixa": 2}
+# a definida por quem assumiu vale sobre a sugerida pela IA
+prioridade_que_vale = func.coalesce(Chamado.prioridade, Chamado.prioridade_sugerida)
 
 
 # o cliente vê os mais novos primeiro. A fila da equipe põe os abertos antes dos concluídos e, entre os abertos, a
@@ -83,7 +85,7 @@ def _ordem(lado: str) -> list:
     if lado != "equipe":
         return [Chamado.criado_em.desc(), Chamado.id_chamado.desc()]
     concluido = Chamado.status == "concluido"
-    prioridade = case(ORDEM_DA_PRIORIDADE, value=func.coalesce(Chamado.prioridade, Chamado.prioridade_sugerida),
+    prioridade = case(ORDEM_DA_PRIORIDADE, value=prioridade_que_vale,
                       else_=len(ORDEM_DA_PRIORIDADE))
     return [
         case((concluido, 1), else_=0),
@@ -116,11 +118,13 @@ def consulta_chamados(
     for coluna, valor in [
         (Chamado.id_chamado, id_chamado), (Chamado.id_cliente, id_cliente),
         (Chamado.id_cliente_sem_conta, id_cliente_sem_conta), (Chamado.status, status),
-        (Chamado.categoria, categoria), (Chamado.prioridade, prioridade), (Chamado.id_unidade, id_unidade),
-        (Chamado.id_responsavel, id_responsavel),
+        (Chamado.categoria, categoria), (Chamado.id_unidade, id_unidade), (Chamado.id_responsavel, id_responsavel),
     ]:
         if valor is not None:
             filtros.append(coluna == valor)
+    # a prioridade que vale: a definida por quem assumiu ou, sem ela, a sugerida pela IA ("sem" = nenhuma das duas)
+    if prioridade is not None:
+        filtros.append(prioridade_que_vale.is_(None) if prioridade == "sem" else prioridade_que_vale == prioridade)
     if sem_responsavel is not None:
         filtros.append(Chamado.id_responsavel.is_(None) if sem_responsavel else Chamado.id_responsavel.is_not(None))
     if com_mensagem_nova is not None:

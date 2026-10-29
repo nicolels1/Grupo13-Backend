@@ -1,4 +1,5 @@
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
 from sqlalchemy.orm import Session
@@ -127,7 +128,9 @@ def fila(
     meus: bool = Query(False, description="Só os chamados em que sou responsável"),
     com_mensagem_nova: bool | None = Query(None, description="Com mensagem do cliente ainda não lida"),
     categoria: Categoria | None = None,
-    prioridade: Prioridade | None = None,
+    prioridade: Prioridade | Literal["sem"] | None = Query(
+        None, description="A que vale: a definida por quem assumiu ou, sem ela, a sugerida pela IA. sem: nenhuma das duas"
+    ),
     id_unidade: int | None = None,
     id_cliente: uuid.UUID | None = Query(None, description="Chamados de um cliente com conta"),
     id_cliente_sem_conta: int | None = Query(None, description="Chamados de um cliente da Vulto sem conta"),

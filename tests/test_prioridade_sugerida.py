@@ -173,3 +173,40 @@ def test_fila_da_equipe_poe_a_prioridade_e_depois_quem_espera_mais():
 
 def test_cliente_ve_os_mais_novos_primeiro():
     assert ordem("cliente").strip() == "chamado.criado_em DESC, chamado.id_chamado DESC"
+
+
+# ---------- filtro pela prioridade que vale ----------
+
+def onde(**filtros) -> str:
+    consulta = atendimento_repository.consulta_chamados("equipe", **filtros)
+    return str(consulta.compile(dialect=postgresql.dialect())).split("WHERE", 1)[1].split("ORDER BY", 1)[0]
+
+
+def test_filtro_de_prioridade_olha_a_definida_ou_a_sugerida():
+    assert "coalesce(chamado.prioridade, chamado.prioridade_sugerida) = " in onde(prioridade="alta")
+    assert "coalesce(chamado.prioridade, chamado.prioridade_sugerida) IS NULL" in onde(prioridade="sem")
+
+
+def test_rota_da_fila_aceita_sem_e_recusa_prioridade_que_nao_existe(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from src.app import app
+    from src.database.session import get_db
+    from src.dependencies.permissoes import marca_permitida
+    from src.routes.atendimento import ATENDER
+
+    filtros = []
+    monkeypatch.setattr(atendimento, "listar_fila", lambda db, u, limit, offset, **f: filtros.append(f) or {
+        "items": [], "total": 0, "limit": limit, "offset": offset})
+    app.dependency_overrides[ATENDER] = lambda: CLIENTE
+    app.dependency_overrides[marca_permitida] = lambda: None
+    app.dependency_overrides[get_db] = lambda: None
+    try:
+        cliente = TestClient(app)
+        sem = cliente.get("/atendimento/chamados", params={"prioridade": "sem"})
+        invalida = cliente.get("/atendimento/chamados", params={"prioridade": "urgente"})
+    finally:
+        app.dependency_overrides.clear()
+
+    assert sem.status_code == 200 and filtros[0]["prioridade"] == "sem"
+    assert invalida.status_code == 422
