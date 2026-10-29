@@ -83,4 +83,8 @@ def resumo_das_conversas(db: Session, desde: datetime, ate: datetime, fechadas_a
     por_assunto = select(assunto, func.count().label("conversas")).where(*filtros, tem_tema).group_by(assunto)
     numeros["por_assunto"] = sorted(({"assunto": a, "conversas": n} for a, n in db.execute(por_assunto)),
                                     key=lambda x: (-x["conversas"], x["assunto"]))
+
+    # os canais que de fato tiveram conversa: a resposta diz só esses
+    por_canal = select(r.canal, func.count()).where(*filtros, tem_tema).group_by(r.canal)
+    numeros["por_canal"] = {c: n for c, n in db.execute(por_canal)}
     return numeros
