@@ -12,11 +12,11 @@ from src.config import settings
 from src.models.assistente import AfirmacaoAssistente, CodigoVerificacao, ConversaCanal
 from src.models.estoque import Unidade
 from src.repositories import assistente_repository as repo
-from src.repositories import cliente_sem_conta_repository, fidelidade_repository, pedido_repository
-from src.repositories import usuario_repository
-from src.use_cases import fidelidade, resumo_conversa
+from src.repositories import atendimento_repository, cliente_sem_conta_repository, fidelidade_repository
+from src.repositories import pedido_repository, usuario_repository
+from src.use_cases import atendimento, fidelidade, resumo_conversa
 from src.use_cases.assistente import endereco
-from src.use_cases.erros import MuitasTentativas, NaoAutenticado, RecursoNaoEncontrado, RegraDeNegocio
+from src.use_cases.erros import Conflito, MuitasTentativas, NaoAutenticado, RecursoNaoEncontrado, RegraDeNegocio
 from src.use_cases.horarios import BRASILIA
 from src.utils.cpf import cpf_valido, normalizar_cpf
 from src.utils.email import ErroEmail, enviar_email
@@ -95,7 +95,25 @@ def _estado(conversa: ConversaCanal, momento: datetime, conversa_nova: bool = Fa
         # o texto fixo do limite sai uma vez só; depois, silêncio até o dia seguinte
         "avisar_limite": conversa.msgs_hoje == MENSAGENS_POR_DIA + 1,
         "bloqueado_ate": _bloqueado_ate(conversa, momento),
+        "id_chamado": conversa.id_chamado,
     }
+
+
+# fora da confirmação por e-mail, a conversa volta para a IA; com chamado aberto, a mensagem também vai
+# para ele (o cliente pode pedir os pontos no meio do chamado sem que o chamado se perca)
+def _etapa_sem_verificacao(conversa: ConversaCanal) -> str:
+    return "em_chamado" if conversa.id_chamado is not None else "livre"
+
+
+# chamado concluído pela equipe: o assistente volta a atender a conversa sozinho
+def _soltar_chamado_concluido(db: Session, conversa: ConversaCanal) -> None:
+    if conversa.id_chamado is None:
+        return
+    chamado = atendimento_repository.buscar_chamado(db, conversa.id_chamado)
+    if chamado is None or chamado.status == "concluido":
+        conversa.id_chamado = None
+        if conversa.etapa == "em_chamado":
+            conversa.etapa = "livre"
 
 
 def _conversa(db: Session, canal: str, id_externo: str, travar: bool = False) -> ConversaCanal:
@@ -114,7 +132,8 @@ def registrar_mensagem(db: Session, canal: str, id_externo: str, momento: dateti
     if conversa_nova:
         _desconfirmar(conversa)
         if conversa.etapa in ("esperando_cpf", "esperando_codigo"):
-            conversa.etapa = "livre"
+            conversa.etapa = _etapa_sem_verificacao(conversa)
+    _soltar_chamado_concluido(db, conversa)
     # cada conversa tem o seu resumo anônimo; a conversa aberta antes do resumo existir também ganha um
     if conversa_nova or conversa.id_resumo_atual is None:
         resumo_conversa.abrir(db, conversa, momento)
@@ -135,9 +154,10 @@ def registrar_mensagem(db: Session, canal: str, id_externo: str, momento: dateti
 def mudar_etapa(db: Session, canal: str, id_externo: str, etapa: str, momento: datetime) -> dict:
     conversa = _conversa(db, canal, id_externo, travar=True)
     if etapa == "esperando_cpf" and _confirmado(conversa, momento):
-        etapa = "livre"
+        etapa = _etapa_sem_verificacao(conversa)
     if etapa == "livre":
         repo.encerrar_codigos(db, canal, id_externo, momento)
+        etapa = _etapa_sem_verificacao(conversa)
     conversa.etapa = etapa
     db.commit()
     return _estado(conversa, momento)
@@ -231,7 +251,7 @@ def conferir_codigo(db: Session, canal: str, id_externo: str, codigo: str, momen
         if aberto.tentativas >= ERROS_ATE_BLOQUEAR:
             aberto.encerrado_em = momento
             conversa.bloqueado_ate = momento + BLOQUEIO
-            conversa.etapa = "livre"
+            conversa.etapa = _etapa_sem_verificacao(conversa)
             db.commit()
             _conferir_bloqueio(conversa, momento)  # avisa até quando ficou pausado
         db.commit()
@@ -243,7 +263,7 @@ def conferir_codigo(db: Session, canal: str, id_externo: str, codigo: str, momen
     conversa.id_cliente = aberto.id_cliente
     conversa.id_cliente_sem_conta = aberto.id_cliente_sem_conta
     conversa.confirmado_ate = momento + DURACAO_DA_CONVERSA
-    conversa.etapa = "livre"
+    conversa.etapa = _etapa_sem_verificacao(conversa)
     resumo_conversa.marcar_autenticou(db, conversa)
     if aberto.id_cliente is not None:
         nome = usuario_repository.buscar_por_id(db, aberto.id_cliente).nome
@@ -413,3 +433,70 @@ def meus_pedidos(db: Session, canal: str, id_externo: str, id_pedido: int | None
     resultado = {"items": montados, "texto": texto}
     _afirmar(db, conversa, "meus_pedidos", resultado, momento)
     return resultado
+
+
+# ---------- chamado: passar para uma pessoa sem sair da conversa ----------
+
+TAMANHO_DA_DESCRICAO = 5000  # o mesmo limite do chamado aberto pelo site
+QUEM_FALOU = {"cliente": "Cliente", "assistente": "Assistente"}
+
+
+def _sem_conta_para_chamado() -> str:
+    return (f"Para falar com a nossa equipe é preciso ter conta no site. Crie a sua em {settings.SITE_URL}/cadastro "
+            "e depois me chame de novo por aqui.")
+
+
+# o resumo confirmado pelo cliente vem primeiro; a conversa vai depois, cortada nas falas mais antigas
+# se passar do tamanho do chamado
+def _descricao(resumo: str, conversa: list[dict]) -> str:
+    if not conversa:
+        return resumo
+    cabecalho = f"{resumo}\n\nConversa com o assistente:\n"
+    falas = [f"{QUEM_FALOU[f['de']]}: {f['texto']}" for f in conversa]
+    while falas and len(cabecalho) + len("\n".join(falas)) > TAMANHO_DA_DESCRICAO:
+        falas.pop(0)
+    return cabecalho + "\n".join(falas) if falas else resumo
+
+
+# depois do botão [Enviar]. Chamado é de cliente com conta confirmada nesta conversa; usa a mesma regra do
+# chamado aberto pelo site (pedido só do próprio cliente, prioridade sugerida em segundo plano). Daqui em
+# diante, toda mensagem do cliente também vai para o chamado, até a equipe concluir
+def abrir_chamado(db: Session, canal: str, id_externo: str, dados: dict, momento: datetime) -> dict:
+    conversa = _conversa(db, canal, id_externo, travar=True)
+    if not _confirmado(conversa, momento):
+        raise NaoAutenticado("Confirme quem é você antes: peça o CPF")
+    if conversa.id_cliente is None:
+        raise RegraDeNegocio(_sem_conta_para_chamado())
+    _soltar_chamado_concluido(db, conversa)
+    if conversa.id_chamado is not None:
+        raise Conflito(f"Você já tem o chamado #{conversa.id_chamado} aberto: a equipe responde por aqui.")
+
+    cliente = usuario_repository.buscar_por_id(db, conversa.id_cliente)
+    chamado = atendimento.abrir_chamado(db, cliente, {
+        "categoria": dados["categoria"],
+        "assunto": dados["assunto"],
+        "descricao": _descricao(dados["resumo"], dados["conversa"]),
+        "id_pedido": dados["id_pedido"],
+        "canal_externo": canal,
+    })
+    conversa.id_chamado = chamado["id_chamado"]
+    conversa.etapa = "em_chamado"
+    resumo_conversa.marcar_virou_chamado(db, conversa)
+    db.commit()
+    return {
+        "id_chamado": chamado["id_chamado"],
+        "mensagem": f"Pronto, abri o chamado #{chamado['id_chamado']}. A equipe responde por aqui mesmo.",
+    }
+
+
+# enquanto o chamado está aberto, o n8n grava aqui toda mensagem do cliente (e também a passa para a IA).
+# Não pede a confirmação de novo: o chamado ficou ligado a esta conversa quando o cliente se confirmou
+def mensagem_no_chamado(db: Session, canal: str, id_externo: str, texto: str) -> dict:
+    conversa = _conversa(db, canal, id_externo, travar=True)
+    _soltar_chamado_concluido(db, conversa)
+    if conversa.id_chamado is None:
+        db.commit()
+        raise RegraDeNegocio("Esta conversa não tem chamado aberto")
+    chamado = atendimento_repository.buscar_chamado(db, conversa.id_chamado)
+    cliente = usuario_repository.buscar_por_id(db, chamado.id_cliente)
+    return atendimento.enviar_mensagem_do_cliente(db, cliente, chamado.id_chamado, texto)

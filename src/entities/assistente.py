@@ -2,7 +2,10 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from src.entities.atendimento import Categoria
+from src.entities.comum import sem_espacos
 
 
 class PecaSaida(BaseModel):
@@ -117,6 +120,30 @@ class ResumoDoN8nEntrada(ConversaEntrada):
     fora_do_tema: bool = Field(default=False, description="O cliente falou de algo fora do que o assistente atende")
 
 
+class FalaDaConversa(BaseModel):
+    de: Literal["cliente", "assistente"]
+    texto: str = Field(min_length=1, max_length=1000)
+
+
+# depois do botão [Enviar]: o resumo é o que o cliente confirmou; a conversa vem da memória curta do n8n,
+# para o atendente saber o que ele já falou
+class ChamadoDoAssistenteEntrada(ConversaEntrada):
+    categoria: Categoria
+    assunto: str = Field(min_length=3, max_length=200)
+    resumo: str = Field(min_length=1, max_length=2000, description="O resumo que o cliente confirmou")
+    id_pedido: int | None = Field(default=None, description="Pedido do próprio cliente de que o chamado trata")
+    conversa: list[FalaDaConversa] = Field(default_factory=list, max_length=40,
+                                           description="As últimas mensagens, da mais antiga para a mais nova")
+
+    _limpa = field_validator("assunto", "resumo", mode="before")(sem_espacos)
+
+
+class MensagemNoChamadoEntrada(ConversaEntrada):
+    texto: str = Field(min_length=1, max_length=5000)
+
+    _limpa = field_validator("texto", mode="before")(sem_espacos)
+
+
 class EstadoConversa(BaseModel):
     etapa: str
     confirmado: bool = Field(description="Conta confirmada pelo código nesta conversa")
@@ -124,6 +151,12 @@ class EstadoConversa(BaseModel):
     limite_atingido: bool = Field(description="Passou das 100 mensagens hoje: não responder")
     avisar_limite: bool = Field(description="Primeira mensagem acima do limite: mandar o aviso uma vez")
     bloqueado_ate: datetime | None = Field(description="Confirmação pausada por código errado")
+    id_chamado: int | None = Field(description="Chamado aberto pela conversa: a mensagem também vai para ele")
+
+
+class ChamadoAbertoSaida(BaseModel):
+    id_chamado: int
+    mensagem: str = Field(description="Texto pronto para o cliente")
 
 
 class CodigoEnviado(BaseModel):
