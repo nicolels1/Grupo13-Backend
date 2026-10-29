@@ -70,12 +70,17 @@ def ver_estoque(
     "/link-carrinho",
     response_model=LinkCarrinhoSaida,
     responses={
-        404: {"description": "Peça não encontrada"},
-        422: {"description": "Sem estoque para o site (a mensagem diz em quais lojas tem)"},
+        404: {"description": "Peça não encontrada (pedido de uma peça só)"},
+        422: {"description": "Nenhuma peça com estoque para o site (a mensagem diz em quais lojas tem)"},
     },
-    description="Link que abre o site com a peça no carrinho. Só sai com estoque para o site.",
+    description="Link que abre o site com as peças escolhidas na conversa já no carrinho (repita id_variante para "
+                "cada peça). Só entra peça com estoque para o site; as outras vêm em fora_do_link, com o motivo.",
 )
-def link_carrinho(id_variante: int, conversa: tuple = Depends(conversa_do_cabecalho), db: Session = Depends(get_db)):
+def link_carrinho(
+    id_variante: list[int] = Query(min_length=1, max_length=10, description="Uma ou mais peças, até 10"),
+    conversa: tuple = Depends(conversa_do_cabecalho),
+    db: Session = Depends(get_db),
+):
     return resumo_conversa.com_assunto(db, *conversa, "carrinho", lambda: assistente.link_carrinho(db, id_variante))
 
 

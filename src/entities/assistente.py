@@ -50,11 +50,21 @@ class EstoqueSaida(BaseModel):
     lojas: list[EstoqueNaLoja]
 
 
-class LinkCarrinhoSaida(BaseModel):
+class PecaDoLink(BaseModel):
     id_variante: int
     produto: str
     cor: str
     tamanho: str
+
+
+class PecaForaDoLink(BaseModel):
+    id_variante: int
+    motivo: str = Field(description="Sem estoque para o site (diz as lojas que têm) ou peça não encontrada")
+
+
+class LinkCarrinhoSaida(BaseModel):
+    items: list[PecaDoLink] = Field(description="As peças que o link põe no carrinho")
+    fora_do_link: list[PecaForaDoLink] = Field(description="As peças que não deu para pôr no carrinho")
     link: str
 
 
