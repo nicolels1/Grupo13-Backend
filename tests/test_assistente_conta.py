@@ -596,9 +596,8 @@ def test_rota_do_resumo_recusa_avaliacao_desconhecida(cliente):
 # ---------- chamado aberto pelo assistente ----------
 
 PEDIDO_DE_TROCA = {"categoria": "troca_devolucao", "assunto": "Trocar camisa", "resumo": "Quer trocar a camisa do "
-                   "pedido 12 pelo tamanho G.", "id_pedido": None,
-                   "conversa": [{"de": "cliente", "texto": "quero trocar a camisa"},
-                                {"de": "assistente", "texto": "Claro! Qual tamanho?"}]}
+                   "pedido 12 pelo tamanho G.", "id_pedido": None}
+FALAS = [{"de": "cliente", "texto": "quero trocar a camisa"}, {"de": "assistente", "texto": "Claro! Qual tamanho?"}]
 
 
 @pytest.fixture
@@ -612,8 +611,90 @@ def chamados(banco, monkeypatch):
     return buscar
 
 
-def abrir(banco, dados=PEDIDO_DE_TROCA, momento=AGORA):
-    return assistente_conta.abrir_chamado(banco.db, CANAL, TELEFONE, dados, momento)
+def rascunhar(banco, dados=PEDIDO_DE_TROCA, momento=AGORA):
+    return assistente_conta.rascunhar_chamado(banco.db, CANAL, TELEFONE, dict(dados), momento)
+
+
+def enviar(banco, momento=AGORA):
+    return assistente_conta.abrir_chamado(banco.db, CANAL, TELEFONE, FALAS, momento)
+
+
+# o caminho inteiro: a IA monta o resumo e o cliente aperta [Enviar]
+def abrir(banco, momento=AGORA):
+    rascunhar(banco, momento=momento)
+    return enviar(banco, momento)
+
+
+def test_rascunho_espera_o_cliente_conferir(banco, chamados):
+    confirmar(banco)
+
+    resposta = rascunhar(banco)
+
+    conversa = banco.conversas[(CANAL, TELEFONE)]
+    assert conversa.etapa == "confirmando_chamado"
+    assert conversa.rascunho_chamado == PEDIDO_DE_TROCA
+    assert "Trocar camisa" in resposta["mensagem"] and PEDIDO_DE_TROCA["resumo"] in resposta["mensagem"]
+    assert not [o for o in banco.db.adicionados if isinstance(o, Chamado)]
+
+
+def test_chamado_abre_com_o_rascunho_corrigido(banco, chamados, sem_prioridade_sugerida_em_segundo_plano):
+    confirmar(banco)
+    rascunhar(banco)
+    rascunhar(banco, {**PEDIDO_DE_TROCA, "resumo": "Quer trocar a camisa pelo tamanho M."})
+
+    chamado = chamados(banco.db, enviar(banco)["id_chamado"])
+
+    assert chamado.descricao.startswith("Quer trocar a camisa pelo tamanho M.")
+    assert banco.conversas[(CANAL, TELEFONE)].rascunho_chamado is None
+
+
+def test_enviar_sem_rascunho_nao_abre_chamado(banco, chamados):
+    confirmar(banco)
+
+    with pytest.raises(RegraDeNegocio, match="resumo"):
+        enviar(banco)
+
+
+def test_corrigir_desfaz_o_rascunho(banco, chamados):
+    confirmar(banco)
+    rascunhar(banco)
+
+    estado = assistente_conta.mudar_etapa(banco.db, CANAL, TELEFONE, "livre", AGORA)
+
+    assert estado["etapa"] == "livre"
+    assert banco.conversas[(CANAL, TELEFONE)].rascunho_chamado is None
+    with pytest.raises(RegraDeNegocio, match="resumo"):
+        enviar(banco)
+
+
+def test_rascunho_vence_com_a_conversa(banco, chamados):
+    confirmar(banco)
+    rascunhar(banco)
+
+    estado = mensagem(banco, AGORA + timedelta(minutes=31))
+
+    assert estado["etapa"] == "livre"
+    assert banco.conversas[(CANAL, TELEFONE)].rascunho_chamado is None
+
+
+def test_pedir_o_cpf_no_meio_da_confirmacao_desfaz_o_rascunho(banco, chamados):
+    confirmar(banco)
+    rascunhar(banco)
+
+    assistente_conta.pedir_codigo(banco.db, CANAL, TELEFONE, CPF_ANA, AGORA)
+
+    conversa = banco.conversas[(CANAL, TELEFONE)]
+    assert (conversa.etapa, conversa.rascunho_chamado) == ("esperando_codigo", None)
+
+
+def test_rascunho_com_pedido_de_outra_pessoa(banco, chamados, monkeypatch):
+    monkeypatch.setattr(atendimento_repository, "buscar_pedido",
+                        lambda db, id_pedido: Pedido(id_pedido=id_pedido, id_cliente=uuid.uuid4()))
+    confirmar(banco)
+
+    with pytest.raises(RecursoNaoEncontrado):
+        rascunhar(banco, {**PEDIDO_DE_TROCA, "id_pedido": 99})
+    assert banco.conversas[(CANAL, TELEFONE)].etapa == "livre"
 
 
 def test_abre_o_chamado_com_o_resumo_e_a_conversa(banco, chamados, sem_prioridade_sugerida_em_segundo_plano):
@@ -722,11 +803,22 @@ def test_rota_do_chamado_anota_o_assunto(cliente, banco, chamados):
     cabecalho = {"X-Assistente-Chave": CHAVE}
     confirmar(banco, momento=datetime.now(BRASILIA))  # a rota usa a hora de agora
 
-    resposta = cliente.post("/assistente/chamado", json={"canal": CANAL, "id_externo": TELEFONE, **PEDIDO_DE_TROCA},
-                            headers=cabecalho)
+    conversa = {"canal": CANAL, "id_externo": TELEFONE}
 
-    assert resposta.status_code == 201
+    rascunho = cliente.put("/assistente/chamado/rascunho", json={**conversa, **PEDIDO_DE_TROCA}, headers=cabecalho)
+    resposta = cliente.post("/assistente/chamado", json={**conversa, "conversa": FALAS}, headers=cabecalho)
+
+    assert (rascunho.status_code, resposta.status_code) == (200, 201)
     assert resumo_atual(banco).assuntos == ["chamado"]
+
+
+def test_rota_do_chamado_sem_rascunho_responde_422(cliente, banco, chamados):
+    confirmar(banco, momento=datetime.now(BRASILIA))
+
+    resposta = cliente.post("/assistente/chamado", json={"canal": CANAL, "id_externo": TELEFONE, "conversa": FALAS},
+                            headers={"X-Assistente-Chave": CHAVE})
+
+    assert resposta.status_code == 422
 
 
 def test_rota_da_mensagem_sem_chamado_responde_422(cliente, banco, chamados):
