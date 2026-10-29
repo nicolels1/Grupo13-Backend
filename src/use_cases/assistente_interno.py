@@ -42,7 +42,9 @@ consegue responder.
 - Ao oferecer outra consulta, não proponha um número (prazo, quantidade): diga "outro prazo" ou pergunte qual.
 - Não deduza uma data a partir de outra (ex.: quando os pontos foram ganhos a partir do vencimento), nem quando a \
 pessoa dá a regra. Se a pergunta pede algo que a resposta anterior não trouxe, consulte a ferramenta de novo.
-- Diga sempre o período e onde (unidade ou marca) e, em poucas palavras, o que entrou na conta.
+- Diga sempre o período e onde (unidade ou marca) e, em poucas palavras, o que entrou na conta. Diga cada \
+um uma vez só, sem repetir com outras palavras: "Na Vulto, em 2025, ..." (não "na Vulto, todas as unidades \
+da Vulto"; datas só quando o nome do período não deixa claro, como "últimos 30 dias (30/09 a 29/10/2026)").
 - Se a pergunta não diz um prazo e a ferramenta tem um padrão (ex.: 30 dias), use o padrão e diga qual usou.
 - Se faltar o que a ferramenta precisa (qual loja, qual período), pergunte antes. Se o nome da loja combinar com \
 mais de uma unidade da lista, pergunte qual.
@@ -50,6 +52,9 @@ mais de uma unidade da lista, pergunte qual.
 - Você só consulta. Não altera estoque, pedidos, pontos nem pagamentos; se pedirem, diga em que tela da \
 plataforma isso se faz.
 - Para comparar unidades ("qual loja vendeu mais"), consulte uma vez sem unidade e use a lista por unidade.
+- Os pedidos e o histórico do estoque começam em 01/01/2025: antes disso a plataforma não tem dado.
+- Período maior que um ano ("últimos 2 anos"): não pergunte, consulte em partes de até um ano (uma chamada \
+para cada, a mais recente terminando hoje) e mostre cada parte separada, sem somar.
 - Unidade é loja ou CD (o tipo está na lista). Ao listar, separe lojas e CDs ("Lojas da Vulto: ...; CD: ...") e \
 não chame só as lojas de "unidades".
 - Pergunta fora do negócio: não responda o assunto; diga em uma frase o que você consegue consultar.
@@ -170,6 +175,7 @@ def responder(db: Session, usuario: Usuario, texto: str, id_conversa: int | None
     definicoes = [f.definicao() for f in FERRAMENTAS.values()]
     resultados: list[dict] = []
     recusas: list[str] = []  # motivo de cada recusa por permissão, escrito pelo backend
+    erros: list[str] = []  # pedido fora da regra ("período maior que um ano"): o modelo pode repetir os limites
     usadas: list[str] = []
     tokens = {"tokens_entrada": 0, "tokens_saida": 0, "tokens_cache_lidos": 0, "tokens_cache_escritos": 0}
     modelo, resposta, conferidos = None, None, None
@@ -203,12 +209,14 @@ def responder(db: Session, usuario: Usuario, texto: str, id_conversa: int | None
                 usadas.append(chamada.nome)
                 repo.adicionar_mensagem(db, conversa, papel="ferramenta", ferramenta=chamada.nome,
                                         parametros=chamada.parametros, resultado=situacao,
-                                        texto=json.dumps(resultado, ensure_ascii=False, default=str))
+                                        texto=json.dumps(_sem(resultado, "tabela"), ensure_ascii=False, default=str))
                 if situacao in ("dado", "vazio"):
                     resultados.append(resultado)
                 elif situacao == "sem_permissao" and resultado["erro"] not in recusas:
                     recusas.append(resultado["erro"])
-                para_o_modelo = {k: v for k, v in resultado.items() if k != "links"}
+                elif situacao == "invalido":
+                    erros.append(resultado["erro"])
+                para_o_modelo = _sem(resultado, "links", "tabela")
                 respostas_das_ferramentas.append({
                     "type": "tool_result", "tool_use_id": chamada.id,
                     "content": json.dumps(para_o_modelo, ensure_ascii=False, default=str),
@@ -226,7 +234,8 @@ def responder(db: Session, usuario: Usuario, texto: str, id_conversa: int | None
         resposta = NAO_TERMINOU
     elif resposta not in (NAO_CONSULTOU, NAO_TERMINOU, RECUSA):
         # trava da CFO: número que não veio das ferramentas não chega à pessoa
-        sem_origem = numeros_sem_origem(resposta, resultados, texto, f"{instrucoes}\n{ja_conferido}", hoje)
+        sem_origem = numeros_sem_origem(resposta, resultados, texto,
+                                        "\n".join([instrucoes, ja_conferido, *recusas, *erros]), hoje)
         conferidos = not sem_origem
         if sem_origem:
             # só os números barrados, sem o texto (que pode trazer dado de cliente)
@@ -242,8 +251,14 @@ def responder(db: Session, usuario: Usuario, texto: str, id_conversa: int | None
     db.commit()
     links = list({link["url"]: link for r in resultados for link in r.get("links", [])}.values())
     return {"id_conversa": conversa.id_conversa, "resposta": resposta, "links": links,
+            "tabelas": [r["tabela"] for r in resultados if "tabela" in r],
             "ferramentas": usadas, "numeros_conferidos": conferidos,
             "unidade_em_foco": {"id_unidade": em_foco.id_unidade, "nome": em_foco.nome} if em_foco else None}
+
+
+# a tabela traz dado pessoal (o nome do cliente) só para a tela: não vai ao modelo nem fica no histórico
+def _sem(resultado: dict, *chaves: str) -> dict:
+    return {k: v for k, v in resultado.items() if k not in chaves}
 
 
 def _ms(inicio: float) -> int:

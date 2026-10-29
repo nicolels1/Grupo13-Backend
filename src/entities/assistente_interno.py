@@ -29,10 +29,26 @@ class UnidadeEmFoco(BaseModel):
     nome: str
 
 
+class LinhaDaTabela(BaseModel):
+    celulas: list[str]
+    url: str | None = Field(None, description="A ficha ou o registro da linha")
+
+
+class Tabela(BaseModel):
+    titulo: str
+    colunas: list[str]
+    linhas: list[LinhaDaTabela]
+
+
 class RespostaAssistente(BaseModel):
     id_conversa: int = Field(description="Mande de volta na próxima pergunta para continuar a conversa")
     resposta: str
     links: list[Link]
+    tabelas: list[Tabela] = Field(
+        default_factory=list,
+        description="Montadas pelo sistema com o resultado das ferramentas, para mostrar abaixo da resposta. Podem "
+                    "trazer dado pessoal (o nome do cliente), que não passa pelo modelo nem fica no histórico",
+    )
     ferramentas: list[str] = Field(description="Ferramentas usadas, na ordem")
     numeros_conferidos: bool | None = Field(
         description="A resposta passou na conferência dos números (falso: veio o texto fixo da ferramenta); "

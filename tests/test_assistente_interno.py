@@ -118,6 +118,119 @@ def test_sem_venda_no_periodo(vendas):
     assert (r["faturamento"], r["pedidos"], r["ticket_medio"]) == ("R$ 0,00", "0", None)
 
 
+def test_periodo_antes_dos_pedidos_diz_que_nao_ha_dado_em_vez_de_zero(vendas):
+    r = ferramentas_internas.vendas_do_periodo(
+        None, USUARIO, {"periodo": "intervalo", "de": "2024-01-01", "ate": "2024-12-31"}, QUARTA)
+
+    assert r["sem_dados_antes_de"] == "01/01/2025"
+    assert r["texto"] == r["aviso"]
+    assert r["texto"].startswith("A plataforma não tem vendas antes de 01/01/2025 (ano 2025)")
+    assert "R$" not in r["texto"]
+
+
+def test_periodo_que_comeca_antes_dos_pedidos_avisa_que_cobre_so_uma_parte(vendas):
+    r = ferramentas_internas.vendas_do_periodo(
+        None, USUARIO, {"periodo": "intervalo", "de": "2024-06-01", "ate": "2025-05-31"}, QUARTA)
+
+    assert r["texto"].startswith("Vendas na rede inteira de 01/06/2024 a 31/05/2025: R$ 50.030,50")
+    assert r["texto"].endswith("o total acima cobre só a parte do período a partir dessa data.")
+
+
+def test_periodo_depois_do_comeco_dos_pedidos_nao_tem_aviso(vendas):
+    r = ferramentas_internas.vendas_do_periodo(None, USUARIO, {"periodo": "ultimos_30_dias"}, QUARTA)
+    assert "aviso" not in r
+
+
+# ---------- maiores_clientes ----------
+
+@pytest.fixture
+def clientes(vendas, monkeypatch):
+    estado = SimpleNamespace(consultas=[], linhas=[
+        {"id_cliente": uuid.UUID("cbee8556-dd06-4b9c-adc8-6094f0e8eacd"), "id_cliente_sem_conta": None,
+         "pedidos": 5, "valor": Decimal("1739.40")},
+        {"id_cliente": None, "id_cliente_sem_conta": 2754, "pedidos": 2, "valor": Decimal("849.70")},
+    ], sem_cliente={"pedidos": 2, "valor": Decimal("599.80")})
+
+    def maiores(db, desde, ate, id_unidade, marca, limite):
+        estado.consultas.append((desde, ate, id_unidade, marca, limite))
+        return estado.linhas[:limite], estado.sem_cliente
+
+    monkeypatch.setattr(resumo_repository, "maiores_clientes", maiores)
+    monkeypatch.setattr(resumo_repository, "nomes_dos_clientes", lambda db, conta, sem_conta: (
+        {uuid.UUID("cbee8556-dd06-4b9c-adc8-6094f0e8eacd"): "Maria Souza"}, {}))
+    return estado
+
+
+def test_ranking_de_clientes_vem_sem_nome_e_o_nome_so_na_tabela_da_tela(clientes):
+    r = ferramentas_internas.maiores_clientes(None, USUARIO, {"periodo": "este_mes"}, QUARTA)
+
+    assert r["maiores_clientes"][0] == {"posicao": "1º", "faturamento": "R$ 1.739,40", "pedidos": "5",
+                                        "ticket_medio": "R$ 347,88", "cadastro": "com conta"}
+    assert r["maiores_clientes"][1]["cadastro"] == "sem conta (comprador migrado da Vulto)"
+    assert r["tabela"]["colunas"] == ["Posição", "Cliente", "Total", "Pedidos"]
+    assert r["tabela"]["linhas"] == [
+        {"celulas": ["1º", "Maria Souza", "R$ 1.739,40", "5"],
+         "url": "/interno/clientes/conta/cbee8556-dd06-4b9c-adc8-6094f0e8eacd"},
+        {"celulas": ["2º", "Cliente sem nome (só CPF)", "R$ 849,70", "2"], "url": "/interno/clientes/sem-conta/2754"},
+    ]
+    assert r["sem_cliente"] == {"faturamento": "R$ 599,80", "pedidos": "2"}
+    # o nome e o id do cliente só vão na tabela, que não chega ao modelo
+    sem_tabela = str({k: v for k, v in r.items() if k != "tabela"})
+    assert "Maria" not in sem_tabela and "cbee8556" not in sem_tabela and "2754" not in sem_tabela
+
+
+def test_ranking_sem_periodo_usa_os_ultimos_365_dias(clientes):
+    r = ferramentas_internas.maiores_clientes(None, USUARIO, {}, QUARTA)
+
+    assert r["periodo"] == {"de": "29/10/2025", "ate": "28/10/2026", "padrao": "últimos 365 dias"}
+    # a consulta traz os 10 da tabela; o modelo recebe só os 5 do padrão
+    assert clientes.consultas[0][4] == 10
+
+
+def test_pergunta_por_um_cliente_so_manda_um_ao_modelo_e_a_tabela_mostra_todos(clientes):
+    r = ferramentas_internas.maiores_clientes(None, USUARIO, {"periodo": "este_mes", "quantos": 1}, QUARTA)
+
+    assert [c["posicao"] for c in r["maiores_clientes"]] == ["1º"]
+    assert [l["celulas"][0] for l in r["tabela"]["linhas"]] == ["1º", "2º"]
+
+
+def test_ranking_de_clientes_vazio_diz_o_que_ficou_de_fora(clientes):
+    clientes.linhas = []
+    r = ferramentas_internas.maiores_clientes(None, USUARIO, {"periodo": "hoje"}, QUARTA)
+    assert r["vazio"] is True and "balcão sem CPF" in r["texto"]
+
+
+@pytest.mark.parametrize("quantos", [0, 11])
+def test_ranking_de_clientes_fora_do_limite(clientes, quantos):
+    with pytest.raises(RegraDeNegocio):
+        ferramentas_internas.maiores_clientes(None, USUARIO, {"periodo": "hoje", "quantos": quantos}, QUARTA)
+
+
+def test_ranking_de_clientes_pede_permissao_de_vendas(clientes, vendas):
+    vendas.pode_vender = False
+    with pytest.raises(SemPermissao):
+        ferramentas_internas.maiores_clientes(None, USUARIO, {}, QUARTA)
+
+
+def test_consulta_do_ranking_soma_por_cliente_e_separa_o_balcao():
+    from sqlalchemy.dialects import postgresql
+
+    class Capturar:
+        def __init__(self):
+            self.sqls = []
+
+        def execute(self, consulta):
+            self.sqls.append(str(consulta.compile(dialect=postgresql.dialect())))
+            return SimpleNamespace(mappings=lambda: SimpleNamespace(all=lambda: [], one=lambda: {}))
+
+    db = Capturar()
+    resumo_repository.maiores_clientes(db, datetime.now(timezone.utc), datetime.now(timezone.utc), None, "vulto", 5)
+    ranking, balcao = db.sqls
+    assert "GROUP BY lancamento.id_cliente, lancamento.id_cliente_sem_conta" in ranking
+    assert "HAVING sum(lancamento.valor) > " in ranking and "LIMIT" in ranking
+    assert "NOT (lancamento.id_cliente IS NOT NULL OR lancamento.id_cliente_sem_conta IS NOT NULL)" in balcao
+
+
 def test_vendas_pedem_permissao_de_vendas(vendas):
     vendas.pode_vender = False
     with pytest.raises(SemPermissao):
@@ -196,6 +309,9 @@ def estoque(monkeypatch):
     m = monkeypatch.setattr
     m(ferramentas_internas.estoque_repository, "consulta_historico", consulta)
     m(ferramentas_internas.estoque_repository, "consulta_pecas_paradas", paradas)
+    estado.por_unidade = []
+    m(ferramentas_internas.estoque_repository, "consulta_paradas_por_unidade",
+      lambda consulta: ConsultaFalsa(estado.por_unidade))
     m(ferramentas_internas.estoque_repository, "prazos_por_categoria", lambda db, desde: estado.medidos)
     m(ferramentas_internas, "usuario_tem_permissao", lambda db, u, *codigos: estado.pode)
     m(ferramentas_internas, "marcas_visiveis", lambda db, u: estado.marcas)
@@ -359,7 +475,8 @@ def test_sem_prazo_cada_categoria_usa_o_normal_dela(estoque):
     assert r["prazos_por_categoria"][0] == {"categoria": "Acessórios", "dias": "15"}
     assert r["mais_antigas"][0]["normal_da_categoria"] == "115 dias (Jaquetas)"
     assert r["mais_antigas"][0]["ultima_venda"] == "nunca vendeu nessa unidade"
-    assert r["mais_antigas"][0]["dias_parada"] == "665"
+    # estava lá quando o histórico começou e nunca vendeu: o tempo real pode ser maior
+    assert r["mais_antigas"][0]["dias_parada"] == "pelo menos 665"
     assert r["mais_antigas"][1]["ultima_venda"] == "01/08/2026" and r["mais_antigas"][1]["dias_parada"] == "88"
     assert r["texto"].startswith("40 variações paradas (há mais tempo que o normal da categoria) na rede inteira, "
                                  "somando 300 peças.")
@@ -373,6 +490,32 @@ def test_prazo_pedido_vale_para_todas_as_categorias(estoque):
     assert consulta["cortes_por_categoria"] is None and no_dia(consulta["corte"]) == datetime(2026, 8, 29)
     assert (r["regra"], r["dias"], r["prazos_por_categoria"]) == ("há mais de 60 dias", "60", [])
     assert "normal_da_categoria" not in r["mais_antigas"][0]
+
+
+def test_paradas_separam_o_total_de_cada_loja_e_de_cada_cd(estoque):
+    chegou_depois = datetime(2025, 3, 10, 15, 0, tzinfo=timezone.utc)
+    estoque.linhas = [parada("Bomber Clássica", "CD Cajamar", 20, None, chegou_depois)]
+    estoque.por_unidade = [
+        {"unidade": "Vulto Savassi", "tipo_unidade": "loja", "variacoes": 120, "pecas": 410},
+        {"unidade": "CD Cajamar", "tipo_unidade": "cd", "variacoes": 900, "pecas": 3200},
+    ]
+    r = ferramentas_internas.pecas_paradas(BancoDeEstoque(estoque.linhas), USUARIO, {}, QUARTA)
+
+    assert r["lojas"] == [{"unidade": "Vulto Savassi", "variacoes": "120", "pecas": "410"}]
+    assert r["cds"] == [{"unidade": "CD Cajamar", "variacoes": "900", "pecas": "3.200"}]
+    # chegou depois do começo do histórico: a contagem é exata
+    assert r["mais_antigas"][0]["dias_parada"] == "597"
+
+
+def test_consulta_de_paradas_por_unidade_soma_a_mesma_consulta():
+    from sqlalchemy.dialects import postgresql
+    from src.repositories import estoque_repository
+
+    paradas = estoque_repository.consulta_pecas_paradas(datetime.now(timezone.utc), marca="vulto")
+    texto = str(estoque_repository.consulta_paradas_por_unidade(paradas).compile(dialect=postgresql.dialect()))
+    assert "count(*) AS variacoes" in texto and "sum(anon_1.quantidade) AS pecas" in texto
+    assert "GROUP BY anon_1.id_unidade, anon_1.unidade, anon_1.tipo_unidade" in texto
+    assert "ORDER BY anon_1.tipo_unidade DESC" in texto
 
 
 def test_nada_parado(estoque):
@@ -935,6 +1078,31 @@ def test_numero_inventado_troca_pela_resposta_fixa_da_ferramenta(conversa, caplo
     assert conversa.mensagens[-1]["numeros_conferidos"] is False
     # o log diz só o número barrado, nunca o texto da resposta
     assert "50.000,00" in caplog.text and "Bruna" not in caplog.text
+
+
+def test_tabela_vai_para_a_tela_mas_nao_para_o_modelo_nem_para_o_historico(conversa):
+    tabela = {"titulo": "Maiores clientes", "colunas": ["Posição", "Cliente"],
+              "linhas": [{"celulas": ["1º", "Maria Souza"], "url": "/interno/clientes/sem-conta/9"}]}
+    conversa.ferramenta = lambda parametros: {"texto": "O 1º comprou R$ 48.230,00.", "tabela": tabela}
+    conversa.rodadas = [rodada(chamadas=[VENDAS]), rodada("O 1º comprou R$ 48.230,00. O nome está na tabela.")]
+
+    r = assistente_interno.responder(BancoFalso(), USUARIO, "qual cliente mais comprou?")
+
+    assert r["tabelas"] == [tabela]
+    assert "Maria" not in str(conversa.recebido)
+    assert "Maria" not in str(conversa.mensagens)
+
+
+def test_limite_dito_pelo_erro_da_ferramenta_vale_na_resposta(conversa):
+    def fora_da_regra(parametros):
+        raise RegraDeNegocio("Período maior que um ano (no máximo 366 dias por consulta): divida em partes")
+    conversa.ferramenta = fora_da_regra
+    conversa.rodadas = [rodada(chamadas=[VENDAS]),
+                        rodada("Cada consulta cobre no máximo 366 dias. Quer que eu divida em dois anos?")]
+
+    r = assistente_interno.responder(BancoFalso(), USUARIO, "vendas dos últimos 2 anos")
+
+    assert r["numeros_conferidos"] is True and r["resposta"].startswith("Cada consulta cobre no máximo 366 dias")
 
 
 def test_numero_de_resposta_anterior_da_conversa_vale_sem_consultar_de_novo(conversa):

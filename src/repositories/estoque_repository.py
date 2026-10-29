@@ -287,7 +287,8 @@ def consulta_pecas_paradas(corte: datetime, id_unidade=None, marca=None,
     consulta = (
         select(
             saldo.c.id_variante, Variante.sku, Produto.nome.label("produto"), Produto.id_categoria, Variante.cor,
-            Variante.tamanho, saldo.c.id_unidade, Unidade.nome.label("unidade"), saldo.c.quantidade,
+            Variante.tamanho, saldo.c.id_unidade, Unidade.nome.label("unidade"), Unidade.tipo.label("tipo_unidade"),
+            saldo.c.quantidade,
             datas.c.ultima_venda, desde.label("parada_desde"), func.count().over().label("total_linhas"),
             func.sum(saldo.c.quantidade).over().label("total_pecas"),
         )
@@ -301,6 +302,17 @@ def consulta_pecas_paradas(corte: datetime, id_unidade=None, marca=None,
     if marca is not None:
         consulta = consulta.where(Unidade.marca == marca)
     return consulta
+
+
+# as mesmas paradas somadas por unidade: lojas antes dos CDs, a que tem mais peças primeiro
+def consulta_paradas_por_unidade(paradas: Select) -> Select:
+    p = paradas.order_by(None).subquery()
+    pecas = func.sum(p.c.quantidade)
+    return (
+        select(p.c.unidade, p.c.tipo_unidade, func.count().label("variacoes"), pecas.label("pecas"))
+        .group_by(p.c.id_unidade, p.c.unidade, p.c.tipo_unidade)
+        .order_by(p.c.tipo_unidade.desc(), pecas.desc(), p.c.unidade)
+    )
 
 
 def _filtro_variante_unidade(id_variante: int, id_unidade: int | None) -> list:

@@ -303,12 +303,14 @@ def test_faturamento_sem_frete_e_menos_os_estornos():
     with banco.begin() as c:
         c.execute(text("CREATE TABLE unidade (id_unidade int, marca text)"))
         c.execute(text("CREATE TABLE pedido (id_pedido int, pago_em text, status text, canal_venda text, "
-                       "id_unidade int, valor_total numeric, valor_frete numeric)"))
+                       "id_unidade int, valor_total numeric, valor_frete numeric, id_cliente text, "
+                       "id_cliente_sem_conta int)"))
         c.execute(text("CREATE TABLE pagamento (id_pagamento int, id_pedido int, tipo text, status text, "
                        "valor numeric, criado_em text)"))
         c.execute(text("INSERT INTO unidade VALUES (:id, :marca)"),
                   [dict(id=CD, marca="lorenzi"), dict(id=LOJA, marca="lorenzi"), dict(id=VULTO, marca="vulto")])
-        c.execute(text("INSERT INTO pedido VALUES (:id, :pago, :status, :canal, :unidade, :total, :frete)"), [
+        c.execute(text("INSERT INTO pedido (id_pedido, pago_em, status, canal_venda, id_unidade, valor_total, "
+                       "valor_frete) VALUES (:id, :pago, :status, :canal, :unidade, :total, :frete)"), [
             dict(id=1, pago=pago, status="entregue", canal="site", unidade=CD, total=100, frete=20),  # sem o frete
             dict(id=2, pago=pago, status="entregue", canal="site", unidade=CD, total=50, frete=10),  # estornado (V4)
             dict(id=3, pago=pago, status="entregue", canal="loja", unidade=LOJA, total=70, frete=0),  # V6
