@@ -234,3 +234,60 @@ def test_pontos_da_equipe_exigem_permissao(api):
     sem_permissao = api(SessaoFalsa(), usuario=funcionario(), permitido=False)
     assert sem_permissao.get("/fidelidade/clientes/pontos?id_cliente_sem_conta=7").status_code == 403
     assert sem_permissao.get("/fidelidade/passivo").status_code == 403
+
+
+# ---------- lembrete de pontos vencendo (aba de pontos do site) ----------
+
+def cliente_do_site(**campos):
+    dados = dict(id_usuario=ID_CLIENTE, tipo_conta="cliente", status_conta="ativa", id_modelo_acesso=None,
+                 id_unidade=None, lembrete_pontos_aceito_em=None, lembrete_pontos_oferecido_em=None)
+    dados.update(campos)
+    return SimpleNamespace(**dados)
+
+
+def test_get_lembrete_diz_se_o_cliente_aceitou(api):
+    aceitou = cliente_do_site(lembrete_pontos_aceito_em=datetime(2026, 10, 1, tzinfo=timezone.utc))
+
+    sem_aceite = api(SessaoFalsa(), usuario=cliente_do_site()).get("/fidelidade/meus-pontos/lembrete")
+    com_aceite = api(SessaoFalsa(), usuario=aceitou).get("/fidelidade/meus-pontos/lembrete")
+
+    assert (sem_aceite.json(), com_aceite.json()) == ({"aceita": False}, {"aceita": True})
+
+
+# ligar pelo site também conta como oferecido: o assistente não oferece de novo
+def test_put_lembrete_liga_e_marca_como_oferecido(api):
+    db, cliente = SessaoFalsa(), cliente_do_site()
+
+    resposta = api(db, usuario=cliente).put("/fidelidade/meus-pontos/lembrete", json={"aceita": True})
+
+    assert resposta.status_code == 200
+    assert resposta.json() == {"aceita": True}
+    assert cliente.lembrete_pontos_aceito_em is not None
+    assert cliente.lembrete_pontos_oferecido_em is not None
+    assert db.commits == 1
+
+
+def test_put_lembrete_ligado_de_novo_mantem_a_data_do_aceite(api):
+    antes = datetime(2026, 10, 1, tzinfo=timezone.utc)
+    cliente = cliente_do_site(lembrete_pontos_aceito_em=antes, lembrete_pontos_oferecido_em=antes)
+
+    api(SessaoFalsa(), usuario=cliente).put("/fidelidade/meus-pontos/lembrete", json={"aceita": True})
+
+    assert (cliente.lembrete_pontos_aceito_em, cliente.lembrete_pontos_oferecido_em) == (antes, antes)
+
+
+def test_put_lembrete_desliga(api):
+    antes = datetime(2026, 10, 1, tzinfo=timezone.utc)
+    cliente = cliente_do_site(lembrete_pontos_aceito_em=antes, lembrete_pontos_oferecido_em=antes)
+
+    resposta = api(SessaoFalsa(), usuario=cliente).put("/fidelidade/meus-pontos/lembrete", json={"aceita": False})
+
+    assert resposta.json() == {"aceita": False}
+    assert cliente.lembrete_pontos_aceito_em is None
+    assert cliente.lembrete_pontos_oferecido_em == antes
+
+
+def test_lembrete_e_so_para_conta_de_cliente(api):
+    resposta = api(SessaoFalsa(), usuario=funcionario()).put("/fidelidade/meus-pontos/lembrete", json={"aceita": True})
+
+    assert resposta.status_code == 403
