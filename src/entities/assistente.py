@@ -125,17 +125,25 @@ class FalaDaConversa(BaseModel):
     texto: str = Field(min_length=1, max_length=1000)
 
 
-# depois do botão [Enviar]: o resumo é o que o cliente confirmou; a conversa vem da memória curta do n8n,
-# para o atendente saber o que ele já falou
-class ChamadoDoAssistenteEntrada(ConversaEntrada):
+# o resumo que a IA montou; fica guardado até o cliente apertar [Enviar] ou [Corrigir]
+class RascunhoDoChamadoEntrada(ConversaEntrada):
     categoria: Categoria
     assunto: str = Field(min_length=3, max_length=200)
-    resumo: str = Field(min_length=1, max_length=2000, description="O resumo que o cliente confirmou")
+    resumo: str = Field(min_length=1, max_length=2000, description="O que vai para a equipe, para o cliente conferir")
     id_pedido: int | None = Field(default=None, description="Pedido do próprio cliente de que o chamado trata")
-    conversa: list[FalaDaConversa] = Field(default_factory=list, max_length=40,
-                                           description="As últimas mensagens, da mais antiga para a mais nova")
 
     _limpa = field_validator("assunto", "resumo", mode="before")(sem_espacos)
+
+
+class RascunhoSaida(BaseModel):
+    mensagem: str = Field(description="Texto pronto para mostrar com os botões [Enviar] [Corrigir]")
+
+
+# depois do botão [Enviar]: o chamado abre com o rascunho guardado; a conversa vem da memória curta do n8n,
+# para o atendente saber o que o cliente já falou
+class ChamadoDoAssistenteEntrada(ConversaEntrada):
+    conversa: list[FalaDaConversa] = Field(default_factory=list, max_length=40,
+                                           description="As últimas mensagens, da mais antiga para a mais nova")
 
 
 class MensagemNoChamadoEntrada(ConversaEntrada):

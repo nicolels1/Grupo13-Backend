@@ -8,7 +8,8 @@ from src.dependencies.assistente import conversa_do_cabecalho, exige_chave_assis
 from src.entities.assistente import (
     BuscaPecasSaida, ChamadoAbertoSaida, ChamadoDoAssistenteEntrada, CodigoEntrada, CodigoEnviado, ConfirmacaoSaida,
     ConversaEntrada, CpfEntrada, EstadoConversa, EstoqueSaida, EtapaEntrada, LinkCarrinhoSaida, LojasDaMarca,
-    MensagemNoChamadoEntrada, MeusPedidosSaida, MeusPontosSaida, PedidosEntrada, ResumoDoN8nEntrada, VocabularioSaida,
+    MensagemNoChamadoEntrada, MeusPedidosSaida, MeusPontosSaida, PedidosEntrada, RascunhoDoChamadoEntrada,
+    RascunhoSaida, ResumoDoN8nEntrada, VocabularioSaida,
 )
 from src.entities.atendimento import MensagemSaida
 from src.entities.comum import Lista, Marca
@@ -113,7 +114,8 @@ def registrar_mensagem(dados: ConversaEntrada, db: Session = Depends(get_db)):
     "/conversa/etapa",
     response_model=EstadoConversa,
     responses={404: {"description": "Conversa não registrada"}},
-    description="Põe a conversa esperando o CPF (o cliente pediu pontos ou pedidos) ou a devolve para a IA.",
+    description="Põe a conversa esperando o CPF (o cliente pediu pontos ou pedidos) ou a devolve para a IA "
+                "(desistiu, ou apertou [Corrigir] no resumo do chamado, que é desfeito).",
 )
 def mudar_etapa(dados: EtapaEntrada, db: Session = Depends(get_db)):
     return assistente_conta.mudar_etapa(db, dados.canal, dados.id_externo, dados.etapa, datetime.now(BRASILIA))
@@ -194,26 +196,47 @@ def meus_pedidos(dados: PedidosEntrada, db: Session = Depends(get_db)):
 
 # ---------- chamado: passar para uma pessoa (a conversa continua no canal) ----------
 
-@router.post(
-    "/chamado",
-    status_code=201,
-    response_model=ChamadoAbertoSaida,
+@router.put(
+    "/chamado/rascunho",
+    response_model=RascunhoSaida,
     responses={
         401: {"description": "Conta não confirmada nesta conversa: pedir o CPF"},
         404: {"description": "Pedido não encontrado"},
         409: {"description": "A conversa já tem um chamado aberto"},
         422: {"description": "Cliente sem conta no site (a mensagem traz o link de cadastro)"},
     },
-    description="Abre o chamado depois do botão [Enviar], com o resumo confirmado e a conversa. Daqui em diante a "
+    description="Guarda o resumo que a IA montou e põe a conversa em confirmando_chamado. A mensagem volta pronta "
+                "para mostrar com os botões [Enviar] [Corrigir]; [Corrigir] devolve a conversa para a IA "
+                "(PUT /conversa/etapa livre). Chamar de novo troca o rascunho.",
+)
+def rascunhar_chamado(dados: RascunhoDoChamadoEntrada, db: Session = Depends(get_db)):
+    return resumo_conversa.com_assunto(
+        db, dados.canal, dados.id_externo, "chamado",
+        lambda: assistente_conta.rascunhar_chamado(
+            db, dados.canal, dados.id_externo, dados.model_dump(include={"categoria", "assunto", "resumo",
+                                                                         "id_pedido"}),
+            datetime.now(BRASILIA),
+        ),
+    )
+
+
+@router.post(
+    "/chamado",
+    status_code=201,
+    response_model=ChamadoAbertoSaida,
+    responses={
+        401: {"description": "Conta não confirmada nesta conversa: pedir o CPF"},
+        409: {"description": "A conversa já tem um chamado aberto"},
+        422: {"description": "Sem resumo esperando o [Enviar], ou cliente sem conta no site"},
+    },
+    description="Abre o chamado depois do botão [Enviar], com o rascunho guardado e a conversa. Daqui em diante a "
                 "conversa fica em_chamado: cada mensagem do cliente vai também para o chamado.",
 )
 def abrir_chamado(dados: ChamadoDoAssistenteEntrada, db: Session = Depends(get_db)):
     return resumo_conversa.com_assunto(
         db, dados.canal, dados.id_externo, "chamado",
         lambda: assistente_conta.abrir_chamado(
-            db, dados.canal, dados.id_externo, dados.model_dump(include={"categoria", "assunto", "resumo",
-                                                                         "id_pedido", "conversa"}),
-            datetime.now(BRASILIA),
+            db, dados.canal, dados.id_externo, dados.model_dump()["conversa"], datetime.now(BRASILIA),
         ),
     )
 
