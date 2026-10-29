@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy import Integer, Select, and_, case, cast, func, literal, literal_column, or_, select, union_all
 from sqlalchemy.orm import Session, aliased
 
-from src.models.catalogo import Produto, Variante
+from src.models.catalogo import CategoriaProduto, Produto, Variante
 from src.models.contas import Usuario
 from src.models.estoque import Estoque, ItemTransferencia, MovimentacaoEstoque, Transferencia, Unidade
 
@@ -234,10 +234,38 @@ def listar_comparacao(db: Session, em: datetime, limit: int, offset: int, **filt
 
 # ---------- peças paradas: com saldo e sem venda há tempo (assistente interno) ----------
 
+# o "normal" de cada categoria: o tempo entre uma venda e a próxima da mesma peça na mesma loja, nas vendas desde
+# "desde", no ponto que cobre 9 de cada 10 casos (percentil 90). Devolve {id_categoria: (nome, dias, intervalos)}
+def prazos_por_categoria(db: Session, desde: datetime) -> dict[int, tuple[str, float, int]]:
+    m = MovimentacaoEstoque
+    vendas = (
+        select(m.id_variante, m.criado_em,
+               func.lag(m.criado_em).over(partition_by=(m.id_variante, m.id_unidade), order_by=m.criado_em)
+               .label("anterior"))
+        .join(Unidade, Unidade.id_unidade == m.id_unidade)
+        .where(m.tipo == "venda", Unidade.tipo == "loja", m.criado_em >= desde)
+        .subquery()
+    )
+    dias = func.extract("epoch", vendas.c.criado_em - vendas.c.anterior) / 86400
+    consulta = (
+        select(CategoriaProduto.id_categoria, CategoriaProduto.nome,
+               func.percentile_cont(0.9).within_group(dias).label("dias"), func.count().label("intervalos"))
+        .select_from(vendas)
+        .join(Variante, Variante.id_variante == vendas.c.id_variante)
+        .join(Produto, Produto.id_produto == Variante.id_produto)
+        .join(CategoriaProduto, CategoriaProduto.id_categoria == Produto.id_categoria)
+        .where(vendas.c.anterior.is_not(None))
+        .group_by(CategoriaProduto.id_categoria, CategoriaProduto.nome)
+    )
+    return {l.id_categoria: (l.nome, float(l.dias), l.intervalos) for l in db.execute(consulta)}
+
+
 # cada peça numa unidade com saldo hoje, com a última venda ali e a primeira movimentação ali (a chegada):
-# parada = desde a última venda, ou desde a chegada se nunca vendeu ali, antes do corte. Com o total de linhas
+# parada = desde a última venda, ou desde a chegada se nunca vendeu ali, antes do corte. O corte pode ser um só
+# ou um por categoria (cortes_por_categoria; a categoria sem corte usa o "corte"). Com o total de linhas
 # e de peças paradas na mesma consulta; as mais antigas e com mais peças primeiro
-def consulta_pecas_paradas(corte: datetime, id_unidade=None, marca=None) -> Select:
+def consulta_pecas_paradas(corte: datetime, id_unidade=None, marca=None,
+                           cortes_por_categoria: dict[int, datetime] | None = None) -> Select:
     m = MovimentacaoEstoque
     saldo = (
         select(Estoque.id_variante, Estoque.id_unidade, func.sum(Estoque.quantidade).label("quantidade"))
@@ -255,18 +283,19 @@ def consulta_pecas_paradas(corte: datetime, id_unidade=None, marca=None) -> Sele
         .subquery()
     )
     desde = func.coalesce(datas.c.ultima_venda, datas.c.chegou_em)
+    limite = case(cortes_por_categoria, value=Produto.id_categoria, else_=corte) if cortes_por_categoria else corte
     consulta = (
         select(
-            saldo.c.id_variante, Variante.sku, Produto.nome.label("produto"), Variante.cor, Variante.tamanho,
-            saldo.c.id_unidade, Unidade.nome.label("unidade"), saldo.c.quantidade, datas.c.ultima_venda,
-            desde.label("parada_desde"), func.count().over().label("total_linhas"),
+            saldo.c.id_variante, Variante.sku, Produto.nome.label("produto"), Produto.id_categoria, Variante.cor,
+            Variante.tamanho, saldo.c.id_unidade, Unidade.nome.label("unidade"), saldo.c.quantidade,
+            datas.c.ultima_venda, desde.label("parada_desde"), func.count().over().label("total_linhas"),
             func.sum(saldo.c.quantidade).over().label("total_pecas"),
         )
         .join(datas, and_(datas.c.id_variante == saldo.c.id_variante, datas.c.id_unidade == saldo.c.id_unidade))
         .join(Variante, Variante.id_variante == saldo.c.id_variante)
         .join(Produto, Produto.id_produto == Variante.id_produto)
         .join(Unidade, Unidade.id_unidade == saldo.c.id_unidade)
-        .where(desde < corte)
+        .where(desde < limite)
         .order_by(desde, saldo.c.quantidade.desc(), Produto.nome, Variante.cor, Variante.tamanho)
     )
     if marca is not None:

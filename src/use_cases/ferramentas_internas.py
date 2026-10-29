@@ -343,31 +343,65 @@ ESTOQUE_EM_UM_DIA = Ferramenta(
 
 # ---------- pecas_paradas ----------
 
-DIAS_PARADA_PADRAO = 60
+DIAS_PARADA_SEM_HISTORICO = 60  # categoria com pouca venda no último ano para medir o normal dela
 DIAS_PARADA_MINIMO = 15
+DIAS_PARADA_MAXIMO = 180
+INTERVALOS_PARA_MEDIR = 30  # com menos intervalos entre vendas, o "normal" da categoria não é confiável
+HISTORICO_DO_NORMAL = 365  # dias de vendas usados para medir o normal de cada categoria
 PARADAS_NA_RESPOSTA = 15
+
+
+# o prazo de cada categoria: sem venda há mais tempo do que 9 de cada 10 intervalos entre vendas dessa categoria
+# no último ano (entre DIAS_PARADA_MINIMO e DIAS_PARADA_MAXIMO). Categoria com pouca venda usa o padrão fixo
+def prazos_das_categorias(db: Session, hoje: date) -> dict[int, tuple[str, int]]:
+    medidos = estoque_repository.prazos_por_categoria(db, inicio_dos_ultimos(HISTORICO_DO_NORMAL, hoje))
+    return {
+        id_categoria: (nome, min(DIAS_PARADA_MAXIMO, max(DIAS_PARADA_MINIMO, round(dias)))
+                       if intervalos >= INTERVALOS_PARA_MEDIR else DIAS_PARADA_SEM_HISTORICO)
+        for id_categoria, (nome, dias, intervalos) in medidos.items()
+    }
 
 
 def pecas_paradas(db: Session, usuario: Usuario, p: dict, hoje: date) -> dict:
     if not usuario_tem_permissao(db, usuario, *VER_ESTOQUE):
         raise SemPermissao("Sem permissão para ver o estoque")
-    dias = DIAS_PARADA_PADRAO if p.get("dias") is None else p["dias"]
-    if not DIAS_PARADA_MINIMO <= dias <= PERIODO_MAXIMO:
+    dias = p.get("dias")
+    if dias is not None and not DIAS_PARADA_MINIMO <= dias <= PERIODO_MAXIMO:
         raise RegraDeNegocio(f"Use de {DIAS_PARADA_MINIMO} a {PERIODO_MAXIMO} dias")
     id_unidade = p.get("id_unidade")
     marca, onde = _onde(db, usuario, id_unidade, p.get("marca"))
 
-    # sem venda desde antes do começo do dia de corte (horário de Brasília)
-    corte = inicio_dos_ultimos(1, hoje - timedelta(days=dias))
-    consulta = estoque_repository.consulta_pecas_paradas(corte, id_unidade=id_unidade, marca=marca)
+    # sem venda desde antes do começo do dia de corte (horário de Brasília). Sem prazo na pergunta, cada categoria
+    # tem o seu (o normal dela); com prazo, vale o mesmo para todas
+    def corte(prazo: int):
+        return inicio_dos_ultimos(1, hoje - timedelta(days=prazo))
+
+    prazos = {} if dias is not None else prazos_das_categorias(db, hoje)
+    consulta = estoque_repository.consulta_pecas_paradas(
+        corte(dias if dias is not None else DIAS_PARADA_SEM_HISTORICO), id_unidade=id_unidade, marca=marca,
+        cortes_por_categoria={c: corte(d) for c, (_, d) in prazos.items()} or None,
+    )
     linhas = list(db.execute(consulta.limit(PARADAS_NA_RESPOSTA)).mappings())
     links = [{"rotulo": "Abrir o estoque", "url": "/interno/estoque"}]
-    regras = (f"Parada = com saldo hoje e sem venda naquela unidade há mais de {dias} dias (desde antes de "
-              f"{data(corte.date())}); se nunca vendeu ali, conta desde que chegou na unidade. Cada linha é uma "
-              "cor num tamanho numa unidade.")
+    if dias is not None:
+        regra = f"há mais de {dias} dias"
+        regras = (f"Parada = com saldo hoje e sem venda naquela unidade há mais de {dias} dias (desde antes de "
+                  f"{data(corte(dias).date())}), o prazo pedido, igual para todas as categorias.")
+    else:
+        regra = "há mais tempo que o normal da categoria"
+        regras = ("Parada = com saldo hoje e sem venda naquela unidade há mais tempo que o normal da categoria: o "
+                  "tempo em que 9 de cada 10 peças dessa categoria vendem de novo, medido nas vendas das lojas no "
+                  f"último ano (entre {DIAS_PARADA_MINIMO} e {DIAS_PARADA_MAXIMO} dias; categoria com pouca venda "
+                  f"usa {DIAS_PARADA_SEM_HISTORICO}). A pessoa pode pedir um prazo único.")
+    regras += (" Se a peça nunca vendeu na unidade, conta desde que chegou nela; o histórico começa em 01/01/2025. "
+               "Cada linha é uma cor num tamanho numa unidade.")
+    base = {"regra": regra, "onde": onde, "regras": regras, "links": links,
+            "prazos_por_categoria": [{"categoria": nome, "dias": numero(d)}
+                                     for nome, d in sorted(prazos.values(), key=lambda x: (x[1], x[0]))]}
+    if dias is not None:
+        base["dias"] = numero(dias)
     if not linhas:
-        return {"vazio": True, "dias": numero(dias), "onde": onde, "regras": regras, "links": links,
-                "texto": f"Nenhuma peça parada há mais de {dias} dias {onde}."}
+        return {**base, "vazio": True, "texto": f"Nenhuma peça parada ({regra}) {onde}."}
 
     total_linhas, total_pecas = linhas[0]["total_linhas"], int(linhas[0]["total_pecas"])
     pecas = [{
@@ -376,28 +410,32 @@ def pecas_paradas(db: Session, usuario: Usuario, p: dict, hoje: date) -> dict:
         "ultima_venda": data(l["ultima_venda"].astimezone(BRASILIA).date()) if l["ultima_venda"] else
         "nunca vendeu nessa unidade",
         "dias_parada": numero((hoje - l["parada_desde"].astimezone(BRASILIA).date()).days),
+        **({"normal_da_categoria": f"{numero(prazos[l['id_categoria']][1])} dias ({prazos[l['id_categoria']][0]})"}
+           if l["id_categoria"] in prazos else {}),
     } for l in linhas]
     return {
-        "dias": numero(dias), "onde": onde, "linhas_paradas": numero(total_linhas), "pecas_paradas": numero(total_pecas),
-        "mostrando": numero(len(pecas)), "mais_antigas": pecas, "regras": regras, "links": links,
-        "texto": f"{numero(total_linhas)} variações paradas há mais de {dias} dias {onde}, somando "
-                 f"{numero(total_pecas)} peças. A mais antiga: {pecas[0]['produto']} {pecas[0]['cor']} "
-                 f"{pecas[0]['tamanho']} na {pecas[0]['unidade']}, {pecas[0]['dias_parada']} dias sem venda.",
+        **base, "linhas_paradas": numero(total_linhas), "pecas_paradas": numero(total_pecas),
+        "mostrando": numero(len(pecas)), "mais_antigas": pecas,
+        "texto": f"{numero(total_linhas)} variações paradas ({regra}) {onde}, somando {numero(total_pecas)} peças. "
+                 f"A mais antiga: {pecas[0]['produto']} {pecas[0]['cor']} {pecas[0]['tamanho']} na "
+                 f"{pecas[0]['unidade']}, {pecas[0]['dias_parada']} dias sem venda.",
     }
 
 
 PECAS_PARADAS = Ferramenta(
     nome="pecas_paradas",
     descricao=(
-        "Peças paradas: com saldo hoje e sem venda naquela unidade há mais de X dias (padrão 60). Traz quantas "
-        "variações (cor e tamanho por unidade) e peças estão paradas e as mais antigas, com a última venda. Use "
-        "para 'o que está parado', 'o que não vende', 'estoque encalhado'."
+        "Peças paradas: com saldo hoje e sem venda naquela unidade há mais tempo que o normal da categoria (o "
+        "tempo em que 9 de cada 10 peças dela vendem de novo, medido no último ano; acessórios vendem rápido, "
+        "jaquetas devagar). Com 'dias', usa esse prazo para todas. Traz quantas variações (cor e tamanho por "
+        "unidade) e peças estão paradas, o prazo de cada categoria e as mais antigas. Use para 'o que está "
+        "parado', 'o que não vende', 'estoque encalhado'."
     ),
     parametros={
         "type": "object",
         "properties": {
-            "dias": {"type": "integer", "description": f"Dias sem venda; padrão {DIAS_PARADA_PADRAO}, de "
-                                                       f"{DIAS_PARADA_MINIMO} a {PERIODO_MAXIMO}"},
+            "dias": {"type": "integer", "description": f"Só se a pessoa pedir um prazo; de {DIAS_PARADA_MINIMO} a "
+                                                       f"{PERIODO_MAXIMO}. Vazio: o normal de cada categoria"},
             "id_unidade": {"type": "integer", "description": "Id da lista de unidades das instruções"},
             "marca": {"type": "string", "enum": list(MARCAS)},
         },

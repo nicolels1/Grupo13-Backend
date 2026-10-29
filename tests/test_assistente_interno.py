@@ -186,13 +186,17 @@ def estoque(monkeypatch):
         estado.consultas.append({"em": em, "id_unidade": id_unidade, "busca": busca, "marca": marca})
         return ConsultaFalsa(estado.linhas)
 
-    def paradas(corte, id_unidade=None, marca=None):
-        estado.consultas.append({"corte": corte, "id_unidade": id_unidade, "marca": marca})
+    def paradas(corte, id_unidade=None, marca=None, cortes_por_categoria=None):
+        estado.consultas.append({"corte": corte, "id_unidade": id_unidade, "marca": marca,
+                                 "cortes_por_categoria": cortes_por_categoria})
         return ConsultaFalsa(estado.linhas)
 
+    # o normal de cada categoria no último ano: (nome, dias, intervalos medidos)
+    estado.medidos = {1: ("Jaquetas", 115.4, 221), 2: ("Acessórios", 9.0, 904), 3: ("Rara", 50.0, 5)}
     m = monkeypatch.setattr
     m(ferramentas_internas.estoque_repository, "consulta_historico", consulta)
     m(ferramentas_internas.estoque_repository, "consulta_pecas_paradas", paradas)
+    m(ferramentas_internas.estoque_repository, "prazos_por_categoria", lambda db, desde: estado.medidos)
     m(ferramentas_internas, "usuario_tem_permissao", lambda db, u, *codigos: estado.pode)
     m(ferramentas_internas, "marcas_visiveis", lambda db, u: estado.marcas)
     m(unidade_repository, "buscar_unidade", lambda db, i: SAVASSI if i == 5 else None)
@@ -304,33 +308,77 @@ def test_consulta_de_paradas_usa_a_ultima_venda_ou_a_chegada():
     assert "estoque.id_unidade = %(id_unidade_1)s" in texto and "unidade.marca = %(marca_1)s" in texto
 
 
-def parada(produto, unidade, quantidade, ultima_venda, desde, total_linhas=40, total_pecas=300):
+def test_consulta_de_paradas_com_um_corte_por_categoria():
+    from sqlalchemy.dialects import postgresql
+    from src.repositories import estoque_repository
+
+    agora = datetime.now(timezone.utc)
+    texto = str(estoque_repository.consulta_pecas_paradas(agora, cortes_por_categoria={1: agora, 2: agora})
+                .compile(dialect=postgresql.dialect()))
+    assert "coalesce(anon_2.ultima_venda, anon_2.chegou_em) < CASE produto.id_categoria WHEN" in texto
+
+
+def test_normal_da_categoria_e_o_percentil_90_das_vendas_das_lojas():
+    from sqlalchemy.dialects import postgresql
+    from src.repositories import estoque_repository
+
+    class Capturar:
+        def execute(self, consulta):
+            self.sql = str(consulta.compile(dialect=postgresql.dialect()))
+            return []
+
+    db = Capturar()
+    estoque_repository.prazos_por_categoria(db, datetime.now(timezone.utc))
+    assert "lag(movimentacao_estoque.criado_em) OVER (PARTITION BY movimentacao_estoque.id_variante, " in db.sql
+    assert "percentile_cont(%(percentile_cont_1)s) WITHIN GROUP" in db.sql
+    assert "movimentacao_estoque.tipo = " in db.sql and "unidade.tipo = " in db.sql
+
+
+def parada(produto, unidade, quantidade, ultima_venda, desde, total_linhas=40, total_pecas=300, id_categoria=1):
     return {"id_variante": 1, "sku": "SKU", "produto": produto, "cor": "Preto", "tamanho": "M", "id_unidade": 5,
             "unidade": unidade, "quantidade": quantidade, "ultima_venda": ultima_venda, "parada_desde": desde,
-            "total_linhas": total_linhas, "total_pecas": total_pecas}
+            "total_linhas": total_linhas, "total_pecas": total_pecas, "id_categoria": id_categoria}
 
 
-def test_paradas_trazem_o_total_e_as_mais_antigas(estoque):
+def no_dia(momento) -> datetime:
+    return momento.astimezone(assistente_interno.BRASILIA).replace(tzinfo=None)
+
+
+def test_sem_prazo_cada_categoria_usa_o_normal_dela(estoque):
     venda = datetime(2026, 8, 1, 15, 0, tzinfo=timezone.utc)
     chegada = datetime(2025, 1, 1, 3, 0, tzinfo=timezone.utc)
     estoque.linhas = [parada("Bomber Clássica", "Vulto Savassi", 20, None, chegada),
-                      parada("Calça Jogger", "Vulto Batel", 3, venda, venda)]
+                      parada("Boné Logo", "Vulto Batel", 3, venda, venda, id_categoria=2)]
     r = ferramentas_internas.pecas_paradas(BancoDeEstoque(estoque.linhas), USUARIO, {}, QUARTA)
 
-    # 60 dias antes de 28/10/2026, no começo do dia em Brasília
-    corte = estoque.consultas[0]["corte"]
-    assert corte.astimezone(assistente_interno.BRASILIA).replace(tzinfo=None) == datetime(2026, 8, 29)
-    assert (r["linhas_paradas"], r["pecas_paradas"], r["dias"]) == ("40", "300", "60")
+    cortes = estoque.consultas[0]["cortes_por_categoria"]
+    assert no_dia(cortes[1]) == datetime(2026, 7, 5)  # Jaquetas: 115 dias antes de 28/10
+    assert no_dia(cortes[2]) == datetime(2026, 10, 13)  # Acessórios: 9 medidos, mas o mínimo é 15
+    assert no_dia(cortes[3]) == datetime(2026, 8, 29)  # pouca venda para medir: o padrão de 60
+    assert r["regra"] == "há mais tempo que o normal da categoria" and "dias" not in r
+    assert r["prazos_por_categoria"][0] == {"categoria": "Acessórios", "dias": "15"}
+    assert r["mais_antigas"][0]["normal_da_categoria"] == "115 dias (Jaquetas)"
     assert r["mais_antigas"][0]["ultima_venda"] == "nunca vendeu nessa unidade"
     assert r["mais_antigas"][0]["dias_parada"] == "665"
     assert r["mais_antigas"][1]["ultima_venda"] == "01/08/2026" and r["mais_antigas"][1]["dias_parada"] == "88"
-    assert r["texto"].startswith("40 variações paradas há mais de 60 dias na rede inteira, somando 300 peças.")
+    assert r["texto"].startswith("40 variações paradas (há mais tempo que o normal da categoria) na rede inteira, "
+                                 "somando 300 peças.")
+
+
+def test_prazo_pedido_vale_para_todas_as_categorias(estoque):
+    estoque.linhas = [parada("Bomber Clássica", "Vulto Savassi", 20, None, datetime(2025, 1, 1, 3, 0, tzinfo=timezone.utc))]
+    r = ferramentas_internas.pecas_paradas(BancoDeEstoque(estoque.linhas), USUARIO, {"dias": 60}, QUARTA)
+
+    consulta = estoque.consultas[0]
+    assert consulta["cortes_por_categoria"] is None and no_dia(consulta["corte"]) == datetime(2026, 8, 29)
+    assert (r["regra"], r["dias"], r["prazos_por_categoria"]) == ("há mais de 60 dias", "60", [])
+    assert "normal_da_categoria" not in r["mais_antigas"][0]
 
 
 def test_nada_parado(estoque):
     estoque.linhas = []
     r = ferramentas_internas.pecas_paradas(BancoDeEstoque([]), USUARIO, {"dias": 30}, QUARTA)
-    assert r["vazio"] is True and r["texto"] == "Nenhuma peça parada há mais de 30 dias na rede inteira."
+    assert r["vazio"] is True and r["texto"] == "Nenhuma peça parada (há mais de 30 dias) na rede inteira."
 
 
 @pytest.mark.parametrize("dias", [0, 10, 400])
