@@ -48,6 +48,12 @@ def marcar_autenticou(db: Session, conversa: ConversaCanal) -> None:
         resumo.autenticou = True
 
 
+def marcar_virou_chamado(db: Session, conversa: ConversaCanal) -> None:
+    resumo = _atual(db, conversa)
+    if resumo is not None:
+        resumo.virou_chamado = True
+
+
 def _anotar(db: Session, canal: str | None, id_externo: str | None, assunto: str, falhou: bool) -> None:
     if not canal or not id_externo:
         return  # chamada sem a conversa (ex.: teste manual da rota): nada a anotar

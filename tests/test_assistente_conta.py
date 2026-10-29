@@ -11,14 +11,15 @@ from src.app import app
 from src.config import settings
 from src.database.session import get_db
 from src.models.assistente import AfirmacaoAssistente, CodigoVerificacao, ConversaCanal, ResumoConversa
+from src.models.atendimento import Chamado, Mensagem
 from src.models.contas import ClienteSemConta, Usuario
 from src.models.estoque import Unidade
 from src.models.fidelidade import RegraFidelidade
 from src.models.vendas import Pedido
 from src.repositories import assistente_repository, cliente_sem_conta_repository, fidelidade_repository
-from src.repositories import pedido_repository, usuario_repository
+from src.repositories import atendimento_repository, pedido_repository, usuario_repository
 from src.use_cases import assistente, assistente_conta, resumo_conversa
-from src.use_cases.erros import MuitasTentativas, NaoAutenticado, RecursoNaoEncontrado, RegraDeNegocio
+from src.use_cases.erros import Conflito, MuitasTentativas, NaoAutenticado, RecursoNaoEncontrado, RegraDeNegocio
 from src.use_cases.horarios import BRASILIA
 from src.utils.cpf import digito_verificador
 from src.utils.email import ErroEmail
@@ -111,7 +112,7 @@ def test_primeira_mensagem_cria_a_conversa(banco):
     estado = mensagem(banco)
 
     assert estado == {"etapa": "livre", "confirmado": False, "conversa_nova": True, "limite_atingido": False,
-                      "avisar_limite": False, "bloqueado_ate": None}
+                      "avisar_limite": False, "bloqueado_ate": None, "id_chamado": None}
     assert banco.conversas[(CANAL, TELEFONE)].ultima_msg_cliente_em == AGORA
 
 
@@ -588,4 +589,149 @@ def test_rota_do_resumo_recusa_avaliacao_desconhecida(cliente):
     resposta = cliente.patch("/assistente/conversa/resumo",
                              json={"canal": CANAL, "id_externo": TELEFONE, "avaliacao": "talvez"},
                              headers={"X-Assistente-Chave": CHAVE})
+    assert resposta.status_code == 422
+
+
+
+# ---------- chamado aberto pelo assistente ----------
+
+PEDIDO_DE_TROCA = {"categoria": "troca_devolucao", "assunto": "Trocar camisa", "resumo": "Quer trocar a camisa do "
+                   "pedido 12 pelo tamanho G.", "id_pedido": None,
+                   "conversa": [{"de": "cliente", "texto": "quero trocar a camisa"},
+                                {"de": "assistente", "texto": "Claro! Qual tamanho?"}]}
+
+
+@pytest.fixture
+def chamados(banco, monkeypatch):
+    def buscar(db, id_chamado):
+        return next((o for o in banco.db.adicionados if isinstance(o, Chamado) and o.id_chamado == id_chamado), None)
+
+    m = monkeypatch.setattr
+    m(atendimento_repository, "buscar_chamado", buscar)
+    m(atendimento_repository, "detalhar_chamado", lambda db, lado, id_chamado: {"id_chamado": id_chamado})
+    return buscar
+
+
+def abrir(banco, dados=PEDIDO_DE_TROCA, momento=AGORA):
+    return assistente_conta.abrir_chamado(banco.db, CANAL, TELEFONE, dados, momento)
+
+
+def test_abre_o_chamado_com_o_resumo_e_a_conversa(banco, chamados, sem_prioridade_sugerida_em_segundo_plano):
+    confirmar(banco)
+
+    resposta = abrir(banco)
+
+    chamado = chamados(banco.db, resposta["id_chamado"])
+    assert (chamado.id_cliente, chamado.canal_externo, chamado.contato_externo) == (ANA.id_usuario, CANAL, None)
+    assert chamado.descricao == ("Quer trocar a camisa do pedido 12 pelo tamanho G.\n\nConversa com o assistente:\n"
+                                 "Cliente: quero trocar a camisa\nAssistente: Claro! Qual tamanho?")
+    assert f"#{chamado.id_chamado}" in resposta["mensagem"]
+    assert sem_prioridade_sugerida_em_segundo_plano == [chamado.id_chamado]
+    conversa = banco.conversas[(CANAL, TELEFONE)]
+    assert (conversa.etapa, conversa.id_chamado) == ("em_chamado", chamado.id_chamado)
+    assert resumo_atual(banco).virou_chamado is True
+
+
+def test_conversa_longa_perde_as_falas_mais_antigas_no_chamado():
+    conversa = [{"de": "cliente", "texto": f"{i:03d}" + "x" * 996} for i in range(10)]
+
+    descricao = assistente_conta._descricao("Resumo", conversa)
+
+    assert len(descricao) <= assistente_conta.TAMANHO_DA_DESCRICAO
+    assert "000x" not in descricao and "009x" in descricao
+
+
+def test_chamado_exige_a_conta_confirmada(banco, chamados):
+    mensagem(banco)
+    with pytest.raises(NaoAutenticado):
+        abrir(banco)
+
+
+def test_cliente_sem_conta_recebe_o_link_de_cadastro(banco, chamados):
+    confirmar(banco, CPF_SEM_CONTA)
+    with pytest.raises(RegraDeNegocio, match="/cadastro"):
+        abrir(banco)
+
+
+def test_nao_abre_dois_chamados_na_mesma_conversa(banco, chamados):
+    confirmar(banco)
+    primeiro = abrir(banco)
+
+    with pytest.raises(Conflito, match=f"#{primeiro['id_chamado']}"):
+        abrir(banco)
+
+
+def test_mensagem_do_cliente_vai_para_o_chamado(banco, chamados):
+    confirmar(banco)
+    id_chamado = abrir(banco)["id_chamado"]
+
+    gravada = assistente_conta.mensagem_no_chamado(banco.db, CANAL, TELEFONE, "e o meu pedido?")
+
+    [mensagem_gravada] = [o for o in banco.db.adicionados if isinstance(o, Mensagem)]
+    assert (mensagem_gravada.id_chamado, mensagem_gravada.id_autor) == (id_chamado, ANA.id_usuario)
+    assert (gravada["conteudo"], gravada["da_equipe"], gravada["interna"]) == ("e o meu pedido?", False, False)
+
+
+def test_chamado_continua_depois_que_a_confirmacao_vence(banco, chamados):
+    confirmar(banco)
+    abrir(banco)
+
+    estado = mensagem(banco, AGORA + timedelta(hours=2))
+
+    assert (estado["confirmado"], estado["etapa"]) == (False, "em_chamado")
+    assistente_conta.mensagem_no_chamado(banco.db, CANAL, TELEFONE, "alguma novidade?")
+
+
+def test_confirmar_de_novo_no_meio_do_chamado_volta_para_o_chamado(banco, chamados):
+    confirmar(banco)
+    abrir(banco)
+    depois = AGORA + timedelta(hours=2)
+    mensagem(banco, depois)
+    assistente_conta.mudar_etapa(banco.db, CANAL, TELEFONE, "esperando_cpf", depois)
+
+    confirmar(banco, momento=depois)
+
+    assert banco.conversas[(CANAL, TELEFONE)].etapa == "em_chamado"
+
+
+def test_desistir_do_cpf_no_meio_do_chamado_volta_para_o_chamado(banco, chamados):
+    confirmar(banco)
+    abrir(banco)
+    assistente_conta.mudar_etapa(banco.db, CANAL, TELEFONE, "esperando_cpf", AGORA)
+
+    estado = assistente_conta.mudar_etapa(banco.db, CANAL, TELEFONE, "livre", AGORA)
+
+    assert estado["etapa"] == "em_chamado"
+
+
+def test_chamado_concluido_devolve_a_conversa_ao_assistente(banco, chamados):
+    confirmar(banco)
+    chamado = chamados(banco.db, abrir(banco)["id_chamado"])
+    chamado.status = "concluido"
+
+    estado = mensagem(banco, AGORA + timedelta(minutes=5))
+
+    assert (estado["etapa"], estado["id_chamado"]) == ("livre", None)
+    with pytest.raises(RegraDeNegocio, match="não tem chamado"):
+        assistente_conta.mensagem_no_chamado(banco.db, CANAL, TELEFONE, "oi")
+    assert abrir(banco, momento=AGORA + timedelta(minutes=5))["id_chamado"] != chamado.id_chamado
+
+
+def test_rota_do_chamado_anota_o_assunto(cliente, banco, chamados):
+    cabecalho = {"X-Assistente-Chave": CHAVE}
+    confirmar(banco, momento=datetime.now(BRASILIA))  # a rota usa a hora de agora
+
+    resposta = cliente.post("/assistente/chamado", json={"canal": CANAL, "id_externo": TELEFONE, **PEDIDO_DE_TROCA},
+                            headers=cabecalho)
+
+    assert resposta.status_code == 201
+    assert resumo_atual(banco).assuntos == ["chamado"]
+
+
+def test_rota_da_mensagem_sem_chamado_responde_422(cliente, banco, chamados):
+    mensagem(banco)
+
+    resposta = cliente.post("/assistente/chamado/mensagem", json={"canal": CANAL, "id_externo": TELEFONE, "texto": "oi"},
+                            headers={"X-Assistente-Chave": CHAVE})
+
     assert resposta.status_code == 422

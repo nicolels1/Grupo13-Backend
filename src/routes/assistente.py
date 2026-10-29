@@ -6,10 +6,11 @@ from sqlalchemy.orm import Session
 from src.database.session import get_db
 from src.dependencies.assistente import conversa_do_cabecalho, exige_chave_assistente
 from src.entities.assistente import (
-    BuscaPecasSaida, CodigoEntrada, CodigoEnviado, ConfirmacaoSaida, ConversaEntrada, CpfEntrada, EstadoConversa,
-    EstoqueSaida, EtapaEntrada, LinkCarrinhoSaida, LojasDaMarca, MeusPedidosSaida, MeusPontosSaida, PedidosEntrada,
-    ResumoDoN8nEntrada, VocabularioSaida,
+    BuscaPecasSaida, ChamadoAbertoSaida, ChamadoDoAssistenteEntrada, CodigoEntrada, CodigoEnviado, ConfirmacaoSaida,
+    ConversaEntrada, CpfEntrada, EstadoConversa, EstoqueSaida, EtapaEntrada, LinkCarrinhoSaida, LojasDaMarca,
+    MensagemNoChamadoEntrada, MeusPedidosSaida, MeusPontosSaida, PedidosEntrada, ResumoDoN8nEntrada, VocabularioSaida,
 )
+from src.entities.atendimento import MensagemSaida
 from src.entities.comum import Lista, Marca
 from src.use_cases import assistente, assistente_conta, resumo_conversa
 from src.use_cases.horarios import BRASILIA
@@ -189,3 +190,43 @@ def meus_pedidos(dados: PedidosEntrada, db: Session = Depends(get_db)):
         lambda: assistente_conta.meus_pedidos(db, dados.canal, dados.id_externo, dados.id_pedido,
                                               datetime.now(BRASILIA)),
     )
+
+
+# ---------- chamado: passar para uma pessoa (a conversa continua no canal) ----------
+
+@router.post(
+    "/chamado",
+    status_code=201,
+    response_model=ChamadoAbertoSaida,
+    responses={
+        401: {"description": "Conta não confirmada nesta conversa: pedir o CPF"},
+        404: {"description": "Pedido não encontrado"},
+        409: {"description": "A conversa já tem um chamado aberto"},
+        422: {"description": "Cliente sem conta no site (a mensagem traz o link de cadastro)"},
+    },
+    description="Abre o chamado depois do botão [Enviar], com o resumo confirmado e a conversa. Daqui em diante a "
+                "conversa fica em_chamado: cada mensagem do cliente vai também para o chamado.",
+)
+def abrir_chamado(dados: ChamadoDoAssistenteEntrada, db: Session = Depends(get_db)):
+    return resumo_conversa.com_assunto(
+        db, dados.canal, dados.id_externo, "chamado",
+        lambda: assistente_conta.abrir_chamado(
+            db, dados.canal, dados.id_externo, dados.model_dump(include={"categoria", "assunto", "resumo",
+                                                                         "id_pedido", "conversa"}),
+            datetime.now(BRASILIA),
+        ),
+    )
+
+
+@router.post(
+    "/chamado/mensagem",
+    status_code=201,
+    response_model=MensagemSaida,
+    responses={
+        404: {"description": "Conversa não registrada"},
+        422: {"description": "A conversa não tem chamado aberto (foi concluído: a etapa volta a livre)"},
+    },
+    description="Grava no chamado aberto a mensagem do cliente, para o atendente ver a conversa inteira.",
+)
+def mensagem_no_chamado(dados: MensagemNoChamadoEntrada, db: Session = Depends(get_db)):
+    return assistente_conta.mensagem_no_chamado(db, dados.canal, dados.id_externo, dados.texto)
