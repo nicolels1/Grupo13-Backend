@@ -58,6 +58,9 @@ class ConversaCanal(Base):
     )
     confirmado_ate: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     etapa: Mapped[str] = mapped_column(String(30), default="livre", server_default="livre")
+    # categoria, assunto, resumo e pedido que a IA montou, guardados até o cliente apertar [Enviar]:
+    # o chamado abre só com o que ele viu. Só existe em confirmando_chamado
+    rascunho_chamado: Mapped[dict | None] = mapped_column(JSONB)
     id_chamado: Mapped[int | None] = mapped_column(ForeignKey("chamado.id_chamado", ondelete="RESTRICT"))
     # resumo da conversa em andamento; trocado na conversa nova, então o número só fica ligado a ele
     # enquanto a conversa está aberta
@@ -74,6 +77,8 @@ class ConversaCanal(Base):
     __table_args__ = (
         CheckConstraint(f"canal IN {CANAIS}", name="canal_valido"),
         CheckConstraint(f"etapa IN {ETAPAS}", name="etapa_valida"),
+        CheckConstraint("(etapa = 'confirmando_chamado') = (rascunho_chamado IS NOT NULL)",
+                        name="rascunho_so_confirmando"),
         CheckConstraint("id_cliente IS NULL OR id_cliente_sem_conta IS NULL", name="um_dono_so"),
     )
 

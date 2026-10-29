@@ -131,7 +131,9 @@ def registrar_mensagem(db: Session, canal: str, id_externo: str, momento: dateti
     conversa_nova = anterior is None or momento - anterior > DURACAO_DA_CONVERSA
     if conversa_nova:
         _desconfirmar(conversa)
-        if conversa.etapa in ("esperando_cpf", "esperando_codigo"):
+        # o rascunho do chamado também vence: era de quem estava confirmado na conversa anterior
+        conversa.rascunho_chamado = None
+        if conversa.etapa in ("esperando_cpf", "esperando_codigo", "confirmando_chamado"):
             conversa.etapa = _etapa_sem_verificacao(conversa)
     _soltar_chamado_concluido(db, conversa)
     # cada conversa tem o seu resumo anônimo; a conversa aberta antes do resumo existir também ganha um
@@ -150,9 +152,11 @@ def registrar_mensagem(db: Session, canal: str, id_externo: str, momento: dateti
 
 
 # o n8n só põe a conversa esperando o CPF (o cliente pediu pontos ou pedidos) ou a devolve para a IA
-# (desistiu); esperando_codigo e a confirmação saem das rotas de verificação
+# (desistiu, ou apertou [Corrigir] no resumo do chamado); esperando_codigo e a confirmação saem das rotas de
+# verificação, e confirmando_chamado sai do rascunho do chamado
 def mudar_etapa(db: Session, canal: str, id_externo: str, etapa: str, momento: datetime) -> dict:
     conversa = _conversa(db, canal, id_externo, travar=True)
+    conversa.rascunho_chamado = None
     if etapa == "esperando_cpf" and _confirmado(conversa, momento):
         etapa = _etapa_sem_verificacao(conversa)
     if etapa == "livre":
@@ -222,6 +226,7 @@ def pedir_codigo(db: Session, canal: str, id_externo: str, cpf: str, momento: da
         id_cliente_sem_conta=dono["id_cliente_sem_conta"] if dono else None,
         codigo_hash=_hash_do_codigo(codigo), expira_em=momento + VALIDADE_DO_CODIGO, tentativas=0, criado_em=momento,
     ))
+    conversa.rascunho_chamado = None  # pedir o CPF no meio da confirmação do chamado desfaz o rascunho
     conversa.etapa = "esperando_codigo"
     db.commit()
 
@@ -458,11 +463,8 @@ def _descricao(resumo: str, conversa: list[dict]) -> str:
     return cabecalho + "\n".join(falas) if falas else resumo
 
 
-# depois do botão [Enviar]. Chamado é de cliente com conta confirmada nesta conversa; usa a mesma regra do
-# chamado aberto pelo site (pedido só do próprio cliente, prioridade sugerida em segundo plano). Daqui em
-# diante, toda mensagem do cliente também vai para o chamado, até a equipe concluir
-def abrir_chamado(db: Session, canal: str, id_externo: str, dados: dict, momento: datetime) -> dict:
-    conversa = _conversa(db, canal, id_externo, travar=True)
+# chamado é de cliente com conta confirmada nesta conversa, um aberto por vez
+def _conferir_quem_abre_chamado(db: Session, conversa: ConversaCanal, momento: datetime) -> None:
     if not _confirmado(conversa, momento):
         raise NaoAutenticado("Confirme quem é você antes: peça o CPF")
     if conversa.id_cliente is None:
@@ -471,15 +473,49 @@ def abrir_chamado(db: Session, canal: str, id_externo: str, dados: dict, momento
     if conversa.id_chamado is not None:
         raise Conflito(f"Você já tem o chamado #{conversa.id_chamado} aberto: a equipe responde por aqui.")
 
+
+def _texto_do_rascunho(rascunho: dict) -> str:
+    return (f"Resumo do que vou enviar para a nossa equipe:\n\n{rascunho['assunto']}\n{rascunho['resumo']}\n\n"
+            "Posso enviar?")
+
+
+# a IA montou o resumo; ele fica guardado e o cliente confere antes de chegar no atendente. As mesmas
+# conferências do [Enviar] rodam aqui, para o cliente não confirmar um resumo que não vai virar chamado.
+# Chamar de novo troca o rascunho (o cliente pediu para corrigir e a IA refez)
+def rascunhar_chamado(db: Session, canal: str, id_externo: str, dados: dict, momento: datetime) -> dict:
+    conversa = _conversa(db, canal, id_externo, travar=True)
+    _conferir_quem_abre_chamado(db, conversa, momento)
+    if dados["id_pedido"] is not None:
+        pedido = atendimento_repository.buscar_pedido(db, dados["id_pedido"])
+        if pedido is None or pedido.id_cliente != conversa.id_cliente:
+            raise RecursoNaoEncontrado("Pedido não encontrado")
+
+    conversa.rascunho_chamado = dados
+    conversa.etapa = "confirmando_chamado"
+    db.commit()
+    return {"mensagem": _texto_do_rascunho(dados)}
+
+
+# depois do botão [Enviar]: abre com o rascunho guardado, não com o que vier na chamada. Usa a mesma regra do
+# chamado aberto pelo site (pedido só do próprio cliente, prioridade sugerida em segundo plano). Daqui em
+# diante, toda mensagem do cliente também vai para o chamado, até a equipe concluir
+def abrir_chamado(db: Session, canal: str, id_externo: str, falas: list[dict], momento: datetime) -> dict:
+    conversa = _conversa(db, canal, id_externo, travar=True)
+    _conferir_quem_abre_chamado(db, conversa, momento)
+    rascunho = conversa.rascunho_chamado
+    if conversa.etapa != "confirmando_chamado" or rascunho is None:
+        raise RegraDeNegocio("Não encontrei o resumo para enviar. Pode me contar de novo o que aconteceu?")
+
     cliente = usuario_repository.buscar_por_id(db, conversa.id_cliente)
     chamado = atendimento.abrir_chamado(db, cliente, {
-        "categoria": dados["categoria"],
-        "assunto": dados["assunto"],
-        "descricao": _descricao(dados["resumo"], dados["conversa"]),
-        "id_pedido": dados["id_pedido"],
+        "categoria": rascunho["categoria"],
+        "assunto": rascunho["assunto"],
+        "descricao": _descricao(rascunho["resumo"], falas),
+        "id_pedido": rascunho["id_pedido"],
         "canal_externo": canal,
         "aberto_pelo_assistente": True,
     })
+    conversa.rascunho_chamado = None
     conversa.id_chamado = chamado["id_chamado"]
     conversa.etapa = "em_chamado"
     resumo_conversa.marcar_virou_chamado(db, conversa)
