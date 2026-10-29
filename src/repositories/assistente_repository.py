@@ -75,6 +75,11 @@ def garantir_conversa(db: Session, canal: str, id_externo: str) -> ConversaCanal
     return buscar_conversa(db, canal, id_externo, travar=True)
 
 
+# a conversa que abriu o chamado e ainda está ligada a ele: é por ela que a resposta da equipe chega ao cliente
+def conversa_do_chamado(db: Session, id_chamado: int) -> ConversaCanal | None:
+    return db.scalars(select(ConversaCanal).where(ConversaCanal.id_chamado == id_chamado)).first()
+
+
 def buscar_conversa(db: Session, canal: str, id_externo: str, travar: bool = False) -> ConversaCanal | None:
     consulta = select(ConversaCanal).where(ConversaCanal.canal == canal, ConversaCanal.id_externo == id_externo)
     if travar:
