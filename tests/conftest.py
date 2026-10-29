@@ -17,3 +17,13 @@ MARCA_DE = ["da_unidade", "do_pedido", "da_transferencia", "do_chamado", "do_pro
 def registro_sem_marca(monkeypatch):
     for nome in MARCA_DE:
         monkeypatch.setattr(marca_repository, nome, lambda db, id_registro: set())
+
+
+# abrir chamado dispara a prioridade sugerida pela IA em segundo plano: nos testes, nunca chama o modelo
+@pytest.fixture(autouse=True)
+def sem_prioridade_sugerida_em_segundo_plano(monkeypatch):
+    from src.use_cases import prioridade_sugerida
+
+    agendados = []
+    monkeypatch.setattr(prioridade_sugerida, "agendar", agendados.append)
+    return agendados

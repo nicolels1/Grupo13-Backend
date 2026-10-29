@@ -35,6 +35,11 @@ class Chamado(Base):
     descricao: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(20), default="aberto", server_default="aberto")
     prioridade: Mapped[str | None] = mapped_column(String(10))  # definida por quem assume
+    # sugerida pela IA ao abrir o chamado (Entrega 4), separada da prioridade: a IA nunca decide, a pessoa confirma.
+    # Comparar as duas mede quantas vezes a IA acertou. Só a equipe vê
+    prioridade_sugerida: Mapped[str | None] = mapped_column(String(10))
+    motivo_sugerido: Mapped[str | None] = mapped_column(String(200))
+    sugerida_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     motivo_encerramento: Mapped[str | None] = mapped_column(String(20))
     # atendimento migrado da Vulto (P6): por onde a pessoa escreveu e o contato que ela usou.
     # chat: aberto pelo assistente do cliente no chat do n8n
@@ -54,6 +59,8 @@ class Chamado(Base):
         ),
         CheckConstraint("status IN ('aberto', 'em_andamento', 'concluido')", name="status_valido"),
         CheckConstraint("prioridade IN ('baixa', 'media', 'alta')", name="prioridade_valida"),
+        CheckConstraint("prioridade_sugerida IN ('baixa', 'media', 'alta')", name="prioridade_sugerida_valida"),
+        CheckConstraint("(prioridade_sugerida IS NULL) = (sugerida_em IS NULL)", name="sugestao_com_data"),
         CheckConstraint(
             "motivo_encerramento IN ('resolvido', 'desistencia', 'sem_resposta')",
             name="motivo_encerramento_valido",

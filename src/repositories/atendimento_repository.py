@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Select, String, and_, cast, func, or_, select, update
+from sqlalchemy import Select, String, and_, case, cast, func, or_, select, update
 from sqlalchemy.orm import Session, aliased
 
 from src.models.atendimento import Chamado, HistoricoChamado, Mensagem
@@ -73,6 +73,28 @@ def _nao_lidas_do_outro_lado(lado: str):
     )
 
 
+ORDEM_DA_PRIORIDADE = {"alta": 0, "media": 1, "baixa": 2}
+# a definida por quem assumiu vale sobre a sugerida pela IA
+prioridade_que_vale = func.coalesce(Chamado.prioridade, Chamado.prioridade_sugerida)
+
+
+# o cliente vê os mais novos primeiro. A fila da equipe põe os abertos antes dos concluídos e, entre os abertos, a
+# prioridade (a definida por quem assumiu ou, sem ela, a sugerida pela IA) e depois quem espera há mais tempo;
+# os concluídos seguem dos mais novos para os mais antigos
+def _ordem(lado: str) -> list:
+    if lado != "equipe":
+        return [Chamado.criado_em.desc(), Chamado.id_chamado.desc()]
+    concluido = Chamado.status == "concluido"
+    prioridade = case(ORDEM_DA_PRIORIDADE, value=prioridade_que_vale,
+                      else_=len(ORDEM_DA_PRIORIDADE))
+    return [
+        case((concluido, 1), else_=0),
+        case((concluido, 0), else_=prioridade),
+        case((~concluido, Chamado.criado_em)).asc(),
+        Chamado.criado_em.desc(), Chamado.id_chamado.desc(),
+    ]
+
+
 def consulta_chamados(
     lado: str, id_chamado=None, id_cliente=None, id_cliente_sem_conta=None, status=None, categoria=None,
     prioridade=None, id_unidade=None, id_responsavel=None, sem_responsavel=None, com_mensagem_nova=None,
@@ -90,17 +112,19 @@ def consulta_chamados(
         .outerjoin(Cliente, Cliente.id_usuario == Chamado.id_cliente)
         .outerjoin(ClienteSemConta, ClienteSemConta.id_cliente_sem_conta == Chamado.id_cliente_sem_conta)
         .outerjoin(Responsavel, Responsavel.id_usuario == Chamado.id_responsavel)
-        .order_by(Chamado.criado_em.desc(), Chamado.id_chamado.desc())
+        .order_by(*_ordem(lado))
     )
     filtros = []
     for coluna, valor in [
         (Chamado.id_chamado, id_chamado), (Chamado.id_cliente, id_cliente),
         (Chamado.id_cliente_sem_conta, id_cliente_sem_conta), (Chamado.status, status),
-        (Chamado.categoria, categoria), (Chamado.prioridade, prioridade), (Chamado.id_unidade, id_unidade),
-        (Chamado.id_responsavel, id_responsavel),
+        (Chamado.categoria, categoria), (Chamado.id_unidade, id_unidade), (Chamado.id_responsavel, id_responsavel),
     ]:
         if valor is not None:
             filtros.append(coluna == valor)
+    # a prioridade que vale: a definida por quem assumiu ou, sem ela, a sugerida pela IA ("sem" = nenhuma das duas)
+    if prioridade is not None:
+        filtros.append(prioridade_que_vale.is_(None) if prioridade == "sem" else prioridade_que_vale == prioridade)
     if sem_responsavel is not None:
         filtros.append(Chamado.id_responsavel.is_(None) if sem_responsavel else Chamado.id_responsavel.is_not(None))
     if com_mensagem_nova is not None:

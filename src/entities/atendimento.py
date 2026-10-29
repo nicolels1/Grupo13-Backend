@@ -109,6 +109,15 @@ class ChamadoSaida(BaseModel):
     mensagens_nao_lidas: int = Field(description="Mensagens do outro lado (cliente ou equipe) ainda não lidas")
 
 
+# o chamado visto pela equipe: com a prioridade sugerida pela IA (o cliente não vê, é triagem interna)
+class ChamadoEquipe(ChamadoSaida):
+    prioridade_sugerida: Prioridade | None = Field(
+        None, description="Sugerida pela IA ao abrir; quem assume confirma ou troca na prioridade"
+    )
+    motivo_sugerido: str | None = Field(None, description="O fato que decidiu a sugestão, em poucas palavras")
+    sugerida_em: datetime | None = None
+
+
 class MensagemSaida(BaseModel):
     id_mensagem: int
     id_chamado: int
