@@ -6,7 +6,7 @@ from src.models.atendimento import Chamado, HistoricoChamado, Mensagem
 from src.models.contas import Usuario
 from src.repositories import atendimento_repository as repo
 from src.repositories import estoque_repository, permissao_repository, unidade_repository
-from src.use_cases import arquivos, prioridade_sugerida
+from src.use_cases import arquivos, prioridade_sugerida, resposta_ao_cliente
 from src.use_cases.arquivos import ANEXO_CHAMADO
 from src.use_cases.erros import Conflito, RecursoNaoEncontrado, RegraDeNegocio, SemPermissao, ServicoIndisponivel
 from src.use_cases.permissoes import usuario_tem_permissao
@@ -224,6 +224,7 @@ def concluir(db: Session, usuario: Usuario, id_chamado: int, motivo: str) -> dic
     chamado.motivo_encerramento = motivo
     chamado.concluido_em = _agora()
     db.commit()
+    resposta_ao_cliente.avisar_chamado_concluido(db, chamado)
     return repo.detalhar_chamado(db, "equipe", id_chamado)
 
 
@@ -234,13 +235,22 @@ def mensagens_da_equipe(db: Session, id_chamado: int) -> list:
     return repo.listar_mensagens(db, id_chamado, incluir_internas=True)
 
 
+# a mensagem que não é interna também chega ao cliente na conversa do assistente, quando foi ele que abriu
 def enviar_mensagem_da_equipe(db: Session, usuario: Usuario, id_chamado: int, conteudo: str, interna: bool) -> dict:
-    return _nova_mensagem(db, _chamado(db, id_chamado), usuario, conteudo, interna)
+    chamado = _chamado(db, id_chamado)
+    mensagem = _nova_mensagem(db, chamado, usuario, conteudo, interna)
+    if not interna:
+        resposta_ao_cliente.enviar_resposta_ao_cliente(db, chamado, usuario, conteudo)
+    return mensagem
 
 
 def anexar_da_equipe(db: Session, storage, usuario: Usuario, id_chamado: int, arquivo, conteudo: str | None,
                      interna: bool) -> dict:
-    return _mensagem_com_anexo(db, storage, _chamado(db, id_chamado), usuario, arquivo, conteudo, interna)
+    chamado = _chamado(db, id_chamado)
+    mensagem = _mensagem_com_anexo(db, storage, chamado, usuario, arquivo, conteudo, interna)
+    if not interna:
+        resposta_ao_cliente.enviar_resposta_ao_cliente(db, chamado, usuario, conteudo, mensagem["anexo_nome"])
+    return mensagem
 
 
 def anexo_para_a_equipe(db: Session, storage, id_chamado: int, id_mensagem: int) -> dict:

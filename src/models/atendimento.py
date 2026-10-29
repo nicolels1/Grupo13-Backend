@@ -45,6 +45,9 @@ class Chamado(Base):
     # telegram: aberto pelo assistente do cliente no bot do Telegram
     canal_externo: Mapped[str | None] = mapped_column(String(10))
     contato_externo: Mapped[str | None] = mapped_column(String(255))
+    # aberto pelo assistente do cliente (Entrega 4): a conversa continua no canal, e a resposta da equipe vai
+    # para lá. O canal sozinho não diz isso, porque whatsapp também é o dos atendimentos migrados
+    aberto_pelo_assistente: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     atualizado_em: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

@@ -107,6 +107,9 @@ class ChamadoSaida(BaseModel):
                     "(whatsapp ou telegram)"
     )
     contato_externo: str | None = Field(description="Atendimento migrado da Vulto: telefone, e-mail ou @ de quem escreveu")
+    aberto_pelo_assistente: bool = Field(
+        description="Aberto pelo assistente virtual: a resposta da equipe também chega na conversa com ele"
+    )
     mensagens_nao_lidas: int = Field(description="Mensagens do outro lado (cliente ou equipe) ainda não lidas")
 
 

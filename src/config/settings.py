@@ -45,3 +45,7 @@ MODELO_INTERNO = os.getenv("MODELO_INTERNO") or "claude-sonnet-5-5"
 # Prioridade sugerida do chamado: vazio usa o mesmo modelo do assistente; dá para baratear só essa parte
 MODELO_PRIORIDADE = os.getenv("MODELO_PRIORIDADE") or None
 EMAIL_REMETENTE = os.getenv("EMAIL_REMETENTE") or "casa.lorenzi.contato@gmail.com"
+
+# Token do bot do Telegram (o mesmo do n8n): a resposta da equipe num chamado aberto pelo assistente sai por ele.
+# Sem o token, a resposta fica só no chamado, com aviso no log
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or None

@@ -623,6 +623,7 @@ def test_abre_o_chamado_com_o_resumo_e_a_conversa(banco, chamados, sem_prioridad
 
     chamado = chamados(banco.db, resposta["id_chamado"])
     assert (chamado.id_cliente, chamado.canal_externo, chamado.contato_externo) == (ANA.id_usuario, CANAL, None)
+    assert chamado.aberto_pelo_assistente is True
     assert chamado.descricao == ("Quer trocar a camisa do pedido 12 pelo tamanho G.\n\nConversa com o assistente:\n"
                                  "Cliente: quero trocar a camisa\nAssistente: Claro! Qual tamanho?")
     assert f"#{chamado.id_chamado}" in resposta["mensagem"]
