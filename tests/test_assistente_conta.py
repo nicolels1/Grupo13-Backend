@@ -11,12 +11,12 @@ from src.app import app
 from src.config import settings
 from src.database.session import get_db
 from src.models.assistente import (
-    AfirmacaoAssistente, CodigoVerificacao, ConversaCanal, MensagemConversa, ResumoConversa,
+    AfirmacaoAssistente, AvisoPontosVencendo, CodigoVerificacao, ConversaCanal, MensagemConversa, ResumoConversa,
 )
 from src.models.atendimento import Chamado, Mensagem
 from src.models.contas import ClienteSemConta, Usuario
 from src.models.estoque import Unidade
-from src.models.fidelidade import RegraFidelidade
+from src.models.fidelidade import LotePontos, RegraFidelidade
 from src.models.vendas import Pedido
 from src.repositories import assistente_repository, cliente_sem_conta_repository, fidelidade_repository
 from src.repositories import atendimento_repository, pedido_repository, usuario_repository
@@ -1040,3 +1040,113 @@ def test_rota_do_lembrete(cliente, banco):
     assert resposta.json()["aceita"] is True
     assert ANA.lembrete_pontos_aceito_em is not None
     assert "pontos" in resumo_atual(banco).assuntos
+
+
+# ---------- aviso de pontos vencendo ----------
+
+def lote(id_movimento, marca, restante, vence_em, valor_ponto="0.01"):
+    return LotePontos(id_movimento=id_movimento, id_cliente=ANA.id_usuario, marca=marca, restante=restante,
+                      pontos=restante, valor_ponto=Decimal(valor_ponto), vence_em=vence_em)
+
+
+@pytest.fixture
+def avisos(banco, monkeypatch):
+    estado = SimpleNamespace(lotes=[], periodo=None)
+
+    def lotes_para_avisar(db, desde, ate):
+        estado.periodo = (desde, ate)
+        return [(l, ANA) for l in estado.lotes]
+
+    monkeypatch.setattr(assistente_repository, "lotes_para_avisar", lotes_para_avisar)
+    monkeypatch.setattr(settings, "API_URL", "https://api.exemplo")
+    return estado
+
+
+def avisados(banco) -> list[int]:
+    return [o.id_movimento for o in banco.db.adicionados if isinstance(o, AvisoPontosVencendo)]
+
+
+def test_aviso_procura_os_lotes_que_vencem_nos_proximos_14_dias(banco, avisos):
+    assistente_conta.avisar_pontos_vencendo(banco.db, AGORA)
+    assert avisos.periodo == (AGORA, AGORA + timedelta(days=14))
+
+
+def test_um_email_por_cliente_somando_por_marca_e_data(banco, avisos):
+    dia = datetime(2026, 11, 5, 3, 0, tzinfo=BRASILIA)
+    avisos.lotes = [lote(1, "vulto", 200, dia), lote(2, "vulto", 120, dia),
+                    lote(3, "lorenzi", 50, dia + timedelta(days=3), "0.02")]
+
+    resposta = assistente_conta.avisar_pontos_vencendo(banco.db, AGORA)
+
+    assert resposta == {"clientes_avisados": 1, "clientes_com_falha": 0}
+    [(para, texto)] = banco.emails
+    assert para == ANA.email
+    assert texto.startswith("Olá, Ana!")
+    assert "- Vulto: 320 pontos (R$ 3,20) vencem em 05/11/2026.\n- Lorenzi: 50 pontos (R$ 1,00) vencem em 08/11/2026." in texto
+    assert avisados(banco) == [1, 2, 3]
+
+
+def test_email_leva_o_link_para_parar(banco, avisos):
+    avisos.lotes = [lote(1, "vulto", 10, AGORA + timedelta(days=2))]
+
+    assistente_conta.avisar_pontos_vencendo(banco.db, AGORA)
+
+    link = re.search(r"https://api\.exemplo/lembrete-pontos/parar\?token=(\S+)", banco.emails[0][1])
+    assert link and link.group(1).startswith(str(ANA.id_usuario))
+
+
+def test_email_que_falha_nao_marca_os_lotes(banco, avisos):
+    avisos.lotes = [lote(1, "vulto", 10, AGORA + timedelta(days=2))]
+    banco.erro_email = ErroEmail("fora do ar")
+
+    resposta = assistente_conta.avisar_pontos_vencendo(banco.db, AGORA)
+
+    assert resposta == {"clientes_avisados": 0, "clientes_com_falha": 1}
+    assert avisados(banco) == []
+
+
+def test_sem_lotes_nao_manda_nada(banco, avisos):
+    assert assistente_conta.avisar_pontos_vencendo(banco.db, AGORA) == {"clientes_avisados": 0,
+                                                                         "clientes_com_falha": 0}
+    assert banco.emails == []
+
+
+def test_link_assinado_desliga_o_lembrete(banco, avisos):
+    ANA.lembrete_pontos_aceito_em = AGORA
+    token = assistente_conta.link_para_parar_o_lembrete(ANA.id_usuario).split("token=")[1]
+
+    assert assistente_conta.parar_lembrete_pelo_link(banco.db, token) is True
+    assert ANA.lembrete_pontos_aceito_em is None
+
+
+@pytest.mark.parametrize("token", ["", "nao-e-uuid.abc", f"{ANA.id_usuario}.assinatura-errada",
+                                   f"{uuid.uuid4()}.qualquer"])
+def test_link_adulterado_nao_desliga(banco, avisos, token):
+    ANA.lembrete_pontos_aceito_em = AGORA
+    assert assistente_conta.parar_lembrete_pelo_link(banco.db, token) is False
+    assert ANA.lembrete_pontos_aceito_em == AGORA
+
+
+def test_abrir_o_link_so_mostra_o_botao_e_o_post_desliga(cliente, banco, avisos):
+    ANA.lembrete_pontos_aceito_em = AGORA
+    token = assistente_conta.link_para_parar_o_lembrete(ANA.id_usuario).split("token=")[1]
+
+    pagina = cliente.get("/lembrete-pontos/parar", params={"token": token})
+    assert pagina.status_code == 200 and "Parar de receber" in pagina.text
+    assert ANA.lembrete_pontos_aceito_em == AGORA
+
+    resposta = cliente.post("/lembrete-pontos/parar", params={"token": token})
+    assert resposta.status_code == 200 and "não vai mais receber" in resposta.text
+    assert ANA.lembrete_pontos_aceito_em is None
+
+
+def test_post_com_link_invalido_responde_400(cliente, banco, avisos):
+    resposta = cliente.post("/lembrete-pontos/parar", params={"token": "abc"})
+    assert resposta.status_code == 400
+
+
+def test_rota_do_aviso_exige_a_chave(cliente, banco, avisos):
+    assert cliente.post("/assistente/avisos/pontos-vencendo").status_code == 401
+    resposta = cliente.post("/assistente/avisos/pontos-vencendo", headers={"X-Assistente-Chave": CHAVE})
+    assert resposta.status_code == 200
+    assert resposta.json() == {"clientes_avisados": 0, "clientes_com_falha": 0}
