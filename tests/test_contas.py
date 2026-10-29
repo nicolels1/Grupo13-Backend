@@ -118,6 +118,27 @@ def test_cadastro_liga_as_compras_da_loja_com_o_cpf_na_nota(banco):
     assert resposta["compras_ligadas"] == 2
 
 
+# a caixinha do lembrete de pontos vem desmarcada: sem marcar, a conta nasce sem aceite e o assistente oferece
+def test_cadastro_sem_aceite_nao_liga_o_lembrete(banco):
+    db = SessaoFalsa()
+
+    cadastrar(db, AuthFalso())
+
+    [usuario] = db.adicionados
+    assert usuario.lembrete_pontos_aceito_em is None
+    assert usuario.lembrete_pontos_oferecido_em is None
+
+
+def test_cadastro_com_aceite_liga_o_lembrete_e_nao_oferece_de_novo(banco):
+    db = SessaoFalsa()
+
+    contas.cadastrar_cliente(db, AuthFalso(), "Ana", "ana@email.com", CPF, "senha-forte", aceita_lembrete_pontos=True)
+
+    [usuario] = db.adicionados
+    assert usuario.lembrete_pontos_aceito_em is not None
+    assert usuario.lembrete_pontos_oferecido_em == usuario.lembrete_pontos_aceito_em
+
+
 # cliente da Vulto que nunca teve conta: o histórico do CPF e do e-mail dele passa para a conta nova (P2)
 def test_cadastro_traz_o_historico_do_cliente_sem_conta(banco):
     banco.migrados = {CPF: 3, "ana@email.com": 1}
@@ -267,6 +288,17 @@ def test_post_clientes_responde_201_sem_cpf_nem_senha(client):
         "status_conta": "ativa",
         "compras_ligadas": 2,
     }
+
+
+def test_post_clientes_leva_o_aceite_do_lembrete(client, monkeypatch):
+    recebidos = []
+    original = contas.cadastrar_cliente
+    monkeypatch.setattr(contas, "cadastrar_cliente", lambda *args: recebidos.append(args[-1]) or original(*args))
+
+    resposta = client.post("/clientes", json={**CADASTRO, "aceita_lembrete_pontos": True})
+
+    assert resposta.status_code == 201
+    assert recebidos == [True]
 
 
 @pytest.mark.parametrize(

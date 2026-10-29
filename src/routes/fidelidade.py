@@ -7,7 +7,7 @@ from src.database.session import get_db
 from src.dependencies.permissoes import exige_cliente, exige_permissao, marca_permitida, marcas_vistas
 from src.entities.comum import LIMITE_MAXIMO, LIMITE_PADRAO, Lista, Marca, Pagina
 from src.entities.fidelidade import (
-    MovimentoPontosSaida, PassivoSaida, PontosDoCliente, RegraCriar, RegraSaida, ResgateSimulado,
+    LembretePontos, MovimentoPontosSaida, PassivoSaida, PontosDoCliente, RegraCriar, RegraSaida, ResgateSimulado,
 )
 from src.models.contas import Usuario
 from src.use_cases import fidelidade
@@ -90,6 +90,20 @@ def meu_extrato(
     offset: int = Query(0, ge=0), cliente: Usuario = Depends(exige_cliente), db: Session = Depends(get_db),
 ):
     return fidelidade.extrato(db, limit, offset, marca, id_cliente=cliente.id_usuario)
+
+
+@router.get("/meus-pontos/lembrete", response_model=LembretePontos,
+            description="Se o cliente logado recebe o e-mail antes de os pontos vencerem.")
+def meu_lembrete(cliente: Usuario = Depends(exige_cliente)):
+    return fidelidade.lembrete_de_pontos(cliente)
+
+
+@router.put("/meus-pontos/lembrete", response_model=LembretePontos,
+            description="Liga ou desliga o e-mail antes de os pontos vencerem. O assistente não oferece de novo.")
+def mudar_meu_lembrete(
+    dados: LembretePontos, cliente: Usuario = Depends(exige_cliente), db: Session = Depends(get_db),
+):
+    return fidelidade.mudar_lembrete_de_pontos(db, cliente, dados.aceita)
 
 
 @router.get("/clientes/pontos", response_model=PontosDoCliente,

@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
@@ -34,7 +35,8 @@ def traduzir_erro_auth(erro: ErroSupabase) -> ErroNegocio:
 # confirmado e grava a linha de USUARIO; se a gravação falhar, apaga o login criado.
 # As compras da loja com esse CPF na nota passam para a conta nova (ADR 0014), assim como o histórico
 # do cliente sem conta com esse CPF ou e-mail (ADR 0016)
-def cadastrar_cliente(db: Session, auth, nome: str, email: str, cpf: str, senha: str) -> dict:
+def cadastrar_cliente(db: Session, auth, nome: str, email: str, cpf: str, senha: str,
+                      aceita_lembrete_pontos: bool = False) -> dict:
     if usuario_repository.email_em_uso(db, email):
         raise Conflito("E-mail já cadastrado")
     if usuario_repository.cpf_em_uso(db, cpf):
@@ -53,6 +55,10 @@ def cadastrar_cliente(db: Session, auth, nome: str, email: str, cpf: str, senha:
         tipo_conta="cliente",
         status_conta="ativa",
     )
+    if aceita_lembrete_pontos:
+        # aceitou no cadastro: o assistente não oferece de novo
+        agora = datetime.now(timezone.utc)
+        usuario.lembrete_pontos_aceito_em = usuario.lembrete_pontos_oferecido_em = agora
     try:
         db.add(usuario)
         db.flush()  # a conta existe antes de os pedidos apontarem para ela

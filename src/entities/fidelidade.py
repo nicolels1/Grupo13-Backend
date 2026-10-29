@@ -9,6 +9,10 @@ from src.entities.comum import Marca
 
 # ---------- entrada ----------
 
+# aceite do e-mail que avisa antes de os pontos vencerem; a mesma forma na entrada e na saída
+class LembretePontos(BaseModel):
+    aceita: bool = Field(description="Recebe (true) ou não (false) o e-mail antes de os pontos vencerem")
+
 # regra nova de uma marca, a partir de uma data futura (P10); vale dali em diante e nunca muda o ponto já ganho
 class RegraCriar(BaseModel):
     marca: Marca

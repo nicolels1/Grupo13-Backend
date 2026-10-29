@@ -23,7 +23,9 @@ def cadastrar_cliente(
     db: Session = Depends(get_db),
     auth: SupabaseAdmin = Depends(get_supabase_admin),
 ):
-    return contas.cadastrar_cliente(db, auth, dados.nome, dados.email, dados.cpf, dados.senha)
+    return contas.cadastrar_cliente(
+        db, auth, dados.nome, dados.email, dados.cpf, dados.senha, dados.aceita_lembrete_pontos,
+    )
 
 
 @router.post(
