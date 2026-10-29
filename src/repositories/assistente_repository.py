@@ -28,11 +28,18 @@ def horarios_das_unidades(db: Session, ids_unidade: list[int]) -> dict[int, list
     return por_unidade
 
 
-def excecoes_do_dia(db: Session, ids_unidade: list[int], dia: date) -> dict[int, ExcecaoHorario]:
-    if not ids_unidade:
-        return {}
-    consulta = select(ExcecaoHorario).where(ExcecaoHorario.id_unidade.in_(ids_unidade), ExcecaoHorario.data == dia)
-    return {excecao.id_unidade: excecao for excecao in db.scalars(consulta)}
+# exceções de cada loja entre as duas datas (inclusive), pela data
+def excecoes_do_periodo(
+    db: Session, ids_unidade: list[int], inicio: date, fim: date
+) -> dict[int, dict[date, ExcecaoHorario]]:
+    por_unidade = defaultdict(dict)
+    if ids_unidade:
+        consulta = select(ExcecaoHorario).where(
+            ExcecaoHorario.id_unidade.in_(ids_unidade), ExcecaoHorario.data.between(inicio, fim)
+        )
+        for excecao in db.scalars(consulta):
+            por_unidade[excecao.id_unidade][excecao.data] = excecao
+    return por_unidade
 
 
 # disponível (estoque menos o reservado) de uma variante em cada unidade ativa e canal, só onde tem peça

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -145,21 +145,24 @@ def link_carrinho(db: Session, id_variante: int) -> dict:
     }
 
 
-# endereço e horário de cada loja, agrupadas por marca; o horário de hoje vem em texto pronto
+# endereço e horário de cada loja, agrupadas por marca; o horário de hoje vem em texto pronto e o dos
+# próximos dias já com as exceções e os feriados
 def lojas(db: Session, agora: datetime) -> dict:
     unidades = repo.lojas_ativas(db)
     ids = [u.id_unidade for u in unidades]
+    hoje = agora.astimezone(horarios.BRASILIA).date()
     horarios_por_loja = repo.horarios_das_unidades(db, ids)
-    excecoes = repo.excecoes_do_dia(db, ids, agora.astimezone(horarios.BRASILIA).date())
+    excecoes = repo.excecoes_do_periodo(db, ids, hoje, hoje + timedelta(days=horarios.DIAS_A_FRENTE - 1))
     grupos: dict[str, list[dict]] = {}
     for u in unidades:
-        do_dia = horarios_por_loja.get(u.id_unidade, [])
+        da_semana = horarios_por_loja.get(u.id_unidade, [])
+        da_loja = excecoes.get(u.id_unidade, {})
         grupos.setdefault(u.marca, []).append({
             "id_unidade": u.id_unidade,
             "nome": u.nome,
             "endereco": endereco(u),
-            "hoje": horarios.situacao_de_hoje(do_dia, excecoes.get(u.id_unidade), agora),
-            "semana": horarios.semana(do_dia),
+            "hoje": horarios.situacao_de_hoje(da_semana, da_loja.get(hoje), agora),
+            "proximos_dias": horarios.proximos_dias(da_semana, da_loja, hoje),
         })
     return {"items": [{"marca": marca, "lojas": lista} for marca, lista in grupos.items()]}
 

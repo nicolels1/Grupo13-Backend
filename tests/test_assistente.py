@@ -195,26 +195,34 @@ def test_lojas_agrupadas_por_marca_com_o_horario_de_hoje(monkeypatch):
     vulto = unidade(4, "Vulto Savassi", marca="vulto")
     pedido = {}
 
-    def excecoes(db, ids, dia):
-        pedido["dia"] = dia
-        return {2: ExcecaoHorario(id_unidade=2, data=dia, abre=None, fecha=None, motivo="reforma")}
+    def excecoes(db, ids, inicio, fim):
+        pedido["periodo"] = (inicio, fim)
+        return {2: {
+            inicio: ExcecaoHorario(id_unidade=2, data=inicio, abre=None, fecha=None, motivo="reforma"),
+            date(2026, 10, 30): ExcecaoHorario(id_unidade=2, data=date(2026, 10, 30), abre=None, fecha=None,
+                                               motivo="inventário"),
+        }}
 
     m = monkeypatch.setattr
     m(assistente_repository, "lojas_ativas", lambda db: [PINHEIROS, ELDORADO, vulto])
     m(assistente_repository, "horarios_das_unidades", lambda db, ids: {
         3: [HorarioUnidade(id_unidade=3, dia_semana=2, abre=time(10), fecha=time(22))]})
-    m(assistente_repository, "excecoes_do_dia", excecoes)
+    m(assistente_repository, "excecoes_do_periodo", excecoes)
 
     # quarta 28/10, 15h
     resposta = assistente.lojas(SessaoFalsa(), datetime(2026, 10, 28, 15, tzinfo=BRASILIA))
 
-    assert pedido["dia"] == date(2026, 10, 28)
+    assert pedido["periodo"] == (date(2026, 10, 28), date(2026, 11, 3))
     lorenzi, da_vulto = resposta["items"]
     assert [l["nome"] for l in lorenzi["lojas"]] == ["Loja Pinheiros", "Loja Eldorado"]
     assert da_vulto["marca"] == "vulto"
     assert lorenzi["lojas"][0]["hoje"]["texto"] == "Hoje (reforma) a loja fica fechada."
     assert lorenzi["lojas"][1]["hoje"] == {"aberta_agora": True, "texto": "Hoje a loja está aberta até as 22h."}
     assert da_vulto["lojas"][0]["hoje"]["texto"] == "Hoje a loja fica fechada."  # sem horário cadastrado
+    # a exceção de outro dia aparece nos próximos dias, e só na loja dela
+    pinheiros, eldorado = lorenzi["lojas"][0]["proximos_dias"], lorenzi["lojas"][1]["proximos_dias"]
+    assert (pinheiros[2]["data"], pinheiros[2]["motivo"]) == (date(2026, 10, 30), "inventário")
+    assert eldorado[2]["motivo"] is None
 
 
 def test_vocabulario_traz_categorias_ativas_e_cores(monkeypatch):

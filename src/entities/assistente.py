@@ -61,8 +61,11 @@ class HorarioHoje(BaseModel):
 
 
 class HorarioDoDia(BaseModel):
+    data: date
     dia: str
-    horario: str
+    horario: str = Field(description="\"10h às 20h\" ou \"fechada\"")
+    motivo: str | None = Field(description="Exceção cadastrada pela loja (ex.: Natal) ou o feriado nacional")
+    aviso: str | None = Field(description="Feriado sem exceção cadastrada: o horário pode mudar")
 
 
 class LojaSaida(BaseModel):
@@ -70,7 +73,7 @@ class LojaSaida(BaseModel):
     nome: str
     endereco: str
     hoje: HorarioHoje
-    semana: list[HorarioDoDia]
+    proximos_dias: list[HorarioDoDia] = Field(description="Hoje e os 6 dias seguintes")
 
 
 class LojasDaMarca(BaseModel):
@@ -85,10 +88,10 @@ class VocabularioSaida(BaseModel):
 
 # ---------- conversa e ferramentas com login ----------
 
-# a conversa vem do canal (telefone do WhatsApp ou sessão do chat), tirada pelo n8n; nunca do modelo.
-# Vai no corpo, não na URL, para o telefone não aparecer no log de acesso
+# a conversa vem do canal (telefone do WhatsApp, chat_id do Telegram ou sessão do chat), tirada pelo n8n;
+# nunca do modelo. Vai no corpo, não na URL, para o telefone não aparecer no log de acesso
 class ConversaEntrada(BaseModel):
-    canal: Literal["whatsapp", "chat"]
+    canal: Literal["whatsapp", "telegram", "chat"]
     id_externo: str = Field(min_length=1, max_length=100)
 
 

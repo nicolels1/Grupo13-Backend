@@ -599,8 +599,14 @@ def test_metricas_no_formato_combinado_com_a_nicole(metricas):
     assert (r["avaliadas"], r["positivas_entre_avaliadas"]) == ("40", "85%")
     assert r["por_assunto"] == [{"assunto": "estoque", "conversas": "41"}, {"assunto": "peças", "conversas": "35"}]
     assert (r["so_fora_do_tema"], r["sem_assunto"]) == ("6", "9")
-    assert r["texto"] == ("Assistente do cliente no WhatsApp e no chat de 01/10/2026 a 28/10/2026: 80 conversas, 62 "
+    assert r["texto"] == ("Assistente do cliente no WhatsApp, no Telegram e no chat de 01/10/2026 a 28/10/2026: 80 conversas, 62 "
                           "resolvidas, 10 viraram chamado, 5 com 👎 e 3 com erro do sistema.")
+
+
+def test_metricas_de_um_canal_so(metricas):
+    r = ferramentas_internas.metricas_assistente(None, USUARIO, {"periodo": "hoje", "canal": "telegram"}, QUARTA)
+    assert metricas.chamadas[0]["canal"] == "telegram"
+    assert r["onde"] == "no Telegram"
 
 
 def test_metricas_deixam_de_fora_as_conversas_em_andamento(metricas):
@@ -619,7 +625,9 @@ def test_metricas_sem_periodo_usam_os_ultimos_30_dias(metricas):
 def test_sem_conversas(metricas):
     metricas.numeros = {**metricas.numeros, "conversas": 0, "por_assunto": []}
     r = ferramentas_internas.metricas_assistente(None, USUARIO, {"periodo": "hoje"}, QUARTA)
-    assert r["vazio"] is True and r["texto"] == "Nenhuma conversa do assistente do cliente no WhatsApp e no chat em 28/10/2026."
+    assert r["vazio"] is True and r["texto"] == (
+        "Nenhuma conversa do assistente do cliente no WhatsApp, no Telegram e no chat em 28/10/2026."
+    )
 
 
 def test_metricas_pedem_atendimento_ou_admin_e_as_duas_marcas(metricas):

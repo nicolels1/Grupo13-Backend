@@ -24,7 +24,7 @@ def exige_chave_assistente(x_assistente_chave: str | None = Header(None)) -> Non
 # cabeçalho, não na URL, para o telefone não aparecer no log de acesso. Opcional: sem ela, a ferramenta
 # responde igual e só não anota
 def conversa_do_cabecalho(
-    x_canal: str | None = Header(None, description="whatsapp ou chat"),
-    x_id_externo: str | None = Header(None, description="Telefone ou sessão do chat"),
+    x_canal: str | None = Header(None, description="whatsapp, telegram ou chat"),
+    x_id_externo: str | None = Header(None, description="Telefone, chat_id do Telegram ou sessão do chat"),
 ) -> tuple[str | None, str | None]:
     return x_canal, x_id_externo

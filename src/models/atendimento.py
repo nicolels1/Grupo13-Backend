@@ -42,7 +42,7 @@ class Chamado(Base):
     sugerida_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     motivo_encerramento: Mapped[str | None] = mapped_column(String(20))
     # atendimento migrado da Vulto (P6): por onde a pessoa escreveu e o contato que ela usou.
-    # chat: aberto pelo assistente do cliente no chat do n8n
+    # telegram e chat: aberto pelo assistente do cliente no bot do Telegram ou no chat do n8n
     canal_externo: Mapped[str | None] = mapped_column(String(10))
     contato_externo: Mapped[str | None] = mapped_column(String(255))
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -74,7 +74,9 @@ class Chamado(Base):
             "(id_cliente IS NULL AND id_cliente_sem_conta IS NULL AND canal_externo IS NOT NULL)",
             name="um_cliente_ou_externo",
         ),
-        CheckConstraint("canal_externo IN ('whatsapp', 'instagram', 'email', 'chat')", name="canal_externo_valido"),
+        CheckConstraint(
+            "canal_externo IN ('whatsapp', 'instagram', 'email', 'telegram', 'chat')", name="canal_externo_valido"
+        ),
         CheckConstraint("contato_externo IS NULL OR canal_externo IS NOT NULL", name="contato_externo_exige_canal"),
         # "meus chamados" do cliente
         Index("ix_chamado_id_cliente", "id_cliente"),
