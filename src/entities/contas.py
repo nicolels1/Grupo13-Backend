@@ -23,6 +23,9 @@ class CadastroCliente(BaseModel):
     cpf: str = Field(description="Com ou sem máscara: 123.456.789-09 ou 12345678909")
     # mínimo do Supabase Auth; 72 é o limite do bcrypt usado por ele
     senha: str = Field(min_length=6, max_length=72)
+    aceita_lembrete_pontos: bool = Field(
+        default=False, description="Caixinha desmarcada no cadastro: e-mail antes de os pontos vencerem",
+    )
 
     # roda antes do tamanho e do padrão; a senha fica como foi digitada
     @field_validator("nome", "email", mode="before")

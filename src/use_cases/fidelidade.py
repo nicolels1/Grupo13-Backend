@@ -4,6 +4,7 @@ from decimal import ROUND_DOWN, Decimal
 
 from sqlalchemy.orm import Session
 
+from src.models.contas import Usuario
 from src.models.fidelidade import MovimentoPontos, RegraFidelidade
 from src.models.vendas import Pedido
 from src.repositories import cliente_sem_conta_repository, usuario_repository
@@ -94,6 +95,22 @@ def resgatar(db: Session, pedido: Pedido, marca: str, pontos: int, valor_itens: 
     pedido.valor_total -= desconto
     db.flush()
     return desconto
+
+
+# ---------- lembrete de pontos vencendo ----------
+
+# o cliente liga ou desliga no site (aba de pontos) o e-mail antes de os pontos vencerem. Escolher pelo
+# site também conta como oferecido: o assistente não oferece de novo (uma vez por conta)
+def lembrete_de_pontos(cliente: Usuario) -> dict:
+    return {"aceita": cliente.lembrete_pontos_aceito_em is not None}
+
+
+def mudar_lembrete_de_pontos(db: Session, cliente: Usuario, aceita: bool) -> dict:
+    agora = datetime.now(timezone.utc)
+    cliente.lembrete_pontos_oferecido_em = cliente.lembrete_pontos_oferecido_em or agora
+    cliente.lembrete_pontos_aceito_em = (cliente.lembrete_pontos_aceito_em or agora) if aceita else None
+    db.commit()
+    return lembrete_de_pontos(cliente)
 
 
 # ---------- saldo, extrato e passivo ----------

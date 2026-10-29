@@ -41,5 +41,6 @@ def parar(token: str = Query(max_length=200), db: Session = Depends(get_db)):
         return _pagina("Link inválido", "<p>Este link não é válido. Confira se ele veio inteiro do e-mail.</p>", 400)
     return _pagina(
         "Pronto",
-        "<p>Você não vai mais receber o lembrete de pontos. Para voltar a receber, é só pedir no atendimento.</p>",
+        "<p>Você não vai mais receber o lembrete de pontos. Para voltar a receber, ligue o lembrete em "
+        "Minha conta, na aba Meus pontos.</p>",
     )
