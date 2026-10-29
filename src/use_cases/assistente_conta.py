@@ -478,6 +478,7 @@ def abrir_chamado(db: Session, canal: str, id_externo: str, dados: dict, momento
         "descricao": _descricao(dados["resumo"], dados["conversa"]),
         "id_pedido": dados["id_pedido"],
         "canal_externo": canal,
+        "aberto_pelo_assistente": True,
     })
     conversa.id_chamado = chamado["id_chamado"]
     conversa.etapa = "em_chamado"

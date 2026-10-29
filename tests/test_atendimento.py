@@ -30,7 +30,8 @@ def chamado(id_chamado=1, id_cliente=ID_CLIENTE, status="aberto", id_responsavel
 def como_saida(c: Chamado) -> dict:
     # o que a consulta do repository devolve: colunas do chamado + nomes + não lidas
     colunas = {coluna.key: getattr(c, coluna.key) for coluna in Chamado.__table__.columns}
-    colunas.update(criado_em=colunas["criado_em"] or AGORA, atualizado_em=colunas["atualizado_em"] or AGORA)
+    colunas.update(criado_em=colunas["criado_em"] or AGORA, atualizado_em=colunas["atualizado_em"] or AGORA,
+                   aberto_pelo_assistente=bool(colunas["aberto_pelo_assistente"]))
     return {**colunas, "cliente": "Marina", "responsavel": None, "mensagens_nao_lidas": 0}
 
 
