@@ -53,3 +53,9 @@ EMAIL_REMETENTE = os.getenv("EMAIL_REMETENTE") or "casa.lorenzi.contato@gmail.co
 # Token do bot do Telegram (o mesmo do n8n): a resposta da equipe num chamado aberto pelo assistente sai por ele.
 # Sem o token, a resposta fica só no chamado, com aviso no log
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or None
+
+# WhatsApp Cloud API (Meta): a resposta da equipe num chamado aberto pelo assistente no WhatsApp sai por ela.
+# O token é o permanente do usuário do sistema (o do painel vence em 24h); o ID é o do número, não o telefone.
+# Sem os dois, a resposta não sai pelo WhatsApp e o cliente recebe o aviso por e-mail
+WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN") or None
+WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or None
