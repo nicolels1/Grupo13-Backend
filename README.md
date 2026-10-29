@@ -233,7 +233,7 @@ A lista completa, com parâmetros e formatos, está em `/docs`. Resumo por área
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
 | GET | `/health` | público | consulta o banco; 503 se ele não responder |
-| POST | `/clientes` | público | cadastro de cliente (nome, e-mail, CPF e senha); as compras da loja com esse CPF na nota e o histórico do cliente sem conta com esse CPF ou e-mail passam para a conta (`compras_ligadas`), com o saldo de pontos dele |
+| POST | `/clientes` | público | cadastro de cliente (nome, e-mail, CPF, senha e `aceita_lembrete_pontos`, que vem desmarcado); as compras da loja com esse CPF na nota e o histórico do cliente sem conta com esse CPF ou e-mail passam para a conta (`compras_ligadas`), com o saldo de pontos dele |
 | POST | `/login/cpf` | público | login do cliente por CPF e senha; devolve a sessão do Supabase |
 | GET | `/me` | conta ativa | perfil, tipo de conta e permissões efetivas (monta a tela inicial) |
 | GET | `/visao-geral/faturamento?de=&ate=&id_unidade=&marca=` | Admin | faturamento por mês, unidade e canal da venda, com o frete à parte: a mesma regra dos três números da Vulto |
@@ -364,6 +364,7 @@ No resgate, os pontos viram desconto no pedido (`valor_desconto`): saem primeiro
 | GET | `/fidelidade/regras?marca=` | `gerenciar_fidelidade` | regras de cada marca, da mais nova para a mais antiga; `vigente` marca a que vale hoje |
 | GET | `/fidelidade/meus-pontos` | cliente | saldo em cada marca, com o valor em R$ (cada ponto pela época), a categoria, os pontos ganhos no ano e o próximo vencimento |
 | GET | `/fidelidade/meus-pontos/extrato?marca=` | cliente | extrato paginado, do mais novo para o mais antigo, com o histórico de quando era cliente sem conta; nas entradas, o que sobra e quando vence |
+| GET, PUT | `/fidelidade/meus-pontos/lembrete` | cliente | se recebe o e-mail duas semanas antes de os pontos vencerem, e liga ou desliga (`{aceita}`); escolher pelo site conta como oferecido, e o assistente não oferece de novo |
 | GET | `/fidelidade/clientes/pontos?id_cliente=` ou `?id_cliente_sem_conta=`, `/fidelidade/clientes/pontos/extrato` | `atender_chamado`, `registrar_venda_fisica` ou `gerenciar_fidelidade` | o mesmo, de um cliente, para o atendimento ("meus pontos sumiram"), o caixa e quem cuida do programa |
 | GET | `/fidelidade/passivo?em=` | `gerenciar_fidelidade` | quanto cada marca deve em pontos, separado pelo valor do ponto na época em que foi ganho (o passivo da Entrega 3); `em` dá a posição num momento passado, no formato do histórico do estoque |
 | GET | `/fidelidade/resgate?marca=&pontos=` | cliente | quanto valem os pontos do cliente num resgate, antes do checkout (`pontos_resgate` no `POST /pedidos` e `pontos_por_marca` no `POST /compras`): os mais antigos primeiro, cada um pelo valor da época (K3); confere o mínimo, o saldo e a regra da marca |
