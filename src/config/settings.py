@@ -28,6 +28,10 @@ CORS_ORIGIN_REGEX = os.getenv("CORS_ORIGIN_REGEX") or None
 # Endereço da plataforma do cliente, para os links que o assistente manda (peça, carrinho)
 SITE_URL = (os.getenv("SITE_URL") or "http://localhost:5173").rstrip("/")
 
+# Endereço público desta API: o link "parar de receber" dos e-mails aponta para ele. No Render vem sozinho
+# (RENDER_EXTERNAL_URL); API_URL só é preciso fora dele, como no .env local que aplica a migration
+API_URL = (os.getenv("API_URL") or os.getenv("RENDER_EXTERNAL_URL") or "http://localhost:8000").rstrip("/")
+
 # Chave das rotas /assistente: o n8n manda no cabeçalho X-Assistente-Chave. Vazia, as rotas ficam fechadas
 ASSISTENTE_CHAVE = os.getenv("ASSISTENTE_CHAVE") or None
 

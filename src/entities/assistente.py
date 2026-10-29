@@ -170,6 +170,11 @@ class LembreteSaida(BaseModel):
     mensagem: str = Field(description="Texto pronto para o cliente")
 
 
+class AvisoPontosSaida(BaseModel):
+    clientes_avisados: int
+    clientes_com_falha: int = Field(description="O e-mail não saiu: os lotes voltam no aviso do dia seguinte")
+
+
 class EstadoConversa(BaseModel):
     etapa: str
     confirmado: bool = Field(description="Conta confirmada pelo código nesta conversa")

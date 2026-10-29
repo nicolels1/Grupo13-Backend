@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from src.database.session import get_db
 from src.dependencies.assistente import conversa_do_cabecalho, exige_chave_assistente
 from src.entities.assistente import (
-    BuscaPecasSaida, ChamadoAbertoSaida, ChamadoDoAssistenteEntrada, CodigoEntrada, CodigoEnviado, ConfirmacaoSaida,
+    AvisoPontosSaida, BuscaPecasSaida, ChamadoAbertoSaida, ChamadoDoAssistenteEntrada, CodigoEntrada, CodigoEnviado, ConfirmacaoSaida,
     ConversaEntrada, CpfEntrada, EstadoConversa, EstoqueSaida, EtapaEntrada, LembreteEntrada, LembreteSaida,
     LinkCarrinhoSaida, LojasDaMarca, MensagemNoChamadoEntrada, MeusPedidosSaida, MeusPontosSaida, PedidosEntrada,
     RascunhoDoChamadoEntrada, RascunhoSaida, ResumoDoN8nEntrada, TextoDaConversaEntrada, VocabularioSaida,
@@ -206,6 +206,16 @@ def responder_lembrete(dados: LembreteEntrada, db: Session = Depends(get_db)):
         lambda: assistente_conta.responder_lembrete(db, dados.canal, dados.id_externo, dados.aceita,
                                                     datetime.now(BRASILIA)),
     )
+
+
+@router.post(
+    "/avisos/pontos-vencendo",
+    response_model=AvisoPontosSaida,
+    description="Manda o e-mail de pontos vencendo nos próximos 14 dias a quem aceitou o lembrete, um aviso por "
+                "lote. Chamada uma vez por dia pelo pg_cron do banco.",
+)
+def avisar_pontos_vencendo(db: Session = Depends(get_db)):
+    return assistente_conta.avisar_pontos_vencendo(db, datetime.now(BRASILIA))
 
 
 @router.post(
