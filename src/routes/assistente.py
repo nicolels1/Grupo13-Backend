@@ -80,7 +80,8 @@ def link_carrinho(id_variante: int, conversa: tuple = Depends(conversa_do_cabeca
 @router.get(
     "/lojas",
     response_model=Lista[LojasDaMarca],
-    description="Lojas por marca, com endereço, o horário de hoje em texto pronto e o da semana.",
+    description="Lojas por marca, com endereço, o horário de hoje em texto pronto e o dos próximos 7 dias, já com "
+                "as exceções cadastradas e os feriados nacionais.",
 )
 def lojas(conversa: tuple = Depends(conversa_do_cabecalho), db: Session = Depends(get_db)):
     return resumo_conversa.com_assunto(db, *conversa, "lojas", lambda: assistente.lojas(db, datetime.now(BRASILIA)))

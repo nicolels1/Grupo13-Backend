@@ -64,9 +64,47 @@ def test_usa_o_horario_de_brasilia():
     assert horarios.situacao_de_hoje(RUA, None, agora)["texto"].startswith("Hoje a loja já fechou")
 
 
-def test_semana_lista_os_sete_dias():
-    dias = horarios.semana(RUA)
-    assert [d["dia"] for d in dias] == horarios.DIAS_DA_SEMANA
-    assert dias[0]["horario"] == "10h às 20h"
-    assert dias[5]["horario"] == "10h às 18h"
-    assert dias[6]["horario"] == "fechada"
+@pytest.mark.parametrize("ano, esperado", [
+    (2026, date(2026, 4, 5)), (2027, date(2027, 3, 28)), (2038, date(2038, 4, 25)), (2285, date(2285, 3, 22)),
+])
+def test_pascoa(ano, esperado):
+    assert horarios.pascoa(ano) == esperado
+
+
+def test_sexta_feira_santa_e_feriado_nacional():
+    assert horarios.feriado_nacional(date(2026, 4, 3)) == "Sexta-feira Santa"
+    assert horarios.feriado_nacional(date(2027, 3, 26)) == "Sexta-feira Santa"
+    assert horarios.feriado_nacional(date(2026, 4, 10)) is None
+    resposta = horarios.situacao_de_hoje(RUA, None, em(2026, 4, 3, 12))
+    assert resposta["texto"].endswith(horarios.AVISO_FERIADO)
+
+
+def test_proximos_dias_comeca_hoje_com_a_data():
+    # 28/10/2026 é uma quarta
+    dias = horarios.proximos_dias(RUA, {}, date(2026, 10, 28))
+    assert len(dias) == horarios.DIAS_A_FRENTE
+    assert [(d["data"], d["dia"], d["horario"]) for d in dias[:5]] == [
+        (date(2026, 10, 28), "quarta", "10h às 20h"),
+        (date(2026, 10, 29), "quinta", "10h às 20h"),
+        (date(2026, 10, 30), "sexta", "10h às 20h"),
+        (date(2026, 10, 31), "sábado", "10h às 18h"),
+        (date(2026, 11, 1), "domingo", "fechada"),
+    ]
+    assert dias[0]["motivo"] is None and dias[0]["aviso"] is None
+
+
+def test_proximos_dias_mostra_a_excecao_na_vespera():
+    natal = ExcecaoHorario(id_unidade=1, data=date(2026, 12, 25), abre=None, fecha=None, motivo="Natal")
+    vespera = ExcecaoHorario(id_unidade=1, data=date(2026, 12, 24), abre=time(10), fecha=time(18), motivo="véspera de Natal")
+    dias = horarios.proximos_dias(RUA, {natal.data: natal, vespera.data: vespera}, date(2026, 12, 23))
+    # sem a exceção, a sexta 25/12 apareceria das 10h às 20h
+    assert dias[1] == {"data": date(2026, 12, 24), "dia": "quinta", "horario": "10h às 18h",
+                       "motivo": "véspera de Natal", "aviso": None}
+    assert dias[2] == {"data": date(2026, 12, 25), "dia": "sexta", "horario": "fechada", "motivo": "Natal", "aviso": None}
+
+
+def test_proximos_dias_avisa_feriado_sem_excecao():
+    # 20/11/2026 é uma sexta, feriado da Consciência Negra, sem exceção cadastrada
+    dias = horarios.proximos_dias(RUA, {}, date(2026, 11, 18))
+    assert dias[2] == {"data": date(2026, 11, 20), "dia": "sexta", "horario": "10h às 20h",
+                       "motivo": "Consciência Negra", "aviso": horarios.AVISO_FERIADO}
