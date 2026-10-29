@@ -21,8 +21,10 @@ def link_do_produto(id_produto: int) -> str:
     return f"{settings.SITE_URL}/loja/produtos/{id_produto}"
 
 
-def link_do_carrinho(id_produto: int, id_variante: int) -> str:
-    return f"{settings.SITE_URL}/loja/carrinho/adicionar?produto={id_produto}&variante={id_variante}"
+# um par produto + variante por peça, na ordem em que o cliente escolheu
+def link_do_carrinho(pecas: list[tuple[int, int]]) -> str:
+    pares = "&".join(f"produto={id_produto}&variante={id_variante}" for id_produto, id_variante in pecas)
+    return f"{settings.SITE_URL}/loja/carrinho/adicionar?{pares}"
 
 
 def faixa_de_estoque(quantidade: int) -> dict:
@@ -124,9 +126,8 @@ def ver_estoque(db: Session, id_produto: int, cor: str, tamanho: str) -> dict:
     }
 
 
-# o link abre o site com a peça no carrinho; a IA nunca escreve o link. Sem estoque para o site, a
-# resposta diz em quais lojas tem, para o assistente oferecer a loja
-def link_carrinho(db: Session, id_variante: int) -> dict:
+# uma peça do link: só com estoque para o site; sem ele, o erro diz em quais lojas tem
+def _peca_do_link(db: Session, id_variante: int) -> dict:
     variante = catalogo_repository.buscar_variante(db, id_variante)
     if variante is None or not variante.ativo:
         raise RecursoNaoEncontrado("Peça não encontrada")
@@ -136,12 +137,28 @@ def link_carrinho(db: Session, id_variante: int) -> dict:
         lojas = ", ".join(u.nome for u, _ in nas_lojas)
         onde = f" Tem na loja: {lojas}." if lojas else " Também não tem nas lojas."
         raise RegraDeNegocio(f"{produto['nome']} ({variante.cor}, {variante.tamanho}) está sem estoque para o site.{onde}")
+    return {"id_variante": id_variante, "id_produto": variante.id_produto, "produto": produto["nome"],
+            "cor": variante.cor, "tamanho": variante.tamanho}
+
+
+# o link abre o site com as peças que o cliente escolheu na conversa já no carrinho; a IA nunca escreve o link.
+# Peça sem estoque para o site fica fora do link, com o motivo (e as lojas que têm), para o assistente oferecer
+# a loja. Sem nenhuma peça que dê para comprar no site, não há link: o erro é o da peça (ou o de todas juntas)
+def link_carrinho(db: Session, ids_variante: list[int]) -> dict:
+    no_link, fora = [], []
+    for id_variante in dict.fromkeys(ids_variante):  # a mesma peça repetida entra uma vez
+        try:
+            no_link.append(_peca_do_link(db, id_variante))
+        except (RecursoNaoEncontrado, RegraDeNegocio) as erro:
+            fora.append((id_variante, erro))
+    if not no_link:
+        if len(fora) == 1:
+            raise fora[0][1]
+        raise RegraDeNegocio(" ".join(erro.mensagem for _, erro in fora))
     return {
-        "id_variante": id_variante,
-        "produto": produto["nome"],
-        "cor": variante.cor,
-        "tamanho": variante.tamanho,
-        "link": link_do_carrinho(variante.id_produto, id_variante),
+        "items": [{chave: peca[chave] for chave in ("id_variante", "produto", "cor", "tamanho")} for peca in no_link],
+        "fora_do_link": [{"id_variante": id_variante, "motivo": erro.mensagem} for id_variante, erro in fora],
+        "link": link_do_carrinho([(peca["id_produto"], peca["id_variante"]) for peca in no_link]),
     }
 
 
