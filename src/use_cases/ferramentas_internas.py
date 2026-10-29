@@ -769,19 +769,33 @@ def metricas_assistente(db: Session, usuario: Usuario, p: dict, hoje: date) -> d
         db, inicio_dos_ultimos(1, inicio), fim_do_dia(fim), agora - CONVERSA_EM_ANDAMENTO, canal
     )
     periodo = _descrever_periodo(inicio, fim)
-    onde = ONDE_NO_CANAL[canal] if canal else "no WhatsApp e no Telegram"
-    regras = ("Conversas do assistente do cliente, anônimas, da rede inteira (o resumo não guarda a marca). Entram "
-              "só as com algum assunto além de fora do tema e que começaram há mais de 1 hora. Cada conversa cai "
-              "num grupo só: erro do sistema (uma ferramenta falhou), virou chamado, avaliação negativa ou "
-              "resolvida. Avaliação é opcional: a porcentagem positiva conta só as avaliadas. \"Se identificaram\" "
-              "= confirmaram CPF e código (não quer dizer que os outros não têm conta).")
-    base = {"periodo": {"de": data(inicio), "ate": data(fim)}, "onde": onde, "regras": regras,
+    # sem canal na pergunta: diz só os canais que tiveram conversa no período (não "WhatsApp e Telegram" sempre)
+    por_canal = {c: q for c, q in (n.get("por_canal") or {}).items() if q}
+    canais = [c for c in ONDE_NO_CANAL if c in por_canal]
+    if canal:
+        onde = ONDE_NO_CANAL[canal]
+    elif len(canais) == 1:
+        onde = ONDE_NO_CANAL[canais[0]]
+    elif canais:
+        onde = " e ".join(f"{numero(por_canal[c])} {ONDE_NO_CANAL[c]}" for c in canais)
+        onde = f"somando os canais ({onde})"
+    else:
+        onde = ""
+    lugar = f" {onde}" if onde else ""
+    regras = ("Conversas do assistente do cliente, anônimas, da rede inteira (o resumo não guarda a marca). Não "
+              "contam as conversas só de \"oi\" ou fora do assunto, nem as que começaram há menos de 1 hora (ainda "
+              "em andamento). Cada conversa cai num grupo só: erro do sistema (uma ferramenta falhou), virou "
+              "chamado, avaliação negativa ou resolvida. Avaliação é opcional: a porcentagem positiva conta só as "
+              "avaliadas. \"Se identificaram\" = confirmaram CPF e código (não quer dizer que os outros não têm "
+              "conta). Diga o canal como está em 'onde'.")
+    base = {"periodo": {"de": data(inicio), "ate": data(fim)}, "onde": onde or "nenhum canal teve conversa",
+            "regras": regras,
             "so_fora_do_tema": numero(n["so_fora_do_tema"]), "sem_assunto": numero(n["sem_assunto"]),
             "links": [{"rotulo": "Abrir o atendimento", "url": "/interno/atendimento"}]}
     total = n["conversas"]
     if not total:
         return {**base, "vazio": True,
-                "texto": f"Nenhuma conversa do assistente do cliente {onde} {periodo}."}
+                "texto": f"Nenhuma conversa do assistente do cliente{lugar} {periodo}."}
     grupos = {"resolvidas": n["resolvidas"], "viraram_chamado": n["viraram_chamado"],
               "avaliacao_negativa": n["negativas"], "erro_do_sistema": n["erro_do_sistema"]}
     return {
@@ -792,7 +806,7 @@ def metricas_assistente(db: Session, usuario: Usuario, p: dict, hoje: date) -> d
         "avaliadas": numero(n["avaliadas"]), "positivas_entre_avaliadas": _pct(n["positivas"], n["avaliadas"]),
         "por_assunto": [{"assunto": NOME_DO_ASSUNTO.get(a["assunto"], a["assunto"]), "conversas": numero(a["conversas"])}
                         for a in n["por_assunto"]],
-        "texto": f"Assistente do cliente {onde} {periodo}: {numero(total)} conversas, {numero(n['resolvidas'])} "
+        "texto": f"Assistente do cliente{lugar} {periodo}: {numero(total)} conversas, {numero(n['resolvidas'])} "
                  f"resolvidas, {numero(n['viraram_chamado'])} viraram chamado, {numero(n['negativas'])} com 👎 e "
                  f"{numero(n['erro_do_sistema'])} com erro do sistema.",
     }

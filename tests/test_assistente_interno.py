@@ -716,6 +716,7 @@ def metricas(monkeypatch):
         "conversas": 80, "resolvidas": 62, "viraram_chamado": 10, "negativas": 5, "erro_do_sistema": 3,
         "se_identificaram": 30, "avaliadas": 40, "positivas": 34, "so_fora_do_tema": 6, "sem_assunto": 9,
         "por_assunto": [{"assunto": "estoque", "conversas": 41}, {"assunto": "pecas", "conversas": 35}],
+        "por_canal": {"telegram": 50, "whatsapp": 30},
     })
 
     def resumo(db, desde, ate, fechadas_antes, canal=None):
@@ -742,8 +743,15 @@ def test_metricas_no_formato_combinado_com_a_nicole(metricas):
     assert (r["avaliadas"], r["positivas_entre_avaliadas"]) == ("40", "85%")
     assert r["por_assunto"] == [{"assunto": "estoque", "conversas": "41"}, {"assunto": "peças", "conversas": "35"}]
     assert (r["so_fora_do_tema"], r["sem_assunto"]) == ("6", "9")
-    assert r["texto"] == ("Assistente do cliente no WhatsApp e no Telegram de 01/10/2026 a 28/10/2026: 80 conversas, 62 "
-                          "resolvidas, 10 viraram chamado, 5 com 👎 e 3 com erro do sistema.")
+    assert r["texto"] == ("Assistente do cliente somando os canais (30 no WhatsApp e 50 no Telegram) de 01/10/2026 a "
+                          "28/10/2026: 80 conversas, 62 resolvidas, 10 viraram chamado, 5 com 👎 e 3 com erro do sistema.")
+
+
+def test_metricas_dizem_so_o_canal_que_teve_conversa(metricas):
+    # sem canal na pergunta e só conversas do Telegram: não fala em WhatsApp
+    metricas.numeros = {**metricas.numeros, "por_canal": {"telegram": 80}}
+    r = ferramentas_internas.metricas_assistente(None, USUARIO, {"periodo": "este_mes"}, QUARTA)
+    assert r["onde"] == "no Telegram" and "WhatsApp" not in r["texto"]
 
 
 def test_metricas_de_um_canal_so(metricas):
@@ -766,10 +774,10 @@ def test_metricas_sem_periodo_usam_os_ultimos_30_dias(metricas):
 
 
 def test_sem_conversas(metricas):
-    metricas.numeros = {**metricas.numeros, "conversas": 0, "por_assunto": []}
+    metricas.numeros = {**metricas.numeros, "conversas": 0, "por_assunto": [], "por_canal": {}}
     r = ferramentas_internas.metricas_assistente(None, USUARIO, {"periodo": "hoje"}, QUARTA)
     assert r["vazio"] is True and r["texto"] == (
-        "Nenhuma conversa do assistente do cliente no WhatsApp e no Telegram em 28/10/2026."
+        "Nenhuma conversa do assistente do cliente em 28/10/2026."
     )
 
 
@@ -804,7 +812,8 @@ def test_consulta_das_metricas_monta_para_o_postgres():
     agora = datetime.now(timezone.utc)
     db = Capturar()
     assistente_interno_repository.resumo_das_conversas(db, agora, agora, agora, "telegram")
-    contagens, assuntos = db.sqls
+    contagens, assuntos, canais = db.sqls
+    assert "GROUP BY resumo_conversa.canal" in canais
     assert "unnest(resumo_conversa.assuntos)" in assuntos
     assert "resumo_conversa.assuntos && ARRAY[" in contagens
     assert "count(*) FILTER (WHERE" in contagens and "cardinality(resumo_conversa.assuntos)" in contagens
