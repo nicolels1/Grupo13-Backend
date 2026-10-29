@@ -144,6 +144,16 @@ class MensagemConversa(Base):
     )
 
 
+# lote de pontos que já entrou no e-mail de pontos vencendo: um aviso por lote, nunca repetido
+class AvisoPontosVencendo(Base):
+    __tablename__ = "aviso_pontos_vencendo"
+
+    id_movimento: Mapped[int] = mapped_column(
+        ForeignKey("lote_pontos.id_movimento", ondelete="CASCADE"), primary_key=True
+    )
+    avisado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 # auditoria (CFO): o que o backend entregou ao assistente com dado pessoal, para provar o que foi dito
 # ao cliente mesmo que esteja errado. Fica para sempre
 class AfirmacaoAssistente(Base):

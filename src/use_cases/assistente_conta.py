@@ -3,6 +3,8 @@ import hmac
 import logging
 import re
 import secrets
+import uuid
+from collections import defaultdict
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
@@ -10,7 +12,9 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
 from src.config import settings
-from src.models.assistente import AfirmacaoAssistente, CodigoVerificacao, ConversaCanal, MensagemConversa
+from src.models.assistente import (
+    AfirmacaoAssistente, AvisoPontosVencendo, CodigoVerificacao, ConversaCanal, MensagemConversa,
+)
 from src.models.estoque import Unidade
 from src.repositories import assistente_repository as repo
 from src.repositories import atendimento_repository, cliente_sem_conta_repository, fidelidade_repository
@@ -449,6 +453,77 @@ def responder_lembrete(db: Session, canal: str, id_externo: str, aceita: bool, m
         mensagem = "Tudo bem, não vou mandar o lembrete. Se mudar de ideia, é só me pedir por aqui."
     db.commit()
     return {"aceita": aceita, "mensagem": mensagem}
+
+
+# ---------- aviso de pontos vencendo (e-mail, sem IA) ----------
+
+ANTECEDENCIA_DO_AVISO = timedelta(days=14)
+ASSUNTO_DO_AVISO = "Seus pontos vão vencer"
+
+
+# assinatura do link "parar de receber": quem tem o link desliga o lembrete daquela conta, sem login
+def _assinatura_do_lembrete(id_cliente: uuid.UUID) -> str:
+    texto = f"parar-lembrete-pontos:{id_cliente}".encode()
+    return hmac.new(settings.ASSISTENTE_CHAVE.encode(), texto, hashlib.sha256).hexdigest()
+
+
+def link_para_parar_o_lembrete(id_cliente: uuid.UUID) -> str:
+    return f"{settings.API_URL}/lembrete-pontos/parar?token={id_cliente}.{_assinatura_do_lembrete(id_cliente)}"
+
+
+# os lotes do e-mail somados por marca e data: o cliente vê "320 pontos vencem em 12/11", não um lote por compra
+def _texto_do_aviso(cliente, lotes: list) -> str:
+    somados = defaultdict(lambda: [0, Decimal(0)])
+    for lote in lotes:
+        soma = somados[(lote.marca, lote.vence_em.astimezone(BRASILIA).date())]
+        soma[0] += lote.restante
+        soma[1] += lote.restante * lote.valor_ponto
+    linhas = [f"- {marca.capitalize()}: {_pontos(pontos)} ({_reais(valor)}) vencem em {_data(dia)}."
+              for (marca, dia), (pontos, valor) in sorted(somados.items(), key=lambda item: item[0][1])]
+    saudacao = f"Olá, {_primeiro_nome(cliente.nome)}!" if cliente.nome else "Olá!"
+    return (
+        f"{saudacao}\n\nAlguns dos seus pontos vão vencer:\n" + "\n".join(linhas) + "\n\n"
+        "Use os pontos em compras no site ou nas lojas antes dessas datas.\n\n"
+        f"Para não receber mais este aviso: {link_para_parar_o_lembrete(cliente.id_usuario)}\n"
+    )
+
+
+# chamado uma vez por dia pelo pg_cron: um e-mail por cliente com os lotes que vencem nos próximos 14 dias e
+# ainda não foram avisados. Se o e-mail falhar, os lotes não ficam marcados e a tentativa volta no dia seguinte
+def avisar_pontos_vencendo(db: Session, momento: datetime) -> dict:
+    por_cliente = defaultdict(list)
+    clientes = {}
+    for lote, cliente in repo.lotes_para_avisar(db, momento, momento + ANTECEDENCIA_DO_AVISO):
+        por_cliente[cliente.id_usuario].append(lote)
+        clientes[cliente.id_usuario] = cliente
+    avisados = 0
+    for id_cliente, lotes in por_cliente.items():
+        try:
+            enviar_email(clientes[id_cliente].email, ASSUNTO_DO_AVISO, _texto_do_aviso(clientes[id_cliente], lotes))
+        except ErroEmail:
+            logger.error("aviso de pontos vencendo não enviado; tenta de novo amanhã")
+            continue
+        db.add_all([AvisoPontosVencendo(id_movimento=lote.id_movimento, avisado_em=momento) for lote in lotes])
+        db.commit()
+        avisados += 1
+    return {"clientes_avisados": avisados, "clientes_com_falha": len(por_cliente) - avisados}
+
+
+# o link do e-mail: assinatura certa desliga o lembrete (de novo, se já estava desligado, não muda nada)
+def parar_lembrete_pelo_link(db: Session, token: str) -> bool:
+    id_texto, _, assinatura = token.partition(".")
+    try:
+        id_cliente = uuid.UUID(id_texto)
+    except ValueError:
+        return False
+    if not settings.ASSISTENTE_CHAVE or not hmac.compare_digest(assinatura, _assinatura_do_lembrete(id_cliente)):
+        return False
+    cliente = usuario_repository.buscar_por_id(db, id_cliente)
+    if cliente is None:
+        return False
+    cliente.lembrete_pontos_aceito_em = None
+    db.commit()
+    return True
 
 
 STATUS_DO_PEDIDO = {

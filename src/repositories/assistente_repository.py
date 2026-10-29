@@ -5,8 +5,11 @@ from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from src.models.assistente import CodigoVerificacao, ConversaCanal, MensagemConversa, ResumoConversa
+from src.models.assistente import (
+    AvisoPontosVencendo, CodigoVerificacao, ConversaCanal, MensagemConversa, ResumoConversa,
+)
 from src.models.catalogo import CategoriaProduto, Produto, Variante
+from src.models.contas import Usuario
 from src.models.estoque import Estoque, Unidade
 from src.models.fidelidade import LotePontos
 from src.models.horarios import ExcecaoHorario, HorarioUnidade
@@ -143,6 +146,21 @@ def pontos_sem_vencimento(db: Session, id_cliente, id_cliente_sem_conta) -> dict
         .group_by(LotePontos.marca)
     )
     return {marca: int(pontos) for marca, pontos in db.execute(consulta)}
+
+
+# lotes com pontos que vencem entre as duas datas, de contas ativas que aceitaram o lembrete, ainda não avisados.
+# Lote sem data de vencimento fica de fora: o aviso só começa quando ele ganha data
+def lotes_para_avisar(db: Session, desde: datetime, ate: datetime) -> list[tuple[LotePontos, Usuario]]:
+    consulta = (
+        select(LotePontos, Usuario)
+        .join(Usuario, Usuario.id_usuario == LotePontos.id_cliente)
+        .outerjoin(AvisoPontosVencendo, AvisoPontosVencendo.id_movimento == LotePontos.id_movimento)
+        .where(LotePontos.restante > 0, LotePontos.vence_em > desde, LotePontos.vence_em <= ate,
+               Usuario.lembrete_pontos_aceito_em.is_not(None), Usuario.status_conta == "ativa",
+               AvisoPontosVencendo.id_movimento.is_(None))
+        .order_by(Usuario.id_usuario, LotePontos.vence_em)
+    )
+    return [(lote, cliente) for lote, cliente in db.execute(consulta)]
 
 
 def unidades(db: Session, ids_unidade: list[int]) -> dict[int, Unidade]:
