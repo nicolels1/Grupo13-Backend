@@ -25,6 +25,10 @@ class Usuario(Base):
     id_unidade: Mapped[int | None] = mapped_column(
         ForeignKey("unidade.id_unidade", ondelete="RESTRICT")
     )
+    # e-mail antes de os pontos vencerem: só com aceite (vazio = não aceitou). O assistente oferece uma vez
+    # por conta; quem recusou ainda pode aceitar pela conta
+    lembrete_pontos_aceito_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    lembrete_pontos_oferecido_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     atualizado_em: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

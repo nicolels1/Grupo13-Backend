@@ -5,7 +5,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from src.models.assistente import CodigoVerificacao, ConversaCanal, ResumoConversa
+from src.models.assistente import CodigoVerificacao, ConversaCanal, MensagemConversa, ResumoConversa
 from src.models.catalogo import CategoriaProduto, Produto, Variante
 from src.models.estoque import Estoque, Unidade
 from src.models.fidelidade import LotePontos
@@ -118,6 +118,18 @@ def encerrar_codigos(db: Session, canal: str, id_externo: str, agora: datetime) 
         .where(CodigoVerificacao.canal == canal, CodigoVerificacao.id_externo == id_externo,
                CodigoVerificacao.encerrado_em.is_(None))
         .values(encerrado_em=agora)
+    )
+
+
+# o texto ainda anônimo da conversa em andamento passa para a conta confirmada
+def passar_texto_para_a_conta(db: Session, canal: str, id_externo: str, desde: datetime,
+                              id_cliente, id_cliente_sem_conta) -> None:
+    db.execute(
+        update(MensagemConversa)
+        .where(MensagemConversa.canal == canal, MensagemConversa.id_externo == id_externo,
+               MensagemConversa.criado_em >= desde, MensagemConversa.id_cliente.is_(None),
+               MensagemConversa.id_cliente_sem_conta.is_(None))
+        .values(id_cliente=id_cliente, id_cliente_sem_conta=id_cliente_sem_conta)
     )
 
 
