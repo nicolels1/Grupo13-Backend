@@ -17,9 +17,9 @@ from src.models.atendimento import Chamado, Mensagem
 from src.models.contas import ClienteSemConta, Usuario
 from src.models.estoque import Unidade
 from src.models.fidelidade import LotePontos, RegraFidelidade
-from src.models.vendas import Pedido
+from src.models.vendas import Pagamento, Pedido
 from src.repositories import assistente_repository, cliente_sem_conta_repository, fidelidade_repository
-from src.repositories import atendimento_repository, pedido_repository, usuario_repository
+from src.repositories import atendimento_repository, migracao_repository, pedido_repository, usuario_repository
 from src.use_cases import assistente, assistente_conta, resumo_conversa
 from src.use_cases.erros import Conflito, MuitasTentativas, NaoAutenticado, RecursoNaoEncontrado, RegraDeNegocio
 from src.use_cases.horarios import BRASILIA
@@ -355,7 +355,7 @@ def pedido(id_pedido, status, **campos):
 
 @pytest.fixture
 def pedidos(banco, monkeypatch):
-    dados = SimpleNamespace(linhas=[])
+    dados = SimpleNamespace(linhas=[], lancamentos={}, migrados=set())
     item = {"produto": "Camisa Social", "cor": "Azul", "tamanho": "G", "quantidade": 1}
     m = monkeypatch.setattr
     m(pedido_repository, "listar_pedidos",
@@ -363,6 +363,8 @@ def pedidos(banco, monkeypatch):
     m(pedido_repository, "pedido_com_nomes",
       lambda db, id_pedido: next((linha for linha in dados.linhas if linha[0].id_pedido == id_pedido), None))
     m(pedido_repository, "itens_dos_pedidos", lambda db, ids: {i: [item] for i in ids})
+    m(pedido_repository, "pagamentos_dos_pedidos", lambda db, ids: {i: dados.lancamentos.get(i, []) for i in ids})
+    m(migracao_repository, "migrado", lambda db, tabela, chave: chave in dados.migrados)
     m(assistente_repository, "unidades", lambda db, ids: {2: PAULISTA})
     return dados
 
@@ -409,6 +411,153 @@ def test_cliente_sem_conta_nao_tem_pedidos_do_site(banco, pedidos):
     assert resposta == {"items": [], "texto": assistente_conta.SEM_PEDIDOS_NO_SITE}
 
 
+def entregue(id_pedido=4, **campos):
+    return pedido(id_pedido, "entregue", **{"entregue_em": datetime(2026, 10, 10, 14, 0, tzinfo=BRASILIA), **campos})
+
+
+def test_pedido_entregue_diz_ate_quando_trocar(banco, pedidos):
+    pedidos.linhas = [(entregue(), "Ana", "Loja Paulista")]
+    confirmar(banco)
+
+    [montado] = assistente_conta.meus_pedidos(banco.db, CANAL, TELEFONE, None, AGORA)["items"]
+
+    assert (montado["entregue_em"], montado["troca_ate"]) == (date(2026, 10, 10), date(2026, 11, 9))
+    assert montado["texto"].endswith("Dá para trocar ou devolver até 09/11/2026, numa loja da Lorenzi.")
+
+
+def test_passado_o_prazo_diz_que_a_troca_terminou(banco, pedidos):
+    pedidos.linhas = [(entregue(entregue_em=datetime(2026, 9, 1, 14, 0, tzinfo=BRASILIA)), "Ana", "Loja Paulista")]
+    confirmar(banco)
+
+    [montado] = assistente_conta.meus_pedidos(banco.db, CANAL, TELEFONE, None, AGORA)["items"]
+
+    assert montado["texto"].endswith("O prazo para trocar ou devolver terminou em 01/10/2026.")
+
+
+# a mesma regra do balcão: o pedido migrado da Vulto sem data de entrega conta o prazo do pagamento
+def test_pedido_migrado_sem_entrega_conta_o_prazo_do_pagamento(banco, pedidos):
+    migrado = entregue(entregue_em=None, pago_em=datetime(2026, 10, 20, 9, 0, tzinfo=BRASILIA))
+    pedidos.linhas, pedidos.migrados = [(migrado, "Ana", "Loja Paulista")], {"4"}
+    confirmar(banco)
+
+    [montado] = assistente_conta.meus_pedidos(banco.db, CANAL, TELEFONE, None, AGORA)["items"]
+
+    assert (montado["entregue_em"], montado["troca_ate"]) == (None, date(2026, 11, 19))
+
+
+def test_pedido_ainda_nao_entregue_nao_tem_prazo_de_troca(banco, pedidos):
+    pedidos.linhas = [(pedido(1, "pago"), "Ana", "Loja Paulista")]
+    confirmar(banco)
+
+    [montado] = assistente_conta.meus_pedidos(banco.db, CANAL, TELEFONE, None, AGORA)["items"]
+
+    assert montado["troca_ate"] is None and "trocar" not in montado["texto"]
+
+
+def test_devolvido_nao_oferece_troca(banco, pedidos):
+    pedidos.linhas = [(entregue(devolucao="total"), "Ana", "Loja Paulista")]
+    confirmar(banco)
+
+    [montado] = assistente_conta.meus_pedidos(banco.db, CANAL, TELEFONE, None, AGORA)["items"]
+
+    assert montado["devolucao"] == "total"
+    assert montado["texto"].endswith("Foi devolvido.")
+
+
+def test_cancelado_diz_o_motivo_e_o_estorno(banco, pedidos):
+    cancelado = pedido(5, "cancelado", motivo_cancelamento="retirada_vencida")
+    pedidos.linhas = [(cancelado, "Ana", "Loja Paulista")]
+    em = datetime(2026, 10, 21, 10, 0, tzinfo=BRASILIA)
+    pedidos.lancamentos = {5: [
+        Pagamento(tipo="pagamento", metodo="pix", valor=Decimal("129.90"), status="aprovado", criado_em=em),
+        Pagamento(tipo="estorno", metodo="pix", valor=Decimal("129.90"), status="pendente", criado_em=em),
+    ]}
+    confirmar(banco)
+
+    [montado] = assistente_conta.meus_pedidos(banco.db, CANAL, TELEFONE, None, AGORA)["items"]
+
+    assert montado["motivo_cancelamento"] == "retirada_vencida"
+    assert [p["tipo"] for p in montado["pagamentos"]] == ["pagamento", "estorno"]
+    assert "cancelado porque não foi retirado em 7 dias" in montado["texto"]
+    assert montado["texto"].endswith("Estorno de R$ 129,90 (Pix): em andamento em 21/10/2026.")
+
+
+# ---------- extrato de pontos ----------
+
+def movimento(tipo, pontos, marca="lorenzi", codigo_venda=None, restante=0, vence_em=None):
+    return {"criado_em": datetime(2026, 10, 20, 12, 0, tzinfo=BRASILIA), "marca": marca, "tipo": tipo,
+            "pontos": pontos, "codigo_venda": codigo_venda, "restante": restante, "vence_em": vence_em}
+
+
+@pytest.fixture
+def extrato(banco, monkeypatch):
+    dados = SimpleNamespace(linhas=[], pedidos=[])
+
+    def buscar(db, id_cliente, id_sem_conta, marca, limit, offset):
+        dados.pedidos.append((id_cliente, id_sem_conta, marca, limit))
+        return dados.linhas, len(dados.linhas)
+
+    monkeypatch.setattr(fidelidade_repository, "extrato", buscar)
+    return dados
+
+
+def test_extrato_exige_a_conta_confirmada(banco, extrato):
+    mensagem(banco)
+    with pytest.raises(NaoAutenticado):
+        assistente_conta.extrato_pontos(banco.db, CANAL, TELEFONE, None, AGORA)
+
+
+def test_extrato_diz_o_que_entrou_saiu_e_venceu(banco, extrato):
+    vence = datetime(2027, 10, 20, 12, 0, tzinfo=BRASILIA)
+    extrato.linhas = [
+        movimento("credito", 120, codigo_venda="CL00000004", restante=120, vence_em=vence),
+        movimento("resgate", -100, codigo_venda="CL00000005"),
+        movimento("vencimento", -30, marca="vulto"),
+        movimento("estorno", -50, codigo_venda="CL00000006"),
+    ]
+    confirmar(banco)
+
+    resposta = assistente_conta.extrato_pontos(banco.db, CANAL, TELEFONE, None, AGORA)
+
+    assert resposta["items"][0]["vence_em"] == date(2027, 10, 20)
+    assert resposta["texto"].split("\n") == [
+        "20/10/2026, Lorenzi: +120 pontos ganhos na compra CL00000004 (vencem em 20/10/2027).",
+        "20/10/2026, Lorenzi: -100 pontos usados na compra CL00000005.",
+        "20/10/2026, Vulto: -30 pontos venceram.",
+        "20/10/2026, Lorenzi: -50 pontos retirados por estorno na compra CL00000006.",
+    ]
+
+
+# o lote já gasto (sem sobra) não vence mais: não promete um vencimento que não vai acontecer
+def test_ponto_ja_usado_nao_mostra_vencimento(banco, extrato):
+    extrato.linhas = [movimento("credito", 80, restante=0, vence_em=datetime(2027, 1, 1, tzinfo=BRASILIA))]
+    confirmar(banco)
+
+    [item] = assistente_conta.extrato_pontos(banco.db, CANAL, TELEFONE, None, AGORA)["items"]
+
+    assert item["vence_em"] is None and "vencem" not in item["texto"]
+
+
+def test_extrato_filtra_a_marca_e_e_do_cliente_confirmado(banco, extrato):
+    confirmar(banco)
+
+    resposta = assistente_conta.extrato_pontos(banco.db, CANAL, TELEFONE, "vulto", AGORA)
+
+    assert extrato.pedidos == [(ANA.id_usuario, None, "vulto", assistente_conta.MOVIMENTOS_NO_EXTRATO)]
+    assert resposta == {"items": [], "texto": "Você ainda não tem movimentos de pontos na Vulto."}
+
+
+def test_extrato_fica_registrado_para_auditoria(banco, extrato):
+    extrato.linhas = [movimento("credito", 120)]
+    confirmar(banco)
+
+    assistente_conta.extrato_pontos(banco.db, CANAL, TELEFONE, None, AGORA)
+
+    [afirmacao] = [o for o in banco.db.adicionados if isinstance(o, AfirmacaoAssistente)]
+    assert afirmacao.ferramenta == "extrato_pontos"
+    assert afirmacao.dados["items"][0]["pontos"] == 120
+
+
 # ---------- rotas ----------
 
 @pytest.fixture
@@ -451,6 +600,16 @@ def test_rota_de_pontos_sem_confirmar_responde_401(cliente):
     resposta = cliente.post("/assistente/meus-pontos", json={"canal": CANAL, "id_externo": TELEFONE}, headers=cabecalho)
 
     assert resposta.status_code == 401
+
+
+def test_rota_do_extrato_sem_confirmar_responde_401_e_recusa_marca_desconhecida(cliente):
+    cabecalho = {"X-Assistente-Chave": CHAVE}
+    conversa = {"canal": CANAL, "id_externo": TELEFONE}
+    cliente.post("/assistente/conversa", json=conversa, headers=cabecalho)
+
+    assert cliente.post("/assistente/extrato-pontos", json=conversa, headers=cabecalho).status_code == 401
+    resposta = cliente.post("/assistente/extrato-pontos", json=conversa | {"marca": "outra"}, headers=cabecalho)
+    assert resposta.status_code == 422
 
 
 # ---------- resumo anônimo da conversa ----------

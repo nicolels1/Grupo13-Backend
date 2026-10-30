@@ -19,7 +19,7 @@ from src.models.estoque import Unidade
 from src.repositories import assistente_repository as repo
 from src.repositories import atendimento_repository, cliente_sem_conta_repository, fidelidade_repository
 from src.repositories import pedido_repository, usuario_repository
-from src.use_cases import atendimento, fidelidade, resumo_conversa
+from src.use_cases import atendimento, devolucoes, fidelidade, resumo_conversa
 from src.use_cases.assistente import endereco
 from src.use_cases.erros import Conflito, MuitasTentativas, NaoAutenticado, RecursoNaoEncontrado, RegraDeNegocio
 from src.use_cases.horarios import BRASILIA, DIAS_DA_SEMANA, feriado_nacional, formatar_hora
@@ -39,6 +39,7 @@ BLOQUEIO = timedelta(minutes=30)
 CODIGOS_POR_DIA = 3  # contra quem testa quais CPFs têm cadastro
 MENSAGENS_POR_DIA = 100
 PEDIDOS_NA_CONVERSA = 5
+MOVIMENTOS_NO_EXTRATO = 10
 DIAS_PARA_RETIRAR = 7  # depois disso o pg_cron cancela (migration 03aeb347f6cf)
 
 # a mesma resposta para CPF com e sem cadastro: não revela quem é cliente
@@ -534,9 +535,38 @@ STATUS_DO_PEDIDO = {
     "entregue": "entregue",
     "cancelado": "cancelado",
 }
+MOTIVO_DO_CANCELAMENTO = {
+    "cliente": "cancelado por você",
+    "reserva_vencida": "cancelado porque o pagamento não foi feito a tempo",
+    "retirada_vencida": f"cancelado porque não foi retirado em {DIAS_PARA_RETIRAR} dias",
+    "equipe": "cancelado pela nossa equipe",
+}
+NOME_DO_METODO = {
+    "pix": "Pix", "cartao_credito": "cartão de crédito", "cartao_debito": "cartão de débito",
+    "dinheiro": "dinheiro", "nao_informado": "meio não informado",
+}
+STATUS_DO_ESTORNO = {"pendente": "em andamento", "aprovado": "feito", "recusado": "recusado"}
 
 
-def _montar_pedido(pedido, unidade: Unidade, itens: list) -> dict:
+# o último dia para trocar ou devolver, pela mesma regra do balcão (o migrado sem entrega conta do pagamento).
+# Só no pedido entregue: antes da entrega ainda não há prazo
+def _troca_ate(db: Session, pedido) -> date | None:
+    if pedido.status != "entregue":
+        return None
+    try:
+        inicio = devolucoes._inicio_do_prazo(db, pedido)
+    except RegraDeNegocio:
+        return None
+    return (inicio + devolucoes.PRAZO).astimezone(BRASILIA).date() if inicio else None
+
+
+def _montar_pagamento(lancamento) -> dict:
+    return {"tipo": lancamento.tipo, "metodo": lancamento.metodo, "valor": lancamento.valor,
+            "status": lancamento.status, "em": lancamento.criado_em.astimezone(BRASILIA).date()}
+
+
+def _montar_pedido(pedido, unidade: Unidade, itens: list, lancamentos: list, troca_ate: date | None,
+                   hoje: date) -> dict:
     retirada = None
     if pedido.modalidade == "retirada" and pedido.status in ("pago", "pronto_para_retirada"):
         retirar_ate = None
@@ -560,15 +590,40 @@ def _montar_pedido(pedido, unidade: Unidade, itens: list) -> dict:
                   for i in itens],
         "retirada": retirada,
         "pagar_ate": pagar_ate,
+        "entregue_em": pedido.entregue_em.astimezone(BRASILIA).date() if pedido.entregue_em else None,
+        "troca_ate": troca_ate,
+        "devolucao": pedido.devolucao,
+        "motivo_cancelamento": pedido.motivo_cancelamento,
+        "pagamentos": [_montar_pagamento(lancamento) for lancamento in lancamentos],
     }
-    montado["texto"] = _texto_do_pedido(montado, unidade)
+    montado["texto"] = _texto_do_pedido(montado, unidade, hoje)
     return montado
 
 
-def _texto_do_pedido(pedido: dict, unidade: Unidade) -> str:
+def _texto_da_troca(pedido: dict, hoje: date) -> str | None:
+    if pedido["devolucao"] == "total":
+        return "Foi devolvido."
+    parcial = "Teve devolução parcial. " if pedido["devolucao"] == "parcial" else ""
+    if pedido["troca_ate"] is None:
+        return parcial.strip() or None
+    if hoje > pedido["troca_ate"]:
+        return f"{parcial}O prazo para trocar ou devolver terminou em {_data(pedido['troca_ate'])}."
+    return (f"{parcial}Dá para trocar ou devolver até {_data(pedido['troca_ate'])}, numa loja da "
+            f"{pedido['marca'].capitalize()}.")
+
+
+def _texto_dos_estornos(pedido: dict) -> list[str]:
+    return [f"Estorno de {_reais(p['valor'])} ({NOME_DO_METODO.get(p['metodo'], p['metodo'])}): "
+            f"{STATUS_DO_ESTORNO.get(p['status'], p['status'])} em {_data(p['em'])}."
+            for p in pedido["pagamentos"] if p["tipo"] == "estorno"]
+
+
+def _texto_do_pedido(pedido: dict, unidade: Unidade, hoje: date) -> str:
     inicio = f"Pedido {pedido['codigo_venda']} ({pedido['marca'].capitalize()}), de {_data(pedido['feito_em'])}"
     if pedido["na_loja"] and pedido["status"] != "cancelado":
         situacao = f"compra feita na {unidade.nome}"
+    elif pedido["status"] == "cancelado" and pedido["motivo_cancelamento"] in MOTIVO_DO_CANCELAMENTO:
+        situacao = MOTIVO_DO_CANCELAMENTO[pedido["motivo_cancelamento"]]
     else:
         situacao = STATUS_DO_PEDIDO.get(pedido["status"], pedido["status"])
     retirada = pedido["retirada"]
@@ -579,7 +634,12 @@ def _texto_do_pedido(pedido: dict, unidade: Unidade) -> str:
     if pedido["pagar_ate"]:
         situacao += f" até {pedido['pagar_ate'].strftime('%d/%m/%Y às %H:%M')}"
     itens = ", ".join(f"{i['quantidade']}x {i['produto']} ({i['cor']}, {i['tamanho']})" for i in pedido["itens"])
-    return f"{inicio}: {situacao}. Itens: {itens}. Total {_reais(pedido['valor_total'])}."
+    partes = [f"{inicio}: {situacao}. Itens: {itens}. Total {_reais(pedido['valor_total'])}."]
+    troca = _texto_da_troca(pedido, hoje)
+    if troca:
+        partes.append(troca)
+    partes.extend(_texto_dos_estornos(pedido))
+    return " ".join(partes)
 
 
 # os últimos pedidos da conta ou um pedido dela; pedido de outra pessoa responde como inexistente.
@@ -598,12 +658,69 @@ def meus_pedidos(db: Session, canal: str, id_externo: str, id_pedido: int | None
     else:
         linhas, _ = pedido_repository.listar_pedidos(db, PEDIDOS_NA_CONVERSA, 0, id_cliente=conversa.id_cliente)
     pedidos = [pedido for pedido, _, _ in linhas]
-    itens = pedido_repository.itens_dos_pedidos(db, [p.id_pedido for p in pedidos])
+    ids = [p.id_pedido for p in pedidos]
+    itens = pedido_repository.itens_dos_pedidos(db, ids)
+    lancamentos = pedido_repository.pagamentos_dos_pedidos(db, ids)
     lojas = repo.unidades(db, list({p.id_unidade for p in pedidos}))
-    montados = [_montar_pedido(p, lojas[p.id_unidade], itens[p.id_pedido]) for p in pedidos]
+    hoje = momento.astimezone(BRASILIA).date()
+    montados = [_montar_pedido(p, lojas[p.id_unidade], itens[p.id_pedido], lancamentos.get(p.id_pedido, []),
+                               _troca_ate(db, p), hoje) for p in pedidos]
     texto = "\n".join(p["texto"] for p in montados) or "Você ainda não tem pedidos."
     resultado = {"items": montados, "texto": texto}
     _afirmar(db, conversa, "meus_pedidos", resultado, momento)
+    return resultado
+
+
+# ---------- extrato de pontos ----------
+
+def _o_que_houve(movimento: dict) -> str:
+    compra = f" na compra {movimento['codigo_venda']}" if movimento["codigo_venda"] else ""
+    tipo, pontos = movimento["tipo"], movimento["pontos"]
+    if tipo == "credito":
+        return f"ganhos{compra}"
+    if tipo == "resgate":
+        return f"usados{compra}"
+    if tipo == "vencimento":
+        return "venceram"
+    if tipo == "estorno":
+        return f"devolvidos por estorno{compra}" if pontos > 0 else f"retirados por estorno{compra}"
+    if tipo == "saldo_inicial":
+        return "do saldo inicial do programa"
+    return "ajustados pela nossa equipe"
+
+
+def _texto_do_movimento(movimento: dict) -> str:
+    sinal = "+" if movimento["pontos"] > 0 else "-"
+    pontos = f"{sinal}{_pontos(abs(movimento['pontos']))}"
+    texto = f"{_data(movimento['data'])}, {movimento['marca'].capitalize()}: {pontos} {_o_que_houve(movimento)}"
+    if movimento["vence_em"]:
+        texto += f" (vencem em {_data(movimento['vence_em'])})"
+    return texto + "."
+
+
+# os últimos movimentos por marca, do mais novo para o mais antigo: responde "para onde foram meus pontos?",
+# inclusive os que venceram. O vencimento só aparece nos pontos que entraram e ainda têm sobra para vencer
+def extrato_pontos(db: Session, canal: str, id_externo: str, marca: str | None, momento: datetime) -> dict:
+    conversa = _conversa_confirmada(db, canal, id_externo, momento)
+    linhas, _ = fidelidade_repository.extrato(db, conversa.id_cliente, conversa.id_cliente_sem_conta, marca,
+                                              MOVIMENTOS_NO_EXTRATO, 0)
+    movimentos = []
+    for linha in linhas:
+        vence = linha["vence_em"] if linha["restante"] else None
+        movimento = {
+            "data": linha["criado_em"].astimezone(BRASILIA).date(),
+            "marca": linha["marca"],
+            "tipo": linha["tipo"],
+            "pontos": linha["pontos"],
+            "codigo_venda": linha["codigo_venda"],
+            "vence_em": vence.astimezone(BRASILIA).date() if vence else None,
+        }
+        movimento["texto"] = _texto_do_movimento(movimento)
+        movimentos.append(movimento)
+    onde = f" na {marca.capitalize()}" if marca else ""
+    texto = "\n".join(m["texto"] for m in movimentos) or f"Você ainda não tem movimentos de pontos{onde}."
+    resultado = {"items": movimentos, "texto": texto}
+    _afirmar(db, conversa, "extrato_pontos", resultado, momento)
     return resultado
 
 

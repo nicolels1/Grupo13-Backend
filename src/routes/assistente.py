@@ -7,13 +7,14 @@ from src.database.session import get_db
 from src.dependencies.assistente import conversa_do_cabecalho, exige_chave_assistente
 from src.entities.assistente import (
     AvisoPontosSaida, BuscaPecasSaida, ChamadoAbertoSaida, ChamadoDoAssistenteEntrada, CodigoEntrada, CodigoEnviado, ConfirmacaoSaida,
-    ConversaEntrada, CpfEntrada, EstadoConversa, EstoqueSaida, EtapaEntrada, LembreteEntrada, LembreteSaida,
-    LinkCarrinhoSaida, LojasDaMarca, MensagemNoChamadoEntrada, MeusPedidosSaida, MeusPontosSaida, PedidosEntrada,
-    RascunhoDoChamadoEntrada, RascunhoSaida, ResumoDoN8nEntrada, TextoDaConversaEntrada, VocabularioSaida,
+    ConversaEntrada, CpfEntrada, EstadoConversa, EstoqueSaida, EtapaEntrada, ExtratoEntrada, ExtratoPontosSaida,
+    LembreteEntrada, LembreteSaida, LinkCarrinhoSaida, LojasDaMarca, MensagemNoChamadoEntrada, MeusPedidosSaida,
+    MeusPontosSaida, PedidosEntrada, PoliticasSaida, RascunhoDoChamadoEntrada, RascunhoSaida, ResumoDoN8nEntrada,
+    TextoDaConversaEntrada, VocabularioSaida,
 )
 from src.entities.atendimento import MensagemSaida
 from src.entities.comum import Lista, Marca
-from src.use_cases import assistente, assistente_conta, resumo_conversa
+from src.use_cases import assistente, assistente_conta, assistente_politicas, resumo_conversa
 from src.use_cases.horarios import BRASILIA
 
 # ferramentas do assistente do cliente, chamadas pelo n8n com a chave no cabeçalho X-Assistente-Chave.
@@ -101,6 +102,17 @@ def lojas(conversa: tuple = Depends(conversa_do_cabecalho), db: Session = Depend
 )
 def vocabulario(db: Session = Depends(get_db)):
     return assistente.vocabulario(db)
+
+
+# sem assunto no resumo anônimo: a lista de assuntos é fixa no banco e ainda não tem o de políticas
+@router.get(
+    "/politicas",
+    response_model=PoliticasSaida,
+    description="Regras por seção, em texto pronto: pontos de cada marca (regra vigente), entrega e retirada, troca "
+                "e devolução, pagamento e conta. Os números saem das mesmas constantes que as regras usam.",
+)
+def politicas(db: Session = Depends(get_db)):
+    return assistente_politicas.politicas(db)
 
 
 # ---------- conversa e confirmação por e-mail (fluxo fixo do n8n, sem IA) ----------
@@ -230,14 +242,29 @@ def avisar_pontos_vencendo(db: Session = Depends(get_db)):
         401: {"description": "Conta não confirmada nesta conversa: pedir o CPF"},
         404: {"description": "Pedido não encontrado"},
     },
-    description="Últimos 5 pedidos (ou um): status, onde e até quando retirar. Fica registrado o que foi "
-                "entregue (auditoria).",
+    description="Últimos 5 pedidos (ou um): status, onde e até quando retirar, até quando trocar, devolução, motivo "
+                "do cancelamento e os pagamentos e estornos. Fica registrado o que foi entregue (auditoria).",
 )
 def meus_pedidos(dados: PedidosEntrada, db: Session = Depends(get_db)):
     return resumo_conversa.com_assunto(
         db, dados.canal, dados.id_externo, "pedidos",
         lambda: assistente_conta.meus_pedidos(db, dados.canal, dados.id_externo, dados.id_pedido,
                                               datetime.now(BRASILIA)),
+    )
+
+
+@router.post(
+    "/extrato-pontos",
+    response_model=ExtratoPontosSaida,
+    responses={401: {"description": "Conta não confirmada nesta conversa: pedir o CPF"}},
+    description="Últimos 10 movimentos de pontos (ganhos, usados, estornos, vencidos), por marca se o cliente falar "
+                "uma. Responde \"para onde foram meus pontos?\". Fica registrado o que foi entregue (auditoria).",
+)
+def extrato_pontos(dados: ExtratoEntrada, db: Session = Depends(get_db)):
+    return resumo_conversa.com_assunto(
+        db, dados.canal, dados.id_externo, "pontos",
+        lambda: assistente_conta.extrato_pontos(db, dados.canal, dados.id_externo, dados.marca,
+                                                datetime.now(BRASILIA)),
     )
 
 

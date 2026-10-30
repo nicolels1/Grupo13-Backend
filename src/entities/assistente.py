@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator
 
 from src.entities.atendimento import Categoria
-from src.entities.comum import sem_espacos
+from src.entities.comum import Marca, sem_espacos
 
 
 class PecaSaida(BaseModel):
@@ -99,6 +99,29 @@ class VocabularioSaida(BaseModel):
     cores: list[str]
 
 
+class RegraDePontos(BaseModel):
+    marca: str
+    valor_ponto: Decimal = Field(description="Em R$, o do ponto ganho hoje; o ponto guarda o valor da época")
+    pontos_por_real: Decimal
+    multiplicador_online: Decimal = Field(description="Compras pelo site e pelo app")
+    bonus_ouro: Decimal = Field(description="0,5 = +50% nos pontos ganhos na categoria Ouro")
+    validade_meses: int | None = Field(description="Vazio: os pontos ganhos hoje ainda não têm prazo")
+    validade_meses_ouro: int | None
+    limite_prata: int = Field(description="Pontos ganhos no ano para chegar a Prata")
+    limite_ouro: int
+    resgate_minimo: int
+    texto: str
+
+
+# as regras que o cliente pergunta sem precisar de login, montadas das constantes e da regra vigente
+class PoliticasSaida(BaseModel):
+    pontos: list[RegraDePontos] = Field(description="Regra vigente de cada marca, nunca somadas")
+    entrega: str
+    troca_devolucao: str
+    pagamento: str
+    conta: str
+
+
 # ---------- conversa e ferramentas com login ----------
 
 # a conversa vem do canal (telefone do WhatsApp ou chat_id do Telegram), tirada pelo n8n;
@@ -122,6 +145,10 @@ class CodigoEntrada(ConversaEntrada):
 
 class PedidosEntrada(ConversaEntrada):
     id_pedido: int | None = Field(default=None, description="Um pedido só; vazio traz os últimos 5")
+
+
+class ExtratoEntrada(ConversaEntrada):
+    marca: Marca | None = Field(default=None, description="Só quando o cliente falar a marca")
 
 
 # o que só o n8n sabe da conversa, para o resumo anônimo; os dois campos são opcionais
@@ -236,6 +263,21 @@ class MeusPontosSaida(BaseModel):
     oferecer_lembrete: bool = Field(description="Oferecer o e-mail antes de os pontos vencerem (uma vez por conta)")
 
 
+class MovimentoDoExtrato(BaseModel):
+    data: date
+    marca: str
+    tipo: str = Field(description="saldo_inicial, credito, resgate, estorno, ajuste ou vencimento")
+    pontos: int = Field(description="Positivo entrou, negativo saiu")
+    codigo_venda: str | None
+    vence_em: date | None = Field(description="Só nos pontos que entraram e já têm data de vencimento")
+    texto: str
+
+
+class ExtratoPontosSaida(BaseModel):
+    items: list[MovimentoDoExtrato] = Field(description="Do mais novo para o mais antigo")
+    texto: str = Field(description="Resposta pronta, para quando a da IA não bater com os números")
+
+
 class ItemDoPedido(BaseModel):
     produto: str
     cor: str
@@ -247,6 +289,14 @@ class RetiradaDoPedido(BaseModel):
     loja: str
     endereco: str
     retirar_ate: date | None = Field(description="Só quando já está pronto: 7 dias depois")
+
+
+class PagamentoDoPedido(BaseModel):
+    tipo: str = Field(description="pagamento ou estorno")
+    metodo: str
+    valor: Decimal
+    status: str = Field(description="pendente, aprovado ou recusado")
+    em: date
 
 
 class PedidoDoCliente(BaseModel):
@@ -261,6 +311,11 @@ class PedidoDoCliente(BaseModel):
     itens: list[ItemDoPedido]
     retirada: RetiradaDoPedido | None
     pagar_ate: datetime | None
+    entregue_em: date | None
+    troca_ate: date | None = Field(description="Último dia para trocar ou devolver; só no pedido entregue")
+    devolucao: str = Field(description="nenhuma, parcial ou total")
+    motivo_cancelamento: str | None = Field(description="cliente, reserva_vencida, retirada_vencida ou equipe")
+    pagamentos: list[PagamentoDoPedido] = Field(description="Pagamentos e estornos, do mais antigo ao mais novo")
     texto: str
 
 
