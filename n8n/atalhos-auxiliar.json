@@ -1,0 +1,1290 @@
+{
+  "name": "Atalhos - Auxiliar",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Atalhos - Auxiliar\nRespostas fixas, sem IA, chamadas pelo **Atalhos sem IA** do Principal, na ordem: **/start** → boas-vindas com o menu; **sem texto** → anexo ou pedido de texto; **👍/👎** → anota e agradece; **botões do lembrete** → liga ou desliga o e-mail.\n\nSaída: { resposta, menu }, { silencio: true } ou { seguir: true } quando a mensagem continua no Principal.",
+        "height": 416,
+        "width": 3424,
+        "color": "#D68492"
+      },
+      "id": "00735f2c-79dd-4f33-9de3-92e58c886549",
+      "name": "Nota: Como funciona",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -64,
+        -224
+      ]
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "canal"
+            },
+            {
+              "name": "id_externo"
+            },
+            {
+              "name": "tipo"
+            },
+            {
+              "name": "texto"
+            },
+            {
+              "name": "comando"
+            },
+            {
+              "name": "avaliacao"
+            },
+            {
+              "name": "etapa"
+            },
+            {
+              "name": "id_chamado",
+              "type": "number"
+            },
+            {
+              "name": "conversa_nova",
+              "type": "boolean"
+            },
+            {
+              "name": "equipe_conversando",
+              "type": "boolean"
+            },
+            {
+              "name": "arquivo_id"
+            },
+            {
+              "name": "arquivo_mime"
+            },
+            {
+              "name": "arquivo_tamanho",
+              "type": "number"
+            },
+            {
+              "name": "legenda"
+            },
+            {
+              "name": "grupo_midia"
+            }
+          ]
+        }
+      },
+      "id": "372d59b8-806d-401d-8d18-648b8c6e636b",
+      "name": "Entrada",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "inicio",
+              "leftValue": "={{ $('Entrada').first().json.comando }}",
+              "operator": {
+                "operation": "equals",
+                "type": "string"
+              },
+              "rightValue": "inicio"
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "2e054d51-932b-40af-b97f-5d701532eb51",
+      "name": "É o início?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "bv1",
+              "name": "resposta",
+              "type": "string",
+              "value": "Que bom ter você aqui! 😊 Sou o assistente virtual da Casa Lorenzi e da Vulto.\n\nTe ajudo a achar peças, ver tamanhos e estoque e já deixo o carrinho montado para você finalizar no site. Também mostro lojas, pontos e pedidos.\n\nComo cuidamos das suas mensagens: https://lorenzi.vercel.app/loja/privacidade\n\nMe conte o que você procura, ou toque numa opção:"
+            },
+            {
+              "id": "bv2",
+              "name": "menu",
+              "type": "boolean",
+              "value": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8580e88e-23bd-4880-a40b-450837e3de8d",
+      "name": "Texto: boas-vindas",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "nao-texto",
+              "leftValue": "={{ $('Entrada').first().json.tipo }}",
+              "operator": {
+                "operation": "notEquals",
+                "type": "string"
+              },
+              "rightValue": "texto"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "acef18cc-811c-4e50-9101-97bbfc370a0c",
+      "name": "Não é texto?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "anexo_chamado",
+              "leftValue": "={{ !!$('Entrada').first().json.id_chamado }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              }
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "1d1411fc-d07d-42f1-9dca-64104b8cf147",
+      "name": "Anexo no chamado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        720,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "Backend - Auxiliar",
+          "mode": "id",
+          "value": "QexwlRDVY1CQUCme"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "operacao",
+              "id": "operacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "canal",
+              "id": "canal",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_externo",
+              "id": "id_externo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "texto",
+              "id": "texto",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "canal": "={{ $('Entrada').first().json.canal }}",
+            "id_externo": "={{ $('Entrada').first().json.id_externo }}",
+            "operacao": "mensagem_no_chamado",
+            "texto": "(O cliente mandou pela conversa um áudio, um vídeo, uma figurinha ou um arquivo que não é foto ou PDF de até 10 MB, e isso não chega ao chamado. Ele foi orientado a escrever ou anexar pelo site.)"
+          }
+        },
+        "options": {}
+      },
+      "id": "643c2a78-560c-4c2e-9d18-6c57e82bd7bd",
+      "name": "Avisa o anexo no chamado",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1200,
+        768
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "anexo1",
+              "name": "resposta",
+              "type": "string",
+              "value": "={{ 'Por aqui consigo mandar para a equipe só fotos e PDF de até 10 MB. Áudio, vídeo e figurinha não chegam.\\n\\nSe quiser, descreva por escrito aqui mesmo que a equipe recebe, ou anexe no chamado #' + $('Entrada').first().json.id_chamado + ' pelo site: https://lorenzi.vercel.app/loja/chamados/' + $('Entrada').first().json.id_chamado }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e2f20309-f2dc-4760-b167-d5342cac3235",
+      "name": "Texto: anexo pelo site",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1440,
+        768
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r1",
+              "name": "resposta",
+              "type": "string",
+              "value": "Por aqui eu só consigo ler mensagens de texto. Pode me escrever?"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4627bb52-2049-4bf9-b5c4-1ee0da2e73f1",
+      "name": "Texto: só leio texto",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        960,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "avaliacao",
+              "leftValue": "={{ $('Entrada').first().json.comando }}",
+              "operator": {
+                "operation": "equals",
+                "type": "string"
+              },
+              "rightValue": "avaliacao"
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "8f4f4937-002c-43ef-b1e2-5f878ca9290f",
+      "name": "É avaliação?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        720,
+        1344
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "Backend - Auxiliar",
+          "mode": "id",
+          "value": "QexwlRDVY1CQUCme"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "operacao",
+              "id": "operacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "canal",
+              "id": "canal",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_externo",
+              "id": "id_externo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "avaliacao",
+              "id": "avaliacao",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "avaliacao": "={{ $('Entrada').first().json.conversa_nova ? '' : $('Entrada').first().json.avaliacao }}",
+            "canal": "={{ $('Entrada').first().json.canal }}",
+            "id_externo": "={{ $('Entrada').first().json.id_externo }}",
+            "operacao": "anotar_resumo"
+          }
+        },
+        "options": {}
+      },
+      "id": "a74cc678-761b-479c-a3df-2916aeb8dd7b",
+      "name": "Anota a avaliação",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        960,
+        1344
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "av1",
+              "name": "resposta",
+              "type": "string",
+              "value": "={{ $('Entrada').first().json.avaliacao === 'positiva' ? 'Obrigado pela avaliação! 😊 Se precisar de mais alguma coisa, é só escrever.' : 'Poxa, obrigado por avisar. Se quiser, me conta o que faltou que eu tento te ajudar de novo.' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2b86dd0a-64d6-4056-874a-92a62158e834",
+      "name": "Texto: obrigado pela avaliação",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1200,
+        1344
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "lembrete",
+              "leftValue": "={{ $('Entrada').first().json.comando ?? '' }}",
+              "operator": {
+                "operation": "startsWith",
+                "type": "string"
+              },
+              "rightValue": "lembrete_"
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "9490f78b-08cc-4ef6-a49d-0279379ae990",
+      "name": "É o lembrete?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        1536
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "Backend - Auxiliar",
+          "mode": "id",
+          "value": "QexwlRDVY1CQUCme"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "operacao",
+              "id": "operacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "canal",
+              "id": "canal",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_externo",
+              "id": "id_externo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "aceita",
+              "id": "aceita",
+              "required": false,
+              "type": "boolean"
+            }
+          ],
+          "value": {
+            "aceita": "={{ $('Entrada').first().json.comando === 'lembrete_sim' }}",
+            "canal": "={{ $('Entrada').first().json.canal }}",
+            "id_externo": "={{ $('Entrada').first().json.id_externo }}",
+            "operacao": "lembrete_pontos"
+          }
+        },
+        "options": {}
+      },
+      "id": "cb7c32ed-f501-4b3c-8d56-2b210e104d65",
+      "name": "Responde o lembrete",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1200,
+        1536
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// resposta do lembrete_pontos (botões Sim/Não), já como texto para o cliente. Sem conta no site, o detail\n// traz o link de cadastro; 401 é a confirmação que venceu (30 min parado)\nconst r = $json;\nif (r.ok) return { json: { resposta: r.dados.mensagem } };\nif (!r.status || r.status >= 500) {\n  return { json: { resposta: 'Estou com uma instabilidade agora e não consegui guardar sua escolha. Pode tentar de novo em alguns instantes?' } };\n}\nif (r.status === 401) {\n  return { json: { resposta: 'Para guardar o lembrete preciso confirmar que é você de novo. Me peça seus pontos que eu confirmo e te pergunto outra vez.' } };\n}\nreturn { json: { resposta: r.detail } };\n"
+      },
+      "id": "d1c42fcf-6f08-423b-8dd8-a81d08a70c4f",
+      "name": "Texto do lembrete",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        1536
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "seguir",
+              "name": "seguir",
+              "type": "boolean",
+              "value": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "bab1b9bb-ede7-4ac9-b27b-d48cdaf7875e",
+      "name": "Sem atalho: segue",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1200,
+        1728
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "aceito",
+              "leftValue": "={{ !!$('Entrada').first().json.arquivo_id && ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'].includes($('Entrada').first().json.arquivo_mime) && Number($('Entrada').first().json.arquivo_tamanho || 0) <= 10485760 }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              }
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "423477f2-3859-47f3-b3e3-d93a3c1920ac",
+      "name": "Foto ou PDF?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $('Entrada').first().json.arquivo_id }}",
+        "additionalFields": {
+          "mimeType": "={{ $('Entrada').first().json.arquivo_mime }}"
+        }
+      },
+      "id": "47930599-de24-4112-a797-16f95d041078",
+      "name": "Baixa o arquivo",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1200,
+        384
+      ],
+      "webhookId": "25443e33-3e9f-4d3b-b30c-34375d0f2ce2",
+      "credentials": {
+        "telegramApi": {
+          "id": "vF6T9gEvIO7bSYE5",
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://grupo13-backend-megw.onrender.com/assistente/chamado/anexo",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "canal",
+              "value": "={{ $('Entrada').first().json.canal }}"
+            },
+            {
+              "name": "id_externo",
+              "value": "={{ $('Entrada').first().json.id_externo }}"
+            },
+            {
+              "name": "conteudo",
+              "value": "={{ $('Entrada').first().json.legenda ?? '' }}"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "arquivo",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 90000
+        }
+      },
+      "id": "ec5ea8d7-2c8a-485a-a92e-199fd611b579",
+      "name": "Manda o anexo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1440,
+        384
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "wF5g7zBuZ5PvlPEj",
+          "name": "Chave do backend"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "ok",
+              "leftValue": "={{ Number($json.statusCode) >= 200 && Number($json.statusCode) < 300 }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              }
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "8d3580b7-03a2-4ab8-9c56-00deebce9d72",
+      "name": "Anexo chegou?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "conversando",
+              "leftValue": "={{ $('Entrada').first().json.equipe_conversando === true }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              }
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "8b640ee8-9d74-4569-8435-a9e05595c569",
+      "name": "Equipe conversando? (anexo)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2000,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "silencio",
+              "name": "silencio",
+              "type": "boolean",
+              "value": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "174c2c25-9da6-4ed6-9566-c5496f4d73c6",
+      "name": "Sem resposta",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2240,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "album",
+              "leftValue": "={{ !!$('Entrada').first().json.grupo_midia }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              }
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "72b0e6e3-5d2b-4007-935b-96b680509ad8",
+      "name": "É álbum?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2240,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "cachedResultName": "anexos_em_album",
+          "mode": "id",
+          "value": "o2NUTTv4vuXRVAx7"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "grupo",
+              "id": "grupo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "execucao",
+              "id": "execucao",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "execucao": "={{ $execution.id }}",
+            "grupo": "={{ $('Entrada').first().json.grupo_midia }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "d423ebf6-08a2-4ea6-a6f1-9f70db355498",
+      "name": "Anota o álbum",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2480,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 3
+      },
+      "id": "cddb4079-2525-4035-bed5-150ea736d3f4",
+      "name": "Espera o álbum",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2720,
+        576
+      ],
+      "webhookId": "fc218c6b-5549-41d8-8121-77e1162a9ca1"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "cachedResultName": "anexos_em_album",
+          "mode": "id",
+          "value": "o2NUTTv4vuXRVAx7"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "grupo",
+              "keyValue": "={{ $('Entrada').first().json.grupo_midia }}"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "id": "2d7996b1-00f5-4c7c-ba62-7c826a9189cd",
+      "name": "Lê o álbum",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2960,
+        576
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// álbum do Telegram chega como uma mensagem por foto, em execuções separadas: cada uma se anota na tabela,\n// espera as outras e só a primeira anotada responde, para o cliente receber um aviso só\nconst linhas = $input.all().map((item) => item.json).filter((linha) => linha.id !== undefined);\nlinhas.sort((a, b) => Number(a.id) - Number(b.id));\nconst primeira = linhas[0];\nif (!primeira || String(primeira.execucao) === String($execution.id)) {\n  return [{ json: { resposta: `Mandei as fotos para a equipe no chamado #${$('Entrada').first().json.id_chamado} ✅` } }];\n}\nreturn [{ json: { silencio: true } }];\n"
+      },
+      "id": "c559b19e-da25-4c6a-a6cf-8b61536c0b32",
+      "name": "Primeira do álbum?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3200,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "enviado",
+              "name": "resposta",
+              "type": "string",
+              "value": "={{ ($('Entrada').first().json.arquivo_mime === 'application/pdf' ? 'Mandei o PDF' : 'Mandei a foto') + ' para a equipe no chamado #' + $('Entrada').first().json.id_chamado + ' ✅' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f714a9be-9bde-411d-ad8e-0d6a900577aa",
+      "name": "Texto: anexo enviado",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2480,
+        768
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// download do Telegram ou envio ao backend que não deu certo: 422 traz o motivo pronto (tipo ou tamanho do\n// arquivo, chamado já concluído); o resto é instabilidade. O site continua aceitando o anexo\nconst id = $('Entrada').first().json.id_chamado;\nconst site = `https://lorenzi.vercel.app/loja/chamados/${id}`;\nconst status = Number($json.statusCode ?? 0);\nconst detail = typeof $json.body?.detail === 'string' ? $json.body.detail : null;\nconst motivo = status === 422 && detail\n  ? `Não consegui mandar o arquivo: ${detail}.`\n  : 'Não consegui mandar o arquivo para a equipe agora.';\nreturn { json: { resposta: `${motivo}\\n\\nSe quiser, anexe no chamado #${id} pelo site: ${site}` } };\n"
+      },
+      "id": "eddf4dcd-08d6-4794-8295-4a644697b1f6",
+      "name": "Texto: anexo falhou",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        768
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Mensagem sem texto\nCom chamado aberto, foto ou PDF de até 10 MB vai para o chamado como anexo. Equipe conversando (resposta há menos de 30 min): não responde. Álbum de fotos recebe um aviso só (tabela anexos_em_album). Áudio, vídeo e figurinha viram um aviso no chamado e o link do site. Sem chamado, pede texto. Erro sempre avisa o cliente.",
+        "height": 912,
+        "width": 3424,
+        "color": "#E5B0B9"
+      },
+      "id": "37880fe6-d67e-4f18-b3c7-3edf050ae543",
+      "name": "Nota: Mensagem sem texto",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -64,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Avaliação e lembrete\n👍/👎 anota no resumo anônimo e agradece. Os botões do lembrete ligam ou desligam o e-mail antes de os pontos vencerem. Sem atalho: { seguir: true } e a mensagem continua no Principal.",
+        "height": 720,
+        "width": 3424,
+        "color": "#F3E1E1"
+      },
+      "id": "f9e6bd4f-5470-47bf-8033-57884fba4411",
+      "name": "Nota: Avaliação e lembrete",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -64,
+        1200
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Entrada": {
+      "main": [
+        [
+          {
+            "node": "É o início?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É o início?": {
+      "main": [
+        [
+          {
+            "node": "Texto: boas-vindas",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Não é texto?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Não é texto?": {
+      "main": [
+        [
+          {
+            "node": "Anexo no chamado?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "É avaliação?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anexo no chamado?": {
+      "main": [
+        [
+          {
+            "node": "Foto ou PDF?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Texto: só leio texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Avisa o anexo no chamado": {
+      "main": [
+        [
+          {
+            "node": "Texto: anexo pelo site",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É avaliação?": {
+      "main": [
+        [
+          {
+            "node": "Anota a avaliação",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "É o lembrete?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anota a avaliação": {
+      "main": [
+        [
+          {
+            "node": "Texto: obrigado pela avaliação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É o lembrete?": {
+      "main": [
+        [
+          {
+            "node": "Responde o lembrete",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sem atalho: segue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Responde o lembrete": {
+      "main": [
+        [
+          {
+            "node": "Texto do lembrete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Foto ou PDF?": {
+      "main": [
+        [
+          {
+            "node": "Baixa o arquivo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Avisa o anexo no chamado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Baixa o arquivo": {
+      "main": [
+        [
+          {
+            "node": "Manda o anexo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Texto: anexo falhou",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manda o anexo": {
+      "main": [
+        [
+          {
+            "node": "Anexo chegou?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anexo chegou?": {
+      "main": [
+        [
+          {
+            "node": "Equipe conversando? (anexo)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Texto: anexo falhou",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Equipe conversando? (anexo)": {
+      "main": [
+        [
+          {
+            "node": "Sem resposta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "É álbum?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É álbum?": {
+      "main": [
+        [
+          {
+            "node": "Anota o álbum",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Texto: anexo enviado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anota o álbum": {
+      "main": [
+        [
+          {
+            "node": "Espera o álbum",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Espera o álbum": {
+      "main": [
+        [
+          {
+            "node": "Lê o álbum",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lê o álbum": {
+      "main": [
+        [
+          {
+            "node": "Primeira do álbum?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "65326012-8f37-4c23-bef7-79b656dd056c",
+  "meta": {
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp",
+    "instanceId": "1619da3f57eb4f62f0fe7f3f28738109100972218a51eb8b81519f99a0682f7f"
+  },
+  "nodeGroups": [],
+  "id": "LKfeJeA0oUHEQsz1",
+  "tags": []
+}

@@ -1,0 +1,247 @@
+{
+  "name": "Backend - Auxiliar",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "operacao"
+            },
+            {
+              "name": "canal"
+            },
+            {
+              "name": "id_externo"
+            },
+            {
+              "name": "descricao"
+            },
+            {
+              "name": "cor"
+            },
+            {
+              "name": "tamanho"
+            },
+            {
+              "name": "marca"
+            },
+            {
+              "name": "categoria"
+            },
+            {
+              "name": "id_produto",
+              "type": "number"
+            },
+            {
+              "name": "id_variante",
+              "type": "any"
+            },
+            {
+              "name": "id_pedido",
+              "type": "number"
+            },
+            {
+              "name": "etapa"
+            },
+            {
+              "name": "avaliacao"
+            },
+            {
+              "name": "fora_do_tema",
+              "type": "boolean"
+            },
+            {
+              "name": "cpf"
+            },
+            {
+              "name": "codigo"
+            },
+            {
+              "name": "assunto"
+            },
+            {
+              "name": "resumo"
+            },
+            {
+              "name": "conversa",
+              "type": "array"
+            },
+            {
+              "name": "texto"
+            },
+            {
+              "name": "cliente"
+            },
+            {
+              "name": "assistente"
+            },
+            {
+              "name": "aceita",
+              "type": "boolean"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "aa3f71c1-abcb-4d43-8c06-9bb67aef846a",
+      "name": "Entrada"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// tabela das rotas /assistente: cada operacao diz o método, a rota e o que vai na query ou no corpo.\n// canal e id_externo vêm sempre do Principal (Normalizador), nunca da IA\nconst BASE = 'https://grupo13-backend-megw.onrender.com/assistente';\nconst e = $json;\nconst conversa = { canal: e.canal, id_externo: e.id_externo };\n\n// tira o que veio vazio, para não mandar ?marca= (o backend recusa)\nconst semVazios = (obj) => Object.fromEntries(\n  Object.entries(obj).filter(([, valor]) => valor !== undefined && valor !== null && valor !== ''\n    && !(Array.isArray(valor) && !valor.length)),\n);\n// a IA pode mandar \"Casa Lorenzi\" ou \"Vulto\": o backend só aceita lorenzi ou vulto\nconst marca = ['lorenzi', 'vulto'].find((m) => String(e.marca ?? '').toLowerCase().includes(m));\n// link do carrinho: um ou mais id_variante (\"12, 34\" ou uma lista), até 10, repetidos na query\nconst variantes = [...new Set([].concat(e.id_variante ?? []).join(',').split(/\\D+/).filter(Boolean).map(Number))].slice(0, 10);\n\nconst ROTAS = {\n  // sem login (ferramentas da IA)\n  buscar_pecas:  { metodo: 'GET', rota: '/pecas', query: { descricao: e.descricao, cor: e.cor, tamanho: e.tamanho, marca, categoria: e.categoria } },\n  ver_estoque:   { metodo: 'GET', rota: '/estoque', query: { id_produto: e.id_produto, cor: e.cor, tamanho: e.tamanho } },\n  link_carrinho: { metodo: 'GET', rota: '/link-carrinho', query: { id_variante: variantes } },\n  lojas:         { metodo: 'GET', rota: '/lojas' },\n  vocabulario:   { metodo: 'GET', rota: '/vocabulario' },\n  // regras de pontos, entrega e retirada, troca e devolução, pagamento e conta, em texto pronto\n  politicas:     { metodo: 'GET', rota: '/politicas' },\n  // conversa (fluxo fixo)\n  registrar_mensagem: { metodo: 'POST', rota: '/conversa', corpo: conversa },\n  mudar_etapa:        { metodo: 'PUT', rota: '/conversa/etapa', corpo: { ...conversa, etapa: e.etapa } },\n  anotar_resumo:      { metodo: 'PATCH', rota: '/conversa/resumo', corpo: { ...conversa, avaliacao: e.avaliacao || null, fora_do_tema: e.fora_do_tema === true } },\n  // texto da mensagem e da resposta, depois de cada resposta (o backend mascara CPF e código)\n  guardar_texto:      { metodo: 'POST', rota: '/conversa/mensagens', corpo: { ...conversa, cliente: String(e.cliente ?? '').slice(0, 5000), assistente: e.assistente ? String(e.assistente).slice(0, 5000) : null } },\n  // verificação (fluxo fixo, sem IA)\n  pedir_codigo:    { metodo: 'POST', rota: '/verificacao/cpf', corpo: { ...conversa, cpf: e.cpf } },\n  conferir_codigo: { metodo: 'POST', rota: '/verificacao/codigo', corpo: { ...conversa, codigo: e.codigo } },\n  // com login (ferramentas da IA)\n  meus_pontos:    { metodo: 'POST', rota: '/meus-pontos', corpo: conversa },\n  extrato_pontos: { metodo: 'POST', rota: '/extrato-pontos', corpo: { ...conversa, marca: marca ?? null } },\n  meus_pedidos:   { metodo: 'POST', rota: '/meus-pedidos', corpo: { ...conversa, id_pedido: e.id_pedido || null } },\n  // e-mail antes de os pontos vencerem: botões Sim/Não (fluxo fixo) ou a IA, quando o cliente escreve\n  lembrete_pontos: { metodo: 'PUT', rota: '/lembrete-pontos', corpo: { ...conversa, aceita: e.aceita === true || e.aceita === 'true' } },\n  // chamado: a IA rascunha, o cliente aperta [Enviar] (fluxo fixo) e as mensagens seguintes vão para ele\n  rascunhar_chamado:   { metodo: 'PUT', rota: '/chamado/rascunho', corpo: { ...conversa, categoria: e.categoria, assunto: e.assunto, resumo: e.resumo, id_pedido: e.id_pedido || null } },\n  abrir_chamado:       { metodo: 'POST', rota: '/chamado', corpo: { ...conversa, conversa: Array.isArray(e.conversa) ? e.conversa : [] } },\n  mensagem_no_chamado: { metodo: 'POST', rota: '/chamado/mensagem', corpo: { ...conversa, texto: e.texto } },\n};\n\nconst chamada = ROTAS[e.operacao];\nif (!chamada) throw new Error(`Operação desconhecida: ${e.operacao}`);\n\nreturn {\n  json: {\n    operacao: e.operacao,\n    metodo: chamada.metodo,\n    url: BASE + chamada.rota,\n    query: semVazios(chamada.query ?? {}),\n    corpo: chamada.corpo ?? {},\n    canal: e.canal ?? '',\n    id_externo: e.id_externo ?? '',\n  },\n};\n"
+      },
+      "id": "c1a06522-ed5c-468d-a778-d89140910dc6",
+      "name": "Monta a chamada",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "={{ $json.metodo }}",
+        "url": "={{ $json.url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "specifyQuery": "json",
+        "jsonQuery": "={{ JSON.stringify($json.query) }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Canal",
+              "value": "={{ $json.canal }}"
+            },
+            {
+              "name": "X-Id-Externo",
+              "value": "={{ $json.id_externo }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.corpo) }}",
+        "options": {
+          "queryParameterArrays": "repeat",
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 90000
+        }
+      },
+      "id": "2f47fd25-de4f-4c82-9123-c3053794be82",
+      "name": "Chama o backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "wF5g7zBuZ5PvlPEj",
+          "name": "Chave do backend"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// saída única para quem chamou: { ok, status, dados, detail }.\n// Erro de regra (401, 404, 422, 429) vem com o detail pronto para o cliente;\n// falha de rede ou backend fora do ar vira status 0\nconst operacao = $('Monta a chamada').item.json.operacao;\nconst status = Number($json.statusCode ?? 0);\nconst ok = status >= 200 && status < 300;\nconst corpo = $json.body;\n\nlet detail = corpo && typeof corpo === 'object' ? corpo.detail : null;\n// 422 de validação do FastAPI vem como lista\nif (Array.isArray(detail)) detail = detail.map((d) => d.msg).join('; ');\n\nreturn {\n  json: {\n    operacao,\n    ok,\n    status,\n    dados: ok ? (corpo === '' ? null : corpo ?? null) : null,\n    detail: ok ? null : (detail || 'Não consegui consultar agora.'),\n  },\n};\n"
+      },
+      "id": "1b8ed2d3-8f51-48f7-bb75-4d4a553be310",
+      "name": "Formata a resposta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Backend - Auxiliar\nToda chamada ao backend (/assistente) passa por aqui. Quem chama manda a **operacao** (buscar_pecas, meus_pontos, abrir_chamado...) e os campos dela; canal e id_externo vêm sempre do Normalizador, nunca da IA.\n\n**Monta a chamada** tem a tabela das rotas (método, rota, query e corpo de cada operacao). **Chama o backend** é o único HTTP, com a chave no cabeçalho, timeout de 90 s (o Render acorda devagar) e uma retentativa. **Formata a resposta** devolve sempre { ok, status, dados, detail }: erro de regra (401, 404, 422, 429) vem com o detail pronto para o cliente, e backend fora do ar vira status 0.",
+        "height": 400,
+        "width": 1100,
+        "color": "#F3E1E1"
+      },
+      "id": "2e3735a2-ac37-4656-98df-87f9360aa135",
+      "name": "Nota: Como funciona",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -64,
+        -208
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Entrada": {
+      "main": [
+        [
+          {
+            "node": "Monta a chamada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Monta a chamada": {
+      "main": [
+        [
+          {
+            "node": "Chama o backend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chama o backend": {
+      "main": [
+        [
+          {
+            "node": "Formata a resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "88d2e254-12f8-400b-9ef8-0326e15db86f",
+  "meta": {
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp",
+    "instanceId": "1619da3f57eb4f62f0fe7f3f28738109100972218a51eb8b81519f99a0682f7f"
+  },
+  "nodeGroups": [],
+  "id": "QexwlRDVY1CQUCme",
+  "tags": []
+}

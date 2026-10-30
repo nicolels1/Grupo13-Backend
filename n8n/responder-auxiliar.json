@@ -1,0 +1,1229 @@
+{
+  "name": "Responder - Auxiliar",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "canal"
+            },
+            {
+              "name": "id_externo"
+            },
+            {
+              "name": "resposta"
+            },
+            {
+              "name": "id_clique"
+            },
+            {
+              "name": "pecas",
+              "type": "array"
+            },
+            {
+              "name": "lojas",
+              "type": "array"
+            },
+            {
+              "name": "menu",
+              "type": "boolean"
+            },
+            {
+              "name": "confirmar_chamado",
+              "type": "boolean"
+            },
+            {
+              "name": "carrinho"
+            }
+          ]
+        }
+      },
+      "id": "371f3d94-4a1e-4172-b61c-50e4e8a08688",
+      "name": "Entrada",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "clique",
+              "leftValue": "={{ $json.id_clique }}",
+              "operator": {
+                "operation": "notEmpty",
+                "singleValue": true,
+                "type": "string"
+              }
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "bd4b1dd4-dc96-4e77-8f1f-32064ef00016",
+      "name": "Veio de um clique?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "callback",
+        "queryId": "={{ $('Entrada').first().json.id_clique }}",
+        "additionalFields": {}
+      },
+      "id": "a8e45e18-e530-4d17-8c8b-02322242bedf",
+      "name": "Para o botão de girar",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        480,
+        -192
+      ],
+      "webhookId": "21e93164-152e-4018-bc59-660b9b3b0b7f",
+      "credentials": {
+        "telegramApi": {
+          "id": "vF6T9gEvIO7bSYE5",
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// divide a resposta em partes, na ordem. Os marcadores que a IA escreve viram blocos montados aqui com os\n// dados do backend (a IA só escolhe; foto, preço, endereço, horário e links nunca são escritos por ela):\n//   [[peca:ID]]       cartão da peça, com foto e botões\n//   [[loja:ID]]       bloco da loja; lojas seguidas saem juntas, uma mensagem por marca\n//   [[escolher_marca]] botões Casa Lorenzi / Vulto / As duas\n//   [[lembrete]]      botões Sim / Não do e-mail antes de os pontos vencerem\n//   [[carrinho]]      botão que abre o carrinho (o link vem do link_carrinho, em carrinho)\n//   [[menu]]          botões do menu: Procurar uma peça, Lojas e horários, Meus pontos e Meus pedidos\n// O Telegram lê como HTML: escapa < > & para não quebrar o envio\nconst e = $('Entrada').first().json;\nconst resposta = String(e.resposta ?? '').trim()\n  || 'Desculpe, não consegui montar a resposta agora. Pode repetir?';\nconst porId = (lista, campo) => new Map((Array.isArray(lista) ? lista : []).map((x) => [String(x[campo]), x]));\nconst pecas = porId(e.pecas, 'id_produto');\nconst lojas = porId(e.lojas, 'id_unidade');\nconst carrinho = String(e.carrinho ?? '').trim() || null;\nconst html = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst MARCADOR_PECA = /\\[\\[peca:(\\d+)\\]\\]/g;\nconst MARCADOR_LOJA = /\\[\\[loja:(\\d+)\\]\\]/g;\nconst MARCADOR_MARCA = /\\[\\[escolher_marca\\]\\]/g;\nconst MARCADOR_LEMBRETE = /\\[\\[lembrete\\]\\]/g;\nconst MARCADOR_CARRINHO = /\\[\\[carrinho\\]\\]/g;\nconst MARCADOR_MENU = /\\[\\[menu\\]\\]/g;\nconst FOTO = /https?:\\/\\/\\S+?\\.(?:jpe?g|png|webp)(?:\\?\\S*)?(?=\\s|$)/i;\nconst MARCAS = { lorenzi: 'Casa Lorenzi', vulto: 'Vulto' };\nconst LIMITE = 4000; // o Telegram recusa mensagem com mais de 4096 caracteres\n\n// ---------- peça ----------\nconst EMOJIS = [\n  [/bolsa|ecobag|mochila|carteira|pochete/i, '👜'], [/calça|calca|bermuda|short/i, '👖'],\n  [/jaqueta|casaco|blazer|moletom|parka|bomber|corta.vento|colete/i, '🧥'], [/vestido|saia/i, '👗'],\n  [/tênis|tenis|sapato|sandália|sandalia|bota/i, '👟'], [/meia/i, '🧦'], [/boné|bone|chapéu|chapeu/i, '🧢'],\n];\nconst emoji = (nome) => (EMOJIS.find(([re]) => re.test(nome)) ?? [null, '👕'])[1];\nconst reais = (valor) => {\n  const [inteiro, centavos] = Number(valor).toFixed(2).split('.');\n  return `${inteiro.replace(/\\B(?=(\\d{3})+(?!\\d))/g, '.')},${centavos}`;\n};\nconst cartao = (p) => [\n  `${emoji(p.nome)} <b>${html(p.nome)}</b>`,\n  `🏷️ ${MARCAS[p.marca] ?? html(p.marca)}`,\n  p.cores?.length ? `🎨 ${html(p.cores.join(', '))}` : null,\n  p.tamanhos_no_site?.length ? `📏 ${html(p.tamanhos_no_site.join(', '))}` : null,\n  `💰 A partir de R$ ${reais(p.preco_a_partir)}`,\n].filter(Boolean).join('\\n');\n\n// ---------- loja ----------\n// endereço ainda não cadastrado vem como \"A confirmar, s/n - Batel, Curitiba/PR\": mostra só bairro e cidade\nconst A_CONFIRMAR = /a confirmar/i;\nconst onde = (endereco) => {\n  const texto = String(endereco ?? '');\n  if (!A_CONFIRMAR.test(texto)) return { linha: texto, mapa: texto };\n  const depois = texto.split(' - ').pop();\n  return { linha: depois.split(', ').filter((p) => !A_CONFIRMAR.test(p)).join(', '), mapa: null };\n};\nconst blocoDaLoja = (l) => {\n  const local = onde(l.endereco);\n  const hoje = l.proximos_dias?.[0];\n  const horario = hoje\n    ? `🕙 Hoje: ${html(hoje.horario)}${hoje.motivo ? ` (${html(hoje.motivo)})` : ''}`\n    : `🕙 ${html(l.hoje?.texto ?? '')}`;\n  const mapa = local.mapa\n    ? `<a href=\"https://www.google.com/maps/search/?api=1&amp;query=${encodeURIComponent(local.mapa)}\">🗺️ Ver no mapa</a>`\n    : null;\n  return [\n    `📍 <b>${html(l.nome)}</b>`,\n    local.linha ? html(local.linha) : null,\n    horario,\n    hoje?.aviso ? `⚠️ ${html(hoje.aviso)}` : null,\n    mapa,\n  ].filter(Boolean).join('\\n');\n};\n\nconst partes = [];\nlet texto = [];\nlet carrinhoUsado = false;\nconst soltaTexto = (tipo = 'texto') => {\n  if (texto.length) partes.push({ tipo, texto_html: html(texto.join('\\n\\n')) });\n  texto = [];\n};\nfor (const bloco of resposta.split(/\\n\\s*\\n/).map((b) => b.trim()).filter(Boolean)) {\n  const achadas = [...bloco.matchAll(MARCADOR_PECA)].map((m) => pecas.get(m[1])).filter(Boolean);\n  const lojasDoBloco = [...bloco.matchAll(MARCADOR_LOJA)].map((m) => lojas.get(m[1])).filter(Boolean);\n  if (achadas.length || lojasDoBloco.length) {\n    // o texto da IA em volta dos marcadores fica antes dos blocos, menos a linha que é só o nome da loja (a IA às\n    // vezes lista \"Lorenzi Paulista [[loja:41]]\", e o nome já vem no bloco). Frase que cita a loja fica\n    const nomes = lojasDoBloco.map((l) => String(l.nome).toLowerCase());\n    const soNome = (linha) => {\n      const sem = linha.replace(/^[\\s\\-–•*\\d.)]+/u, '').replace(/^\\p{Extended_Pictographic}️?\\s*/u, '').toLowerCase();\n      return nomes.some((nome) => sem.startsWith(nome));\n    };\n    const fala = bloco.split('\\n')\n      .map((linha) => linha.replace(MARCADOR_PECA, '').replace(MARCADOR_LOJA, '').trim())\n      .filter((linha) => linha && !soNome(linha))\n      .join('\\n');\n    if (lojasDoBloco.length && fala) texto.push(fala);\n    soltaTexto();\n    for (const p of achadas) {\n      partes.push({\n        tipo: p.foto ? 'peca_com_foto' : 'peca_sem_foto',\n        foto: p.foto ?? null,\n        texto_html: cartao(p),\n        link: p.link,\n        // volta pelo Normalizador como se o cliente tivesse escrito (máximo de 64 bytes)\n        clique_estoque: `Tamanhos e estoque da peça ${p.id_produto}`,\n      });\n    }\n    for (const l of lojasDoBloco) partes.push({ tipo: 'loja', loja: l });\n    continue;\n  }\n  const pedeMarca = MARCADOR_MARCA.test(bloco);\n  const pedeLembrete = MARCADOR_LEMBRETE.test(bloco);\n  const pedeCarrinho = MARCADOR_CARRINHO.test(bloco);\n  const pedeMenu = MARCADOR_MENU.test(bloco);\n  // marcador de peça ou loja que a ferramenta não trouxe nesta resposta (a IA copiou da memória): some, e fica só o\n  // texto da IA; o bloco que era só marcador não sai\n  const limpo = bloco.replace(MARCADOR_MARCA, '').replace(MARCADOR_LEMBRETE, '').replace(MARCADOR_CARRINHO, '')\n    .replace(MARCADOR_MENU, '').replace(/\\[\\[[^\\]]*\\]\\]/g, '').replace(/[ \\t]+\\n/g, '\\n').trim();\n  const foto = limpo.match(FOTO);\n  if (foto) {\n    soltaTexto();\n    partes.push({ tipo: 'foto', foto: foto[0], texto_html: html(limpo.replace(foto[0], '').trim().slice(0, 1000)) });\n  } else if (pedeCarrinho && carrinho && !carrinhoUsado) {\n    // o botão vai na mensagem do próprio bloco; sem texto em volta, uma frase fixa\n    texto.push(limpo || 'Seu carrinho está pronto:');\n    soltaTexto('texto_com_carrinho');\n    carrinhoUsado = true;\n  } else if (pedeMenu) {\n    // o menu vai na mensagem do próprio bloco; o bloco que era só o marcador leva o texto de antes\n    if (limpo) texto.push(limpo);\n    if (!texto.length) texto.push('Como posso te ajudar?');\n    soltaTexto('texto_com_menu');\n  } else if (limpo) {\n    texto.push(limpo);\n    if (pedeMarca) soltaTexto('texto_com_marcas');\n    else if (pedeLembrete) soltaTexto('texto_com_lembrete');\n  }\n}\nsoltaTexto();\n// link gerado e a IA esqueceu o marcador: o botão vai depois da última mensagem de texto\n// (e antes da pergunta da avaliação, que sai da mensagem para continuar no fim)\nif (carrinho && !carrinhoUsado) {\n  const ultimaParte = partes[partes.length - 1];\n  const paragrafos = ultimaParte?.tipo === 'texto' ? ultimaParte.texto_html.split('\\n\\n') : [];\n  const pergunta = paragrafos.length && /Consegui te ajudar\\?/i.test(paragrafos[paragrafos.length - 1])\n    ? paragrafos.pop() : null;\n  if (pergunta && paragrafos.length) ultimaParte.texto_html = paragrafos.join('\\n\\n');\n  else if (pergunta) partes.pop();\n  partes.push({ tipo: 'texto_com_carrinho', texto_html: 'Seu carrinho está pronto:' });\n  if (pergunta) partes.push({ tipo: 'texto', texto_html: pergunta });\n}\n\n// lojas seguidas viram uma mensagem por marca, na ordem em que apareceram\nconst juntas = [];\nfor (const parte of partes) {\n  const anterior = juntas[juntas.length - 1];\n  if (parte.tipo === 'loja' && anterior?.tipo === 'grupo_de_lojas') anterior.lojas.push(parte.loja);\n  else juntas.push(parte.tipo === 'loja' ? { tipo: 'grupo_de_lojas', lojas: [parte.loja] } : parte);\n}\nconst finais = juntas.flatMap((parte) => {\n  if (parte.tipo !== 'grupo_de_lojas') return [parte];\n  const marcas = [...new Set(parte.lojas.map((l) => l.marca))];\n  return marcas.map((marca) => ({\n    tipo: 'texto',\n    texto_html: [`🏷️ <b>${MARCAS[marca] ?? html(marca)}</b>`, ...parte.lojas.filter((l) => l.marca === marca).map(blocoDaLoja)]\n      .join('\\n\\n'),\n  }));\n});\n\nconst ultima = finais[finais.length - 1];\nif (ultima?.tipo === 'texto') {\n  // boas-vindas: o menu de opções vai na última mensagem\n  if (e.menu === true) ultima.tipo = 'texto_com_menu';\n  // a pergunta de avaliação vai com os botões 👍/👎 (o clique volta como texto pelo Normalizador)\n  else if (/Consegui te ajudar\\?/i.test(ultima.texto_html)) ultima.tipo = 'texto_com_botoes';\n}\n\n// texto acima do limite do Telegram: corta entre parágrafos (ou no limite, num parágrafo enorme). Os botões\n// ficam no último pedaço\nconst pedacos = (t) => {\n  const saida = [];\n  let atual = '';\n  for (const paragrafo of t.split('\\n\\n')) {\n    for (let i = 0; i < paragrafo.length || i === 0; i += LIMITE) {\n      const trecho = paragrafo.slice(i, i + LIMITE);\n      if (atual && atual.length + 2 + trecho.length > LIMITE) {\n        saida.push(atual);\n        atual = trecho;\n      } else atual = atual ? `${atual}\\n\\n${trecho}` : trecho;\n    }\n  }\n  if (atual) saida.push(atual);\n  return saida;\n};\nconst cortadas = finais.flatMap((parte) => {\n  if (!parte.tipo.startsWith('texto') || (parte.texto_html ?? '').length <= LIMITE) return [parte];\n  const lista = pedacos(parte.texto_html);\n  return lista.map((t, i) => ({ ...parte, tipo: i === lista.length - 1 ? parte.tipo : 'texto', texto_html: t }));\n});\n\nreturn cortadas.map(({ loja, lojas: _, ...p }) => ({\n  json: {\n    canal: e.canal, id_externo: e.id_externo, foto: null, link: null, clique_estoque: null, ...p,\n    ...(p.tipo === 'texto_com_carrinho' ? { link: carrinho } : {}),\n  },\n}));\n"
+      },
+      "id": "0d442139-9c91-46a9-a7be-7b61e89a7f39",
+      "name": "Separa as partes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "tg",
+                    "leftValue": "={{ $json.canal }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "telegram"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                }
+              },
+              "renameOutput": true,
+              "outputKey": "telegram"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "aff44de2-9daa-436b-aca0-561279032edb",
+      "name": "Pelo canal",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1296,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "05642829-73bd-4778-bffb-5939d379ed00",
+      "name": "Uma parte por vez",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1536,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "pf",
+                    "leftValue": "={{ $json.tipo }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "peca_com_foto"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                }
+              },
+              "renameOutput": true,
+              "outputKey": "peça com foto"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "ps",
+                    "leftValue": "={{ $json.tipo }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "peca_sem_foto"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                }
+              },
+              "renameOutput": true,
+              "outputKey": "peça sem foto"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "f",
+                    "leftValue": "={{ $json.tipo }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "foto"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                }
+              },
+              "renameOutput": true,
+              "outputKey": "foto"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "b",
+                    "leftValue": "={{ $json.tipo }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "texto_com_botoes"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                }
+              },
+              "renameOutput": true,
+              "outputKey": "com 👍 👎"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "m",
+                    "leftValue": "={{ $json.tipo }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "texto_com_menu"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                }
+              },
+              "renameOutput": true,
+              "outputKey": "com menu"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "mc",
+                    "leftValue": "={{ $json.tipo }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "texto_com_marcas"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                }
+              },
+              "renameOutput": true,
+              "outputKey": "com marcas"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "ch",
+                    "leftValue": "={{ $json.tipo }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "texto_com_chamado"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                }
+              },
+              "renameOutput": true,
+              "outputKey": "com Enviar e Corrigir"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "lb",
+                    "leftValue": "={{ $json.tipo }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "texto_com_lembrete"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                }
+              },
+              "renameOutput": true,
+              "outputKey": "com lembrete"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "cr",
+                    "leftValue": "={{ $json.tipo }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "texto_com_carrinho"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                }
+              },
+              "renameOutput": true,
+              "outputKey": "com carrinho"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "texto"
+        }
+      },
+      "id": "1154f9f7-93e1-47a1-9d02-0eeceaa6ee7f",
+      "name": "Tipo da parte",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1776,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "sendPhoto",
+        "chatId": "={{ $json.id_externo }}",
+        "file": "={{ $json.foto }}",
+        "additionalFields": {
+          "caption": "={{ $json.texto_html }}",
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "90e49298-7ff5-4688-8718-cc13e31d73a2",
+      "name": "Envia a foto",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2096,
+        -480
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "webhookId": "d863e907-c4a4-4c07-bb36-06c08248a958",
+      "credentials": {
+        "telegramApi": {
+          "id": "vF6T9gEvIO7bSYE5",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.id_externo }}",
+        "text": "={{ $json.texto_html }}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "👍 Ajudou",
+                    "additionalFields": {
+                      "callback_data": "👍"
+                    }
+                  },
+                  {
+                    "text": "👎 Não ajudou",
+                    "additionalFields": {
+                      "callback_data": "👎"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "7054d867-506a-4e65-846d-72d083a3161d",
+      "name": "Envia com 👍 👎",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2096,
+        -288
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "webhookId": "aab33ab2-0f7e-481a-aad6-c1ec661ed1bd",
+      "credentials": {
+        "telegramApi": {
+          "id": "vF6T9gEvIO7bSYE5",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.id_externo }}",
+        "text": "={{ $json.texto_html }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "8799a7da-1227-4ba9-9323-d1d0a5fc286a",
+      "name": "Envia a mensagem",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2096,
+        864
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "webhookId": "1b290bc4-bd0d-499b-9dd7-72f8ca438f91",
+      "credentials": {
+        "telegramApi": {
+          "id": "vF6T9gEvIO7bSYE5",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "sendPhoto",
+        "chatId": "={{ $json.id_externo }}",
+        "file": "={{ $json.foto }}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "🛍️ Ver no site",
+                    "additionalFields": {
+                      "url": "={{ $json.link }}"
+                    }
+                  },
+                  {
+                    "text": "📏 Tamanhos e estoque",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.clique_estoque }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "caption": "={{ $json.texto_html }}",
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "dfee9c28-4431-49d8-a69c-cd0d066b273d",
+      "name": "Envia a peça com foto",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2096,
+        -864
+      ],
+      "retryOnFail": false,
+      "maxTries": 2,
+      "webhookId": "215029ea-3629-424e-a298-1f9595ef6c78",
+      "credentials": {
+        "telegramApi": {
+          "id": "vF6T9gEvIO7bSYE5",
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Uma parte por vez').last(1).json.id_externo }}",
+        "text": "={{ $('Uma parte por vez').last(1).json.texto_html }}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "🛍️ Ver no site",
+                    "additionalFields": {
+                      "url": "={{ $('Uma parte por vez').last(1).json.link }}"
+                    }
+                  },
+                  {
+                    "text": "📏 Tamanhos e estoque",
+                    "additionalFields": {
+                      "callback_data": "={{ $('Uma parte por vez').last(1).json.clique_estoque }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "b7786ef2-0423-4bde-b650-dfeeb903616f",
+      "name": "Envia a peça sem foto",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2096,
+        -672
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "webhookId": "f268161a-0fac-4409-9efd-7db3e7c24576",
+      "credentials": {
+        "telegramApi": {
+          "id": "vF6T9gEvIO7bSYE5",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.id_externo }}",
+        "text": "={{ $json.texto_html }}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "👕 Procurar uma peça",
+                    "additionalFields": {
+                      "callback_data": "Quero procurar uma peça"
+                    }
+                  },
+                  {
+                    "text": "📍 Lojas e horários",
+                    "additionalFields": {
+                      "callback_data": "Quero ver as lojas e os horários"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "⭐ Meus pontos",
+                    "additionalFields": {
+                      "callback_data": "Quero ver meus pontos"
+                    }
+                  },
+                  {
+                    "text": "📦 Meus pedidos",
+                    "additionalFields": {
+                      "callback_data": "Quero ver meus pedidos"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "eadfdfa4-0be9-47bb-89b8-2ace2b364a7c",
+      "name": "Envia com menu",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2096,
+        -96
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "webhookId": "6ed82ca7-0f8c-4315-87dd-69a93de2337c",
+      "credentials": {
+        "telegramApi": {
+          "id": "vF6T9gEvIO7bSYE5",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.id_externo }}",
+        "text": "={{ $json.texto_html }}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "🏷️ Casa Lorenzi",
+                    "additionalFields": {
+                      "callback_data": "Lojas da Casa Lorenzi"
+                    }
+                  },
+                  {
+                    "text": "🏷️ Vulto",
+                    "additionalFields": {
+                      "callback_data": "Lojas da Vulto"
+                    }
+                  },
+                  {
+                    "text": "As duas",
+                    "additionalFields": {
+                      "callback_data": "Lojas das duas marcas"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "20c4e6b5-165c-4f6d-ae33-f3b910218ece",
+      "name": "Envia com marcas",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2096,
+        96
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "webhookId": "8d930827-2d6c-4d1b-87e5-3640fe9232d2",
+      "credentials": {
+        "telegramApi": {
+          "id": "vF6T9gEvIO7bSYE5",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// resumo do chamado esperando o cliente conferir: a última mensagem vai com os botões Enviar e Corrigir\n// (o clique volta pelo Normalizador como comando, sem IA)\nconst itens = $input.all();\nconst ultima = itens[itens.length - 1]?.json;\nif ($('Entrada').first().json.confirmar_chamado === true && ultima?.tipo === 'texto') ultima.tipo = 'texto_com_chamado';\nreturn itens;\n"
+      },
+      "id": "7ec13256-7d5a-457c-a7f2-f0c3b043e09a",
+      "name": "Botões do chamado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.id_externo }}",
+        "text": "={{ $json.texto_html }}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "✅ Enviar",
+                    "additionalFields": {
+                      "callback_data": "✅ Enviar para a equipe"
+                    }
+                  },
+                  {
+                    "text": "✏️ Corrigir",
+                    "additionalFields": {
+                      "callback_data": "✏️ Corrigir o resumo"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "e440609a-c23a-4fc2-a07b-f4796c0fe8a6",
+      "name": "Envia com Enviar e Corrigir",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2096,
+        288
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "webhookId": "7d4e42ed-0783-4e01-9164-ba943c97d92e",
+      "credentials": {
+        "telegramApi": {
+          "id": "vF6T9gEvIO7bSYE5",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.id_externo }}",
+        "text": "={{ $json.texto_html }}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "🔔 Sim, me avise",
+                    "additionalFields": {
+                      "callback_data": "🔔 Sim, me avise"
+                    }
+                  },
+                  {
+                    "text": "Não, obrigado",
+                    "additionalFields": {
+                      "callback_data": "Não quero o lembrete"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "bb14bc35-4cb2-4b86-9078-20f10910f91b",
+      "name": "Envia com lembrete",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2096,
+        480
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "webhookId": "92d4cb56-d6b7-45cd-afea-490e29cfd659",
+      "credentials": {
+        "telegramApi": {
+          "id": "vF6T9gEvIO7bSYE5",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.id_externo }}",
+        "text": "={{ $json.texto_html }}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "🛒 Abrir o carrinho",
+                    "additionalFields": {
+                      "url": "={{ $json.link }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "6390f96f-ef7b-408e-88be-7491fd0a7a61",
+      "name": "Envia com carrinho",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2096,
+        672
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "webhookId": "3d6c9576-bfe0-4e1f-babf-0761811713de",
+      "credentials": {
+        "telegramApi": {
+          "id": "vF6T9gEvIO7bSYE5",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## 1 · Prepara as partes\nClique de botão? Para o botão de girar no Telegram.\n\n**Separa as partes** divide a resposta em mensagens, na ordem, e troca os marcadores da IA pelos dados do backend: [[peca:ID]] vira cartão com foto e botões, [[loja:ID]] vira bloco com endereço, horário e mapa, [[carrinho]] vira o botão do carrinho, [[escolher_marca]], [[lembrete]] e [[menu]] viram botões. Marcador sem dados some. Texto acima de 4000 caracteres sai em mais de uma mensagem.\n\n**Botões do chamado** põe Enviar e Corrigir no resumo do chamado.",
+        "height": 672,
+        "width": 1188,
+        "color": "#F3E1E1"
+      },
+      "id": "cac474db-b109-4a49-9104-6ea1d0d0358e",
+      "name": "Nota: Prepara as partes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -64,
+        -480
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 2 · Envia pelo canal\n**Pelo canal** escolhe o canal (hoje só Telegram; o WhatsApp entra aqui com os envios dele). **Uma parte por vez** manda as mensagens na ordem, e **Tipo da parte** escolhe o envio: cada um tem os seus botões.\n\nPeça com foto que o Telegram recusa (foto fora do ar) sai como peça sem foto.",
+        "height": 2096,
+        "width": 1072,
+        "color": "#D68492"
+      },
+      "id": "f54d652b-3c2c-444d-9282-e1a7893fffb0",
+      "name": "Nota: Envia pelo canal",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1232,
+        -1040
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Entrada": {
+      "main": [
+        [
+          {
+            "node": "Veio de um clique?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Veio de um clique?": {
+      "main": [
+        [
+          {
+            "node": "Para o botão de girar",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Separa as partes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Para o botão de girar": {
+      "main": [
+        [
+          {
+            "node": "Separa as partes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pelo canal": {
+      "main": [
+        [
+          {
+            "node": "Uma parte por vez",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Uma parte por vez": {
+      "main": [
+        null,
+        [
+          {
+            "node": "Tipo da parte",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envia a foto": {
+      "main": [
+        [
+          {
+            "node": "Uma parte por vez",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envia com 👍 👎": {
+      "main": [
+        [
+          {
+            "node": "Uma parte por vez",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envia a mensagem": {
+      "main": [
+        [
+          {
+            "node": "Uma parte por vez",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tipo da parte": {
+      "main": [
+        [
+          {
+            "node": "Envia a peça com foto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Envia a peça sem foto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Envia a foto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Envia com 👍 👎",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Envia com menu",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Envia com marcas",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Envia com Enviar e Corrigir",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Envia com lembrete",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Envia com carrinho",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Envia a mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envia a peça com foto": {
+      "main": [
+        [
+          {
+            "node": "Uma parte por vez",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Envia a peça sem foto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envia a peça sem foto": {
+      "main": [
+        [
+          {
+            "node": "Uma parte por vez",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envia com menu": {
+      "main": [
+        [
+          {
+            "node": "Uma parte por vez",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envia com marcas": {
+      "main": [
+        [
+          {
+            "node": "Uma parte por vez",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Separa as partes": {
+      "main": [
+        [
+          {
+            "node": "Botões do chamado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Botões do chamado": {
+      "main": [
+        [
+          {
+            "node": "Pelo canal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envia com Enviar e Corrigir": {
+      "main": [
+        [
+          {
+            "node": "Uma parte por vez",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envia com lembrete": {
+      "main": [
+        [
+          {
+            "node": "Uma parte por vez",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envia com carrinho": {
+      "main": [
+        [
+          {
+            "node": "Uma parte por vez",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "eb5d40a8-75e0-4086-b111-7864d8a52882",
+  "meta": {
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp",
+    "instanceId": "1619da3f57eb4f62f0fe7f3f28738109100972218a51eb8b81519f99a0682f7f"
+  },
+  "nodeGroups": [],
+  "id": "EhUCQWivKSBefJ9U",
+  "tags": []
+}

@@ -1,0 +1,530 @@
+{
+  "name": "Confirmação - Auxiliar",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Confirmação por CPF e código (sem IA)\nO CPF e o código nunca passam pela IA nem pela memória. Esperando o CPF: com 11 números pede o código ao e-mail do cadastro; menos números, avisa que está incompleto. Esperando o código: confere. Frase sem número, ou com número curto no meio (\"e o pedido 123?\"), é desistência: a conversa volta para a IA.\n\nSaída: { resposta, menu } quando respondeu, ou { seguir: true } quando a mensagem vai para a IA.",
+        "height": 944,
+        "width": 1296,
+        "color": "#F3E1E1"
+      },
+      "id": "e4ba7d36-2a5e-4717-af1d-5644a47b76ed",
+      "name": "Nota: Como funciona",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -64,
+        -464
+      ]
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "canal"
+            },
+            {
+              "name": "id_externo"
+            },
+            {
+              "name": "etapa"
+            },
+            {
+              "name": "texto"
+            }
+          ]
+        }
+      },
+      "id": "de6af50b-2803-4ef2-823e-1a03f115ce7f",
+      "name": "Entrada",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// esperando o CPF ou o código: só os números da mensagem vão para o backend, sem passar pela IA.\n// Mensagem sem número (\"cancelar\", clique num botão do menu) é desistência: a conversa volta para a IA.\n// Poucos números no meio de uma frase (\"e o pedido 123?\") também não são CPF: a frase vai para a IA\nconst etapa = $('Entrada').first().json.etapa;\nconst texto = String($('Entrada').first().json.texto ?? '');\nconst numeros = texto.replace(/\\D/g, '');\n// tirando os números e palavras como \"meu cpf é\", sobra uma frase?\nconst SEM_SENTIDO = new Set(['meu', 'minha', 'cpf', 'código', 'codigo', 'número', 'numero', 'é', 'e', 'o', 'aqui', 'segue',\n  'ta', 'tá', 'está', 'esta', 'ok']);\nconst temFrase = (texto.toLowerCase().match(/[a-zà-ú]+/g) ?? []).some((palavra) => !SEM_SENTIDO.has(palavra));\n\nlet acao = 'desistiu';\nif (etapa === 'esperando_cpf' && numeros && (numeros.length >= 9 || !temFrase)) {\n  acao = numeros.length === 11 ? 'pedir_codigo' : 'cpf_incompleto';\n} else if (etapa === 'esperando_codigo' && numeros && (numeros.length >= 4 || !temFrase)) {\n  acao = 'conferir_codigo';\n}\n\nreturn {\n  json: {\n    acao,\n    cpf: acao === 'pedir_codigo' ? numeros : '',\n    codigo: acao === 'conferir_codigo' ? numeros.slice(0, 10) : '',\n  },\n};\n"
+      },
+      "id": "fb5fe226-69b6-4cfe-9440-f29096b2b82b",
+      "name": "Lê a verificação",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "pedir_codigo",
+                    "leftValue": "={{ $json.acao }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "pedir_codigo"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                }
+              },
+              "renameOutput": true,
+              "outputKey": "pedir_codigo"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "conferir_codigo",
+                    "leftValue": "={{ $json.acao }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "conferir_codigo"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                }
+              },
+              "renameOutput": true,
+              "outputKey": "conferir_codigo"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "cpf_incompleto",
+                    "leftValue": "={{ $json.acao }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "cpf_incompleto"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                }
+              },
+              "renameOutput": true,
+              "outputKey": "cpf_incompleto"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "desistiu"
+        }
+      },
+      "id": "8861e632-3aae-4979-a737-52522349b056",
+      "name": "Pela verificação",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "Backend - Auxiliar",
+          "mode": "id",
+          "value": "QexwlRDVY1CQUCme"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "operacao",
+              "id": "operacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "canal",
+              "id": "canal",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_externo",
+              "id": "id_externo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "cpf",
+              "id": "cpf",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "canal": "={{ $('Entrada').first().json.canal }}",
+            "cpf": "={{ $json.cpf }}",
+            "id_externo": "={{ $('Entrada').first().json.id_externo }}",
+            "operacao": "pedir_codigo"
+          }
+        },
+        "options": {}
+      },
+      "id": "e185c18b-f4bb-4ed7-88ca-29822ded2bd8",
+      "name": "Pede o código",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        768,
+        -288
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// resposta do pedir_codigo ou do conferir_codigo, já como texto para o cliente.\n// Erro de regra (CPF inválido, código errado ou expirado, confirmação pausada) vem pronto no detail\nconst r = $json;\n// a dica vai para todo mundo, com ou sem cadastro: dizer só a quem não tem e-mail revelaria que o CPF existe.\n// Ao criar a conta com o mesmo CPF, o histórico do cliente sem conta da Vulto passa para ela (ADR 0016)\nconst SEM_CODIGO = 'Não chegou em alguns minutos? Confira o spam. Se você ainda não tem conta no site, ou seu cadastro antigo '\n  + 'da Vulto não tem e-mail, crie sua conta em https://lorenzi.vercel.app/cadastro com o mesmo CPF: seus pontos e '\n  + 'pedidos aparecem nela, e aí consigo te mostrar por aqui.';\nif (!r.ok) {\n  const instavel = !r.status || r.status >= 500;\n  return {\n    json: {\n      resposta: instavel\n        ? 'Estou com uma instabilidade agora e não consegui confirmar. Pode tentar de novo em alguns instantes?'\n        : r.detail,\n    },\n  };\n}\nif (r.operacao === 'pedir_codigo') {\n  return {\n    json: {\n      resposta: `${r.dados.mensagem}\\n\\nQuando chegar, me manda o código aqui.\\n\\n${SEM_CODIGO}\\n\\nSe preferir deixar para depois, é só escrever cancelar.`,\n    },\n  };\n}\n// confirmado: o cliente continua o que pedia (pontos, pedidos ou o chamado) ou escolhe no menu\nconst nome = r.dados?.nome;\nreturn { json: { resposta: `Pronto${nome ? `, ${nome}` : ''}! Confirmei que é você 😊 Pode continuar de onde parou, ou escolha uma opção:`, menu: true } };\n"
+      },
+      "id": "0b41ca3c-c2d7-47a5-b9ff-9be35ce17431",
+      "name": "Texto da verificação",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1008,
+        -192
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "Backend - Auxiliar",
+          "mode": "id",
+          "value": "QexwlRDVY1CQUCme"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "operacao",
+              "id": "operacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "canal",
+              "id": "canal",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_externo",
+              "id": "id_externo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "codigo",
+              "id": "codigo",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "canal": "={{ $('Entrada').first().json.canal }}",
+            "codigo": "={{ $json.codigo }}",
+            "id_externo": "={{ $('Entrada').first().json.id_externo }}",
+            "operacao": "conferir_codigo"
+          }
+        },
+        "options": {}
+      },
+      "id": "8317384b-05d1-439e-ab10-6778ecae68be",
+      "name": "Confere o código",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        768,
+        -96
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ci1",
+              "name": "resposta",
+              "type": "string",
+              "value": "O CPF tem 11 números. Pode conferir e me mandar de novo?\n\nSe preferir deixar para depois, é só escrever cancelar."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fa805cf9-3750-44dc-9374-48839f58bb75",
+      "name": "Texto: CPF incompleto",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        768,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "Backend - Auxiliar",
+          "mode": "id",
+          "value": "QexwlRDVY1CQUCme"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "operacao",
+              "id": "operacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "canal",
+              "id": "canal",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_externo",
+              "id": "id_externo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "etapa",
+              "id": "etapa",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "canal": "={{ $('Entrada').first().json.canal }}",
+            "etapa": "livre",
+            "id_externo": "={{ $('Entrada').first().json.id_externo }}",
+            "operacao": "mudar_etapa"
+          }
+        },
+        "options": {}
+      },
+      "id": "2970e379-f083-4364-99ea-4e0699e5fd85",
+      "name": "Volta para a IA",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        768,
+        288
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "seguir",
+              "name": "seguir",
+              "type": "boolean",
+              "value": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6d1aa78c-2d1e-45e8-a876-26c45e385e90",
+      "name": "Segue para a IA",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1008,
+        288
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Entrada": {
+      "main": [
+        [
+          {
+            "node": "Lê a verificação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lê a verificação": {
+      "main": [
+        [
+          {
+            "node": "Pela verificação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pela verificação": {
+      "main": [
+        [
+          {
+            "node": "Pede o código",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Confere o código",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Texto: CPF incompleto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Volta para a IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pede o código": {
+      "main": [
+        [
+          {
+            "node": "Texto da verificação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confere o código": {
+      "main": [
+        [
+          {
+            "node": "Texto da verificação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Volta para a IA": {
+      "main": [
+        [
+          {
+            "node": "Segue para a IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "b2fcf150-fad7-4bcb-86cb-14cd5e175607",
+  "meta": {
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp",
+    "instanceId": "1619da3f57eb4f62f0fe7f3f28738109100972218a51eb8b81519f99a0682f7f"
+  },
+  "nodeGroups": [],
+  "id": "iYLjmQAFKetA1pdn",
+  "tags": []
+}
