@@ -15,6 +15,7 @@ from src.config import settings
 from src.models.assistente import (
     AfirmacaoAssistente, AvisoPontosVencendo, CodigoVerificacao, ConversaCanal, MensagemConversa,
 )
+from src.models.contas import Usuario
 from src.models.estoque import Unidade
 from src.repositories import assistente_repository as repo
 from src.repositories import atendimento_repository, cliente_sem_conta_repository, fidelidade_repository
@@ -828,15 +829,25 @@ def abrir_chamado(db: Session, canal: str, id_externo: str, falas: list[dict], m
 
 # enquanto o chamado está aberto, o n8n grava aqui toda mensagem do cliente (e também a passa para a IA).
 # Não pede a confirmação de novo: o chamado ficou ligado a esta conversa quando o cliente se confirmou
-def mensagem_no_chamado(db: Session, canal: str, id_externo: str, texto: str) -> dict:
+def _chamado_da_conversa(db: Session, canal: str, id_externo: str) -> tuple[Usuario, int]:
     conversa = _conversa(db, canal, id_externo, travar=True)
     _soltar_chamado_concluido(db, conversa)
     if conversa.id_chamado is None:
         db.commit()
         raise RegraDeNegocio("Esta conversa não tem chamado aberto")
     chamado = atendimento_repository.buscar_chamado(db, conversa.id_chamado)
-    cliente = usuario_repository.buscar_por_id(db, chamado.id_cliente)
-    return atendimento.enviar_mensagem_do_cliente(db, cliente, chamado.id_chamado, texto)
+    return usuario_repository.buscar_por_id(db, chamado.id_cliente), chamado.id_chamado
+
+
+def mensagem_no_chamado(db: Session, canal: str, id_externo: str, texto: str) -> dict:
+    cliente, id_chamado = _chamado_da_conversa(db, canal, id_externo)
+    return atendimento.enviar_mensagem_do_cliente(db, cliente, id_chamado, texto)
+
+
+# foto ou PDF que o cliente manda no canal com chamado aberto: entra no chamado como no site
+def anexo_no_chamado(db: Session, storage, canal: str, id_externo: str, arquivo, conteudo: str | None) -> dict:
+    cliente, id_chamado = _chamado_da_conversa(db, canal, id_externo)
+    return atendimento.anexar_do_cliente(db, storage, cliente, id_chamado, arquivo, conteudo)
 
 
 # ---------- texto da conversa (90 dias, para revisar onde o assistente falhou) ----------
