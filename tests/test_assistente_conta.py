@@ -121,6 +121,7 @@ def test_primeira_mensagem_cria_a_conversa(banco):
 
     assert estado == {"etapa": "livre", "confirmado": False, "conversa_nova": True, "limite_atingido": False,
                       "avisar_limite": False, "bloqueado_ate": None, "id_chamado": None,
+                      "equipe_respondeu_em": None, "atendente": None, "equipe_conversando": False,
                       "equipe_disponivel": True, "equipe_volta_em": None, "aviso_equipe": None}
     assert banco.conversas[(CANAL, TELEFONE)].ultima_msg_cliente_em == AGORA
 
@@ -773,9 +774,13 @@ def chamados(banco, monkeypatch):
     def buscar(db, id_chamado):
         return next((o for o in banco.db.adicionados if isinstance(o, Chamado) and o.id_chamado == id_chamado), None)
 
+    # a última resposta da equipe em cada chamado; a consulta de verdade é conferida em test_atendimento.py
+    banco.respostas_da_equipe = {}
     m = monkeypatch.setattr
     m(atendimento_repository, "buscar_chamado", buscar)
     m(atendimento_repository, "detalhar_chamado", lambda db, lado, id_chamado: {"id_chamado": id_chamado})
+    m(atendimento_repository, "ultima_resposta_da_equipe",
+      lambda db, id_chamado, id_cliente: banco.respostas_da_equipe.get(id_chamado))
     return buscar
 
 
@@ -979,6 +984,58 @@ def test_desistir_do_cpf_no_meio_do_chamado_volta_para_o_chamado(banco, chamados
     estado = assistente_conta.mudar_etapa(banco.db, CANAL, TELEFONE, "livre", AGORA)
 
     assert estado["etapa"] == "em_chamado"
+
+
+def test_chamado_sem_resposta_da_equipe_deixa_a_ia_responder(banco, chamados):
+    confirmar(banco)
+    abrir(banco)
+
+    estado = mensagem(banco, AGORA + timedelta(minutes=5))
+
+    assert (estado["equipe_respondeu_em"], estado["atendente"], estado["equipe_conversando"]) == (None, None, False)
+
+
+def test_equipe_que_respondeu_ha_pouco_deixa_a_ia_quieta(banco, chamados):
+    confirmar(banco)
+    id_chamado = abrir(banco)["id_chamado"]
+    banco.respostas_da_equipe[id_chamado] = {"criado_em": AGORA, "nome": "Carolina Mendes"}
+
+    estado = mensagem(banco, AGORA + timedelta(minutes=10))
+
+    assert (estado["equipe_respondeu_em"], estado["atendente"], estado["equipe_conversando"]) == (
+        AGORA, "Carolina", True)
+
+
+def test_equipe_parada_ha_30_min_devolve_a_conversa_para_a_ia(banco, chamados):
+    confirmar(banco)
+    id_chamado = abrir(banco)["id_chamado"]
+    banco.respostas_da_equipe[id_chamado] = {"criado_em": AGORA, "nome": "Carolina Mendes"}
+
+    estado = mensagem(banco, AGORA + timedelta(minutes=30))
+
+    assert (estado["atendente"], estado["equipe_conversando"]) == ("Carolina", False)
+    assert estado["etapa"] == "em_chamado"  # a mensagem continua indo para o chamado
+
+
+def test_mudar_a_etapa_tambem_diz_se_a_equipe_esta_conversando(banco, chamados):
+    confirmar(banco)
+    id_chamado = abrir(banco)["id_chamado"]
+    banco.respostas_da_equipe[id_chamado] = {"criado_em": AGORA, "nome": "Carolina Mendes"}
+
+    estado = assistente_conta.mudar_etapa(banco.db, CANAL, TELEFONE, "esperando_cpf", AGORA + timedelta(minutes=1))
+
+    assert estado["equipe_conversando"] is True
+
+
+def test_chamado_concluido_logo_depois_da_resposta_devolve_a_conversa_para_a_ia(banco, chamados):
+    confirmar(banco)
+    chamado = chamados(banco.db, abrir(banco)["id_chamado"])
+    banco.respostas_da_equipe[chamado.id_chamado] = {"criado_em": AGORA, "nome": "Carolina Mendes"}
+    chamado.status = "concluido"
+
+    estado = mensagem(banco, AGORA + timedelta(minutes=5))
+
+    assert (estado["id_chamado"], estado["equipe_conversando"]) == (None, False)
 
 
 def test_chamado_concluido_devolve_a_conversa_ao_assistente(banco, chamados):
