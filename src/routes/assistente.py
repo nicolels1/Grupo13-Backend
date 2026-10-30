@@ -230,8 +230,8 @@ def avisar_pontos_vencendo(db: Session = Depends(get_db)):
         401: {"description": "Conta não confirmada nesta conversa: pedir o CPF"},
         404: {"description": "Pedido não encontrado"},
     },
-    description="Últimos 5 pedidos (ou um): status, onde e até quando retirar. Fica registrado o que foi "
-                "entregue (auditoria).",
+    description="Últimos 5 pedidos (ou um): status, onde e até quando retirar, até quando trocar, devolução, motivo "
+                "do cancelamento e os pagamentos e estornos. Fica registrado o que foi entregue (auditoria).",
 )
 def meus_pedidos(dados: PedidosEntrada, db: Session = Depends(get_db)):
     return resumo_conversa.com_assunto(

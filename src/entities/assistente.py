@@ -249,6 +249,14 @@ class RetiradaDoPedido(BaseModel):
     retirar_ate: date | None = Field(description="Só quando já está pronto: 7 dias depois")
 
 
+class PagamentoDoPedido(BaseModel):
+    tipo: str = Field(description="pagamento ou estorno")
+    metodo: str
+    valor: Decimal
+    status: str = Field(description="pendente, aprovado ou recusado")
+    em: date
+
+
 class PedidoDoCliente(BaseModel):
     id_pedido: int
     codigo_venda: str
@@ -261,6 +269,11 @@ class PedidoDoCliente(BaseModel):
     itens: list[ItemDoPedido]
     retirada: RetiradaDoPedido | None
     pagar_ate: datetime | None
+    entregue_em: date | None
+    troca_ate: date | None = Field(description="Último dia para trocar ou devolver; só no pedido entregue")
+    devolucao: str = Field(description="nenhuma, parcial ou total")
+    motivo_cancelamento: str | None = Field(description="cliente, reserva_vencida, retirada_vencida ou equipe")
+    pagamentos: list[PagamentoDoPedido] = Field(description="Pagamentos e estornos, do mais antigo ao mais novo")
     texto: str
 
 

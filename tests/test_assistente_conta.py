@@ -17,9 +17,9 @@ from src.models.atendimento import Chamado, Mensagem
 from src.models.contas import ClienteSemConta, Usuario
 from src.models.estoque import Unidade
 from src.models.fidelidade import LotePontos, RegraFidelidade
-from src.models.vendas import Pedido
+from src.models.vendas import Pagamento, Pedido
 from src.repositories import assistente_repository, cliente_sem_conta_repository, fidelidade_repository
-from src.repositories import atendimento_repository, pedido_repository, usuario_repository
+from src.repositories import atendimento_repository, migracao_repository, pedido_repository, usuario_repository
 from src.use_cases import assistente, assistente_conta, resumo_conversa
 from src.use_cases.erros import Conflito, MuitasTentativas, NaoAutenticado, RecursoNaoEncontrado, RegraDeNegocio
 from src.use_cases.horarios import BRASILIA
@@ -355,7 +355,7 @@ def pedido(id_pedido, status, **campos):
 
 @pytest.fixture
 def pedidos(banco, monkeypatch):
-    dados = SimpleNamespace(linhas=[])
+    dados = SimpleNamespace(linhas=[], lancamentos={}, migrados=set())
     item = {"produto": "Camisa Social", "cor": "Azul", "tamanho": "G", "quantidade": 1}
     m = monkeypatch.setattr
     m(pedido_repository, "listar_pedidos",
@@ -363,6 +363,8 @@ def pedidos(banco, monkeypatch):
     m(pedido_repository, "pedido_com_nomes",
       lambda db, id_pedido: next((linha for linha in dados.linhas if linha[0].id_pedido == id_pedido), None))
     m(pedido_repository, "itens_dos_pedidos", lambda db, ids: {i: [item] for i in ids})
+    m(pedido_repository, "pagamentos_dos_pedidos", lambda db, ids: {i: dados.lancamentos.get(i, []) for i in ids})
+    m(migracao_repository, "migrado", lambda db, tabela, chave: chave in dados.migrados)
     m(assistente_repository, "unidades", lambda db, ids: {2: PAULISTA})
     return dados
 
@@ -407,6 +409,77 @@ def test_cliente_sem_conta_nao_tem_pedidos_do_site(banco, pedidos):
     resposta = assistente_conta.meus_pedidos(banco.db, CANAL, TELEFONE, None, AGORA)
 
     assert resposta == {"items": [], "texto": assistente_conta.SEM_PEDIDOS_NO_SITE}
+
+
+def entregue(id_pedido=4, **campos):
+    return pedido(id_pedido, "entregue", **{"entregue_em": datetime(2026, 10, 10, 14, 0, tzinfo=BRASILIA), **campos})
+
+
+def test_pedido_entregue_diz_ate_quando_trocar(banco, pedidos):
+    pedidos.linhas = [(entregue(), "Ana", "Loja Paulista")]
+    confirmar(banco)
+
+    [montado] = assistente_conta.meus_pedidos(banco.db, CANAL, TELEFONE, None, AGORA)["items"]
+
+    assert (montado["entregue_em"], montado["troca_ate"]) == (date(2026, 10, 10), date(2026, 11, 9))
+    assert montado["texto"].endswith("Dá para trocar ou devolver até 09/11/2026, numa loja da Lorenzi.")
+
+
+def test_passado_o_prazo_diz_que_a_troca_terminou(banco, pedidos):
+    pedidos.linhas = [(entregue(entregue_em=datetime(2026, 9, 1, 14, 0, tzinfo=BRASILIA)), "Ana", "Loja Paulista")]
+    confirmar(banco)
+
+    [montado] = assistente_conta.meus_pedidos(banco.db, CANAL, TELEFONE, None, AGORA)["items"]
+
+    assert montado["texto"].endswith("O prazo para trocar ou devolver terminou em 01/10/2026.")
+
+
+# a mesma regra do balcão: o pedido migrado da Vulto sem data de entrega conta o prazo do pagamento
+def test_pedido_migrado_sem_entrega_conta_o_prazo_do_pagamento(banco, pedidos):
+    migrado = entregue(entregue_em=None, pago_em=datetime(2026, 10, 20, 9, 0, tzinfo=BRASILIA))
+    pedidos.linhas, pedidos.migrados = [(migrado, "Ana", "Loja Paulista")], {"4"}
+    confirmar(banco)
+
+    [montado] = assistente_conta.meus_pedidos(banco.db, CANAL, TELEFONE, None, AGORA)["items"]
+
+    assert (montado["entregue_em"], montado["troca_ate"]) == (None, date(2026, 11, 19))
+
+
+def test_pedido_ainda_nao_entregue_nao_tem_prazo_de_troca(banco, pedidos):
+    pedidos.linhas = [(pedido(1, "pago"), "Ana", "Loja Paulista")]
+    confirmar(banco)
+
+    [montado] = assistente_conta.meus_pedidos(banco.db, CANAL, TELEFONE, None, AGORA)["items"]
+
+    assert montado["troca_ate"] is None and "trocar" not in montado["texto"]
+
+
+def test_devolvido_nao_oferece_troca(banco, pedidos):
+    pedidos.linhas = [(entregue(devolucao="total"), "Ana", "Loja Paulista")]
+    confirmar(banco)
+
+    [montado] = assistente_conta.meus_pedidos(banco.db, CANAL, TELEFONE, None, AGORA)["items"]
+
+    assert montado["devolucao"] == "total"
+    assert montado["texto"].endswith("Foi devolvido.")
+
+
+def test_cancelado_diz_o_motivo_e_o_estorno(banco, pedidos):
+    cancelado = pedido(5, "cancelado", motivo_cancelamento="retirada_vencida")
+    pedidos.linhas = [(cancelado, "Ana", "Loja Paulista")]
+    em = datetime(2026, 10, 21, 10, 0, tzinfo=BRASILIA)
+    pedidos.lancamentos = {5: [
+        Pagamento(tipo="pagamento", metodo="pix", valor=Decimal("129.90"), status="aprovado", criado_em=em),
+        Pagamento(tipo="estorno", metodo="pix", valor=Decimal("129.90"), status="pendente", criado_em=em),
+    ]}
+    confirmar(banco)
+
+    [montado] = assistente_conta.meus_pedidos(banco.db, CANAL, TELEFONE, None, AGORA)["items"]
+
+    assert montado["motivo_cancelamento"] == "retirada_vencida"
+    assert [p["tipo"] for p in montado["pagamentos"]] == ["pagamento", "estorno"]
+    assert "cancelado porque não foi retirado em 7 dias" in montado["texto"]
+    assert montado["texto"].endswith("Estorno de R$ 129,90 (Pix): em andamento em 21/10/2026.")
 
 
 # ---------- rotas ----------
