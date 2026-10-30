@@ -167,6 +167,23 @@ def listar_mensagens(db: Session, id_chamado: int, incluir_internas: bool) -> li
     return list(db.execute(consulta_mensagens(id_chamado, incluir_internas)).mappings().all())
 
 
+# a última resposta da equipe ao cliente (nota interna não conta): enquanto a equipe conversa no chamado, o
+# assistente do cliente fica quieto
+def consulta_ultima_resposta_da_equipe(id_chamado: int, id_cliente: uuid.UUID | None) -> Select:
+    m = Mensagem
+    return (
+        select(m.criado_em, Usuario.nome)
+        .join(Usuario, Usuario.id_usuario == m.id_autor)
+        .where(m.id_chamado == id_chamado, m.interna.is_(False), ~_do_cliente(id_cliente))
+        .order_by(m.criado_em.desc(), m.id_mensagem.desc())
+        .limit(1)
+    )
+
+
+def ultima_resposta_da_equipe(db: Session, id_chamado: int, id_cliente: uuid.UUID | None):
+    return db.execute(consulta_ultima_resposta_da_equipe(id_chamado, id_cliente)).mappings().first()
+
+
 # quem abre as mensagens marca como lidas as do outro lado (a Visão Geral conta as não lidas)
 def comando_marcar_lidas(id_chamado: int, id_cliente: uuid.UUID | None, lado: str):
     m = Mensagem
