@@ -121,7 +121,8 @@ def politicas(db: Session = Depends(get_db)):
     "/conversa",
     response_model=EstadoConversa,
     description="Registra a mensagem do cliente: chamada no começo de toda mensagem. Diz a etapa, se a conta "
-                "está confirmada, se a conversa é nova (30 min parada: apagar a memória curta), o limite do dia "
+                "está confirmada, se a conversa é nova (30 min parada: apagar a memória curta), o limite do dia, "
+                "se a equipe está conversando no chamado (respondeu há menos de 30 min: a IA não responde) "
                 "e, fora do horário da equipe, quando ela volta.",
 )
 def registrar_mensagem(dados: ConversaEntrada, db: Session = Depends(get_db)):

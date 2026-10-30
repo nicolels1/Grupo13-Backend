@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 # código mandado ao e-mail do cadastro, e só enquanto a conversa durar
 
 DURACAO_DA_CONVERSA = timedelta(minutes=30)  # sem mensagem por esse tempo, a conversa termina
+EQUIPE_NA_CONVERSA = timedelta(minutes=30)  # depois da última resposta da equipe no chamado, o assistente fica quieto
 VALIDADE_DO_CODIGO = timedelta(minutes=10)
 ERROS_ATE_BLOQUEAR = 5
 BLOQUEIO = timedelta(minutes=30)
@@ -139,7 +140,23 @@ def _bloqueado_ate(conversa: ConversaCanal, momento: datetime) -> datetime | Non
     return conversa.bloqueado_ate if conversa.bloqueado_ate and conversa.bloqueado_ate > momento else None
 
 
-def _estado(conversa: ConversaCanal, momento: datetime, conversa_nova: bool = False) -> dict:
+# a equipe respondeu no chamado há pouco: o n8n só grava a mensagem do cliente no chamado, sem chamar a IA,
+# para o assistente não responder por cima do atendente
+def _resposta_da_equipe(db: Session, conversa: ConversaCanal, momento: datetime) -> dict:
+    resposta = None
+    if conversa.id_chamado is not None:
+        chamado = atendimento_repository.buscar_chamado(db, conversa.id_chamado)
+        resposta = atendimento_repository.ultima_resposta_da_equipe(db, chamado.id_chamado, chamado.id_cliente)
+    if resposta is None:
+        return {"equipe_respondeu_em": None, "atendente": None, "equipe_conversando": False}
+    return {
+        "equipe_respondeu_em": resposta["criado_em"],
+        "atendente": _primeiro_nome(resposta["nome"]),
+        "equipe_conversando": momento - resposta["criado_em"] < EQUIPE_NA_CONVERSA,
+    }
+
+
+def _estado(db: Session, conversa: ConversaCanal, momento: datetime, conversa_nova: bool = False) -> dict:
     volta = equipe_volta_em(momento)
     return {
         "etapa": conversa.etapa,
@@ -150,6 +167,7 @@ def _estado(conversa: ConversaCanal, momento: datetime, conversa_nova: bool = Fa
         "avisar_limite": conversa.msgs_hoje == MENSAGENS_POR_DIA + 1,
         "bloqueado_ate": _bloqueado_ate(conversa, momento),
         "id_chamado": conversa.id_chamado,
+        **_resposta_da_equipe(db, conversa, momento),
         "equipe_disponivel": volta is None,
         "equipe_volta_em": volta,
         "aviso_equipe": _aviso_da_equipe(volta, momento),
@@ -207,7 +225,7 @@ def registrar_mensagem(db: Session, canal: str, id_externo: str, momento: dateti
     if _confirmado(conversa, momento):
         conversa.confirmado_ate = momento + DURACAO_DA_CONVERSA
     db.commit()
-    return _estado(conversa, momento, conversa_nova)
+    return _estado(db, conversa, momento, conversa_nova)
 
 
 # o n8n só põe a conversa esperando o CPF (o cliente pediu pontos ou pedidos) ou a devolve para a IA
@@ -223,7 +241,7 @@ def mudar_etapa(db: Session, canal: str, id_externo: str, etapa: str, momento: d
         etapa = _etapa_sem_verificacao(conversa)
     conversa.etapa = etapa
     db.commit()
-    return _estado(conversa, momento)
+    return _estado(db, conversa, momento)
 
 
 # ---------- CPF e código por e-mail ----------

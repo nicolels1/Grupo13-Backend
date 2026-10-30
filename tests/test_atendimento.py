@@ -352,6 +352,14 @@ def test_equipe_marca_como_lidas_as_falas_sem_autor():
     assert "mensagem.id_autor IS NULL OR mensagem.id_autor IS NOT DISTINCT FROM" in comando
 
 
+def test_ultima_resposta_da_equipe_ignora_o_cliente_e_a_nota_interna():
+    consulta = sql(atendimento_repository.consulta_ultima_resposta_da_equipe(1, uuid.uuid4()))
+
+    assert "mensagem.interna IS false" in consulta
+    assert "NOT (mensagem.id_autor IS NULL OR mensagem.id_autor IS NOT DISTINCT FROM" in consulta
+    assert "ORDER BY mensagem.criado_em DESC, mensagem.id_mensagem DESC" in consulta and "LIMIT" in consulta
+
+
 def test_cliente_nunca_recebe_mensagem_interna():
     assert "mensagem.interna IS false" in sql(atendimento_repository.consulta_mensagens(1, incluir_internas=False))
     assert "interna IS false" not in sql(atendimento_repository.consulta_mensagens(1, incluir_internas=True))

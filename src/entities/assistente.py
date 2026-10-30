@@ -220,6 +220,10 @@ class EstadoConversa(BaseModel):
     avisar_limite: bool = Field(description="Primeira mensagem acima do limite: mandar o aviso uma vez")
     bloqueado_ate: datetime | None = Field(description="Confirmação pausada por código errado")
     id_chamado: int | None = Field(description="Chamado aberto pela conversa: a mensagem também vai para ele")
+    equipe_respondeu_em: datetime | None = Field(description="Última resposta da equipe no chamado aberto")
+    atendente: str | None = Field(description="Primeiro nome de quem mandou essa resposta")
+    equipe_conversando: bool = Field(description="A equipe respondeu no chamado há menos de 30 min: a mensagem vai "
+                                                 "só para o chamado, sem a IA responder")
     equipe_disponivel: bool = Field(description="A equipe de atendimento está no horário agora")
     equipe_volta_em: datetime | None = Field(description="Quando a equipe volta; vazio se ela está atendendo")
     aviso_equipe: str | None = Field(description="Fora do horário: texto pronto dizendo quando a equipe volta")
