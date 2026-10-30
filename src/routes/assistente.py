@@ -1,10 +1,12 @@
 from datetime import datetime
+from typing import Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
 from src.dependencies.assistente import conversa_do_cabecalho, exige_chave_assistente
+from src.dependencies.supabase import get_storage
 from src.entities.assistente import (
     AvisoPontosSaida, BuscaPecasSaida, ChamadoAbertoSaida, ChamadoDoAssistenteEntrada, CodigoEntrada, CodigoEnviado, ConfirmacaoSaida,
     ConversaEntrada, CpfEntrada, EstadoConversa, EstoqueSaida, EtapaEntrada, ExtratoEntrada, ExtratoPontosSaida,
@@ -16,6 +18,8 @@ from src.entities.atendimento import MensagemSaida
 from src.entities.comum import Lista, Marca
 from src.use_cases import assistente, assistente_conta, assistente_politicas, resumo_conversa
 from src.use_cases.horarios import BRASILIA
+from src.utils.supabase_storage import SupabaseStorage
+from src.utils.upload import ler_upload
 
 # ferramentas do assistente do cliente, chamadas pelo n8n com a chave no cabeçalho X-Assistente-Chave.
 # Sem login de cliente, só o que a vitrine mostra a qualquer pessoa; pontos e pedidos só depois do código
@@ -328,3 +332,25 @@ def abrir_chamado(dados: ChamadoDoAssistenteEntrada, db: Session = Depends(get_d
 )
 def mensagem_no_chamado(dados: MensagemNoChamadoEntrada, db: Session = Depends(get_db)):
     return assistente_conta.mensagem_no_chamado(db, dados.canal, dados.id_externo, dados.texto)
+
+
+@router.post(
+    "/chamado/anexo",
+    status_code=201,
+    response_model=MensagemSaida,
+    responses={
+        404: {"description": "Conversa não registrada"},
+        422: {"description": "A conversa não tem chamado aberto, ou o arquivo não é JPG, PNG, WEBP ou PDF de até 10 MB"},
+        503: {"description": "Storage indisponível"},
+    },
+    description="Grava no chamado aberto a foto ou o PDF que o cliente mandou no canal, em multipart/form-data, "
+                "como o anexo enviado pelo site; o texto (legenda) é opcional.",
+)
+def anexo_no_chamado(
+    canal: Literal["whatsapp", "telegram"] = Form(), id_externo: str = Form(min_length=1, max_length=100),
+    arquivo: UploadFile = File(), conteudo: str | None = Form(None, max_length=5000),
+    db: Session = Depends(get_db), storage: SupabaseStorage = Depends(get_storage),
+):
+    return assistente_conta.anexo_no_chamado(
+        db, storage, canal, id_externo, ler_upload(arquivo), (conteudo or "").strip() or None,
+    )

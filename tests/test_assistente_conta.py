@@ -25,7 +25,9 @@ from src.use_cases.erros import Conflito, MuitasTentativas, NaoAutenticado, Recu
 from src.use_cases.horarios import BRASILIA
 from src.utils.cpf import digito_verificador
 from src.utils.email import ErroEmail
-from tests.apoio import SessaoFalsa
+from src.dependencies.supabase import get_storage
+from src.utils.upload import Arquivo
+from tests.apoio import PDF, PNG, SessaoFalsa, StorageFalso
 
 CHAVE = "chave-de-teste"
 CANAL, TELEFONE = "whatsapp", "+5511999998888"
@@ -1081,6 +1083,78 @@ def test_rota_da_mensagem_sem_chamado_responde_422(cliente, banco, chamados):
 
     assert resposta.status_code == 422
 
+
+
+def test_foto_do_cliente_vai_para_o_chamado_como_anexo(banco, chamados):
+    confirmar(banco)
+    id_chamado = abrir(banco)["id_chamado"]
+    storage = StorageFalso()
+    foto = Arquivo(nome="foto.jpg", tipo="image/png", conteudo=PNG)
+
+    gravada = assistente_conta.anexo_no_chamado(banco.db, storage, CANAL, TELEFONE, foto, "a mancha")
+
+    [mensagem_gravada] = [o for o in banco.db.adicionados if isinstance(o, Mensagem)]
+    assert (mensagem_gravada.id_chamado, mensagem_gravada.id_autor) == (id_chamado, ANA.id_usuario)
+    assert (gravada["conteudo"], gravada["anexo_nome"], gravada["interna"]) == ("a mancha", "foto.jpg", False)
+    assert list(storage.enviados) == [("anexos", mensagem_gravada.anexo_caminho)]
+
+
+def test_anexo_sem_chamado_aberto_nao_sobe_o_arquivo(banco, chamados):
+    mensagem(banco)
+    storage = StorageFalso()
+
+    with pytest.raises(RegraDeNegocio, match="não tem chamado"):
+        assistente_conta.anexo_no_chamado(banco.db, storage, CANAL, TELEFONE,
+                                          Arquivo(nome="nota.pdf", tipo="application/pdf", conteudo=PDF), None)
+    assert storage.enviados == {}
+
+
+def test_anexo_que_nao_e_imagem_nem_pdf_e_recusado(banco, chamados):
+    confirmar(banco)
+    abrir(banco)
+
+    with pytest.raises(RegraDeNegocio, match="JPG, PNG, WEBP ou PDF"):
+        assistente_conta.anexo_no_chamado(banco.db, StorageFalso(), CANAL, TELEFONE,
+                                          Arquivo(nome="audio.ogg", tipo="audio/ogg", conteudo=b"OggS" + b"0" * 32), None)
+
+
+@pytest.fixture
+def storage():
+    falso = StorageFalso()
+    app.dependency_overrides[get_storage] = lambda: falso
+    return falso
+
+
+def test_rota_do_anexo_grava_no_chamado(cliente, banco, chamados, storage, monkeypatch):
+    # criado_em vem do banco no refresh; a sessão falsa preenche no lugar dele
+    refresh = banco.db.refresh
+
+    def refresh_com_data(objeto):
+        refresh(objeto)
+        if isinstance(objeto, Mensagem):
+            objeto.criado_em = datetime.now(BRASILIA)
+
+    monkeypatch.setattr(banco.db, "refresh", refresh_com_data)
+    confirmar(banco, momento=datetime.now(BRASILIA))
+    abrir(banco, momento=datetime.now(BRASILIA))
+
+    resposta = cliente.post("/assistente/chamado/anexo", data={"canal": CANAL, "id_externo": TELEFONE},
+                            files={"arquivo": ("nota.pdf", PDF, "application/pdf")},
+                            headers={"X-Assistente-Chave": CHAVE})
+
+    assert resposta.status_code == 201
+    assert (resposta.json()["anexo_nome"], resposta.json()["conteudo"]) == ("nota.pdf", None)
+    assert len(storage.enviados) == 1
+
+
+def test_rota_do_anexo_sem_chamado_responde_422(cliente, banco, chamados, storage):
+    mensagem(banco)
+
+    resposta = cliente.post("/assistente/chamado/anexo", data={"canal": CANAL, "id_externo": TELEFONE},
+                            files={"arquivo": ("nota.pdf", PDF, "application/pdf")},
+                            headers={"X-Assistente-Chave": CHAVE})
+
+    assert resposta.status_code == 422
 
 # ---------- horário da equipe ----------
 
