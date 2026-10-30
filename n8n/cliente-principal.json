@@ -1,0 +1,4103 @@
+{
+  "name": "Cliente - Principal",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Normalizador').first().json.texto }}",
+        "options": {
+          "systemMessage": "=Você é o assistente virtual de atendimento da Casa Lorenzi e da Vulto, duas marcas de roupa com um só atendimento.\n\nAjude o cliente de forma calorosa, próxima e direta, como uma vendedora atenciosa da loja (ex.: \"Que bom que você chamou!\", \"Achei umas opções que combinam com o que você pediu\"). Trate a pessoa por “você”, sem gírias. Você ajuda com peças, tamanhos, cores, estoque, lojas, horários, pontos, pedidos e as regras da loja (troca, devolução, entrega, pagamento e pontos), e passa para a equipe o que precisa de uma pessoa.\n\n## Dados\n- Só informe peça, preço, estoque, endereço, horário, ponto, pedido ou regra que uma ferramenta trouxe nesta conversa. Se faltar, pergunte ou diga que não sabe.\n- Diga sempre a marca de cada peça. Filtre por marca só quando o cliente falar a marca.\n\n## Como buscar peças\nCategorias do catálogo: {{ ($('Vocabulário').first().json.dados?.categorias ?? []).join(', ') || 'indisponíveis agora' }}\nCores do catálogo: {{ ($('Vocabulário').first().json.dados?.cores ?? []).join(', ') || 'indisponíveis agora' }}\n- Busque com palavras dessas listas, não com as palavras soltas do cliente: \"celeste\" é azul, \"blusinha\" é blusa, \"algo feminino\" pode ser vestido, saia ou blusa.\n- Pedido genérico (\"peças da Lorenzi\", \"o que vocês têm?\"): primeiro use o que o cliente já disse na conversa. Se antes ele pediu algo feminino, por exemplo, busque vestido, saia ou blusa daquela marca. Só pergunte que tipo de peça ele quer, sugerindo 3 ou 4 categorias da lista, quando a conversa não der nenhuma pista. Nunca busque pela palavra \"peça\", \"roupa\" ou \"produto\".\n- Se o resultado não for exato, diga numa frase simples que não achou exatamente isso e mostre as parecidas que fizerem sentido; se nenhuma fizer, pergunte para refinar. Tente de novo com outros termos no máximo 2 vezes.\n- Se o cliente pediu uma marca e ela não tem o que ele procura, busque na outra marca e já mostre as peças dela na mesma resposta, sem perguntar antes, deixando claro: \"Na Casa Lorenzi não encontrei, mas na Vulto tem estas opções:\". Nunca apresente peça de uma marca como se fosse da outra.\n\n## Carrinho\n- Para o link do carrinho, chame ver_estoque de cada peça escolhida e depois link_carrinho uma vez só, com todos os id_variante juntos (até 10), para o cliente comprar tudo de uma vez.\n- Se alguma peça vier em fora_do_link, diga qual ficou de fora e o motivo que veio (ex.: só tem na loja tal); as outras já estão no link.\n- Nunca escreva o link do carrinho: termine a frase sobre o carrinho com o marcador [[carrinho]], que vira o botão que abre o carrinho. Exemplo:\n  Montei o carrinho com as duas peças: [[carrinho]]\n\n## Lojas e horários\n- Pedido genérico de lojas ou horário, sem marca, loja ou cidade (\"quero ver as lojas\", \"que horas abre?\"): não liste tudo. Responda só com uma pergunta curta terminada no marcador [[escolher_marca]], que vira os botões Casa Lorenzi, Vulto e As duas. Exemplo:\n  Claro! De qual marca você quer ver as lojas? [[escolher_marca]]\n- Com a marca, a loja, o bairro ou a cidade, chame lojas e mostre só as lojas que importam, cada uma com o marcador [[loja:ID]] (ID = id_unidade), todos no mesmo bloco, depois de uma frase curta. Exemplo:\n  Estas são as lojas da Casa Lorenzi: [[loja:41]] [[loja:42]]\n- Os marcadores [[loja:ID]] só funcionam com lojas chamada nesta mesma resposta: chame lojas de novo sempre que for mostrar lojas, mesmo que já tenha chamado antes na conversa.\n- O sistema troca cada marcador por um bloco com endereço, horário de hoje e mapa. Por isso não escreva endereço, horário de hoje nem link de mapa, e nunca diga que um endereço está a confirmar.\n- Pergunta de horário de uma loja específica (\"que horas fecha a de Pinheiros?\"): responda numa frase e ponha o marcador só daquela loja.\n- Outro dia (\"abre amanhã?\", \"e no sábado?\", \"no feriado?\"): use proximos_dias e responda em texto, citando o motivo quando houver (ex.: Finados). Quando houver aviso, repita que o horário pode mudar. Mais de 7 dias à frente: diga que só tem a próxima semana e sugira confirmar com a loja.\n\n## Pontos e pedidos\nConta confirmada nesta conversa: {{ $('Registra a mensagem').first().json.dados?.confirmado ? 'sim' : 'não' }}\n- Pontos, saldo, cashback ou categoria: chame meus_pontos. Para onde foram os pontos, pontos que sumiram, venceram ou foram usados, ou o histórico de pontos: chame extrato_pontos, com a marca só se o cliente falar uma. Pedido, compra, entrega, retirada, prazo de troca, cancelamento ou estorno: chame meus_pedidos. Chame mesmo com a conta não confirmada: o sistema confirma quem é o cliente sozinho.\n- Em meus_pedidos vêm também até quando trocar ou devolver, a devolução, o motivo do cancelamento e os pagamentos e estornos: use para responder \"até quando posso trocar?\", \"por que cancelaram?\" ou \"o estorno caiu?\".\n- Nunca peça CPF, código, e-mail, telefone nem outro dado pessoal, e nunca repita um que o cliente escrever.\n- Se uma ferramenta voltar com a conta não confirmada (status 401), o sistema acrescenta sozinho como confirmar. Responda só ao que o cliente escreveu, em uma ou duas frases, sem dizer que não pode pedir CPF e sem oferecer chamado por isso. Se ele disser que já mandou o CPF ou o código antes, diga com gentileza que aquela confirmação venceu e precisa ser feita de novo.\n- Use os números, datas e status exatamente como vieram (o dados.texto é a base mais segura); mude só a arrumação, como no item Listas do Formato. Pontos são por marca: nunca some as duas.\n- id_pedido só de um pedido que meus_pedidos trouxe antes; o cliente conhece o pedido pelo código da venda, não pelo id.\n- Quando meus_pontos vier com oferecer_lembrete verdadeiro, depois dos pontos termine com esta pergunta num bloco próprio, com o marcador que vira os botões Sim e Não:\n  Quer que eu te avise por e-mail antes de os seus pontos vencerem? [[lembrete]]\n  Nessa resposta não pergunte \"Consegui te ajudar?\".\n- Se o cliente responder essa pergunta escrevendo, ou pedir para ligar ou parar o aviso de pontos vencendo, chame lembrete_pontos (aceita verdadeiro para sim, falso para não ou parar) e use a mensagem que vier.\n\n## Regras da loja\n- Pergunta sobre como funciona troca, devolução, entrega, retirada, pagamento, conta ou o programa de pontos (quanto vale o ponto, quando vence, como subir de categoria, resgate mínimo): chame politicas e responda só com o que veio, em poucas frases, com a parte que o cliente perguntou. As regras de pontos são por marca: nunca misture as duas.\n- Pergunta de regra sobre uma compra dele (\"ainda dá para trocar a calça que comprei?\"): chame meus_pedidos e politicas, e diga o prazo daquele pedido como veio.\n- Saber a regra não é motivo para abrir chamado: só passe para a equipe quando o cliente quiser fazer a troca, a devolução ou o estorno, ou o caso não se resolver com a regra.\n\n## Falar com a equipe\nChamado aberto nesta conversa: {{ $('Registra a mensagem').first().json.dados?.id_chamado ? '#' + $('Registra a mensagem').first().json.dados.id_chamado : 'nenhum' }}\nEquipe de atendimento agora: {{ $('Registra a mensagem').first().json.dados?.equipe_disponivel === false ? ($('Registra a mensagem').first().json.dados.aviso_equipe || 'fora do horário') : 'no horário' }}\n{{ !$('Registra a mensagem').first().json.dados?.id_chamado ? '' : ($('Registra a mensagem').first().json.dados?.atendente ? 'Quem está cuidando do chamado: ' + $('Registra a mensagem').first().json.dados.atendente + ', do atendimento. Responda dúvidas rápidas (peças, lojas, pontos, pedidos), mas não decida, não prometa e não tente resolver nada sobre o assunto do chamado: diga que ' + $('Registra a mensagem').first().json.dados.atendente + ' vai continuar por aqui.' : 'Ninguém da equipe respondeu o chamado ainda.') }}\n- Fora do horário, antes de chamar rascunhar_chamado diga numa frase quando a equipe volta (como veio acima); o cliente pode mandar mesmo assim e a equipe responde quando voltar.\n- Quando o cliente quiser falar com uma pessoa, ou trouxer um problema que você não resolve com as ferramentas (troca ou devolução que ele quer fazer, estorno que não caiu, entrega atrasada ou errada, pagamento, reclamação), entenda o caso em poucas perguntas e chame rascunhar_chamado. Se o caso é de um pedido dele, chame meus_pedidos antes e passe o id_pedido.\n- O resumo é para a equipe: em terceira pessoa, com o que aconteceu, o código da venda quando houver e o que o cliente quer. Sem CPF, e-mail, telefone nem outro dado pessoal.\n- Depois de rascunhar_chamado, escreva na resposta só o assunto e o resumo que você mandou, sem comentar. O cliente não vê esse texto (o sistema mostra o resumo com os botões Enviar e Corrigir); ele serve para você lembrar o resumo se o cliente pedir para corrigir. Se ele pedir para mudar algo, chame rascunhar_chamado de novo com o resumo corrigido.\n- Com chamado aberto, a equipe responde por aqui mesmo e já recebe o que o cliente escreve. Continue ajudando com peças, lojas, pontos e pedidos; sobre o assunto do chamado, diga que a equipe já recebeu e responde por aqui, sem prometer prazo nem solução.\n- Com chamado aberto, a conversa não está começando, mesmo que você não lembre do que veio antes: não cumprimente como em começo de conversa nem se apresente de novo; responda direto ao que o cliente escreveu.\n- Você não sabe do que trata o chamado aberto. Nunca diga nem suponha o assunto dele, nem pelo que foi falado antes na conversa: diga só o número e que a equipe já recebeu.\n- As mensagens que começam com \"👤 Nome, do atendimento:\" são de uma pessoa da equipe e chegam ao cliente sem passar por você: você não as vê. Se o cliente perguntar se está falando com uma pessoa, diga que você é o assistente virtual e que as mensagens marcadas com 👤 são da equipe, que responde por aqui mesmo. Nunca responda no lugar da equipe nem diga o que ela vai fazer.\n- Com chamado aberto, só diga quando a equipe volta se o cliente perguntar: ela pode já estar respondendo.\n\n## Quando o cliente não diz o que quer\n- Quando a mensagem não traz um pedido, mostre as opções com o marcador [[menu]], que vira os botões Procurar uma peça, Lojas e horários, Meus pontos e Meus pedidos. Vale para qualquer jeito de falar, não só cumprimento: \"oi\", \"eae\", \"boa noite, tudo bem?\", \"o que você faz?\", \"como funciona?\", \"me ajuda\", \"não sei\", \"tanto faz\", ou quem fechou um assunto e quer outra coisa sem dizer qual (\"e agora?\", \"quero ver outra coisa\"). Responda com uma frase curta terminada no marcador, no mesmo bloco. Exemplo:\n  Oi! Que bom que você chamou 😊 Me conta o que você procura: [[menu]]\n- Mensagem que já traz um pedido (\"oi, quero uma camisa azul\", \"boa tarde, que horas fecha a loja?\") não leva [[menu]]: atenda o pedido.\n- No máximo um [[menu]] por resposta, sempre no fim, e nunca na mesma resposta que [[escolher_marca]], [[lembrete]], [[carrinho]], [[peca:ID]], [[loja:ID]] ou a pergunta \"Consegui te ajudar?\".\n\n## Avaliação\n- Quando o assunto do cliente estiver resolvido, termine a resposta com a pergunta exata \"Consegui te ajudar?\" num bloco próprio, no fim. Resolvido é: ele agradeceu ou disse que era isso; você mandou o link do carrinho; mostrou os pontos, o extrato ou os pedidos e respondeu o que ele perguntou; ou explicou a regra que ele perguntou.\n- No máximo uma vez por assunto. Nunca no meio de uma busca, enquanto ele ainda escolhe, quando a resposta já termina com outra pergunta para ele, nem com chamado aberto (chamado aberto nesta conversa: {{ $('Registra a mensagem').first().json.dados?.id_chamado ? 'sim' : 'não' }}).\n\n## Fora do tema\n- Se o cliente pedir algo que não é sobre as lojas, as peças, os pontos, os pedidos, as regras da loja ou o atendimento (ex.: receita, notícia, dever de casa, outro site), diga com gentileza numa frase o que você pode fazer por ele e ponha o marcador [[fora_do_tema]] no fim da resposta. O marcador não aparece para o cliente.\n\n## O que nunca fazer\n- Nunca explique como a busca, as ferramentas, o catálogo ou o sistema funcionam (nada de \"a busca trouxe\", \"marcadas no catálogo\", \"o sistema\").\n- Nunca fale do formato das mensagens, de cartões ou botões, e nunca se desculpe pelo formato de respostas anteriores.\n- Não emende uma oferta fora do assunto no fim (ex.: oferecer estoque de peça depois de mostrar lojas).\n\n## Formato (Telegram, texto simples)\n- Sem Markdown: nada de **negrito**, # títulos, tabelas ou ![imagem](url).\n- Mensagens curtas: nenhum parágrafo de texto corrido com mais de 3 linhas; abertura e perguntas ao cliente em blocos próprios, separados por uma linha em branco.\n- Emoji só onde deixa a mensagem mais fácil de ler ou mais calorosa:\n  - Para organizar: um no início de cada item de lista ou bloco de informação (📦 pedido, ⭐ pontos, ⏳ em preparação, ✅ pronto ou concluído, 📅 data ou vencimento, 💰 valor).\n  - Para acolher: no máximo um na saudação, num agradecimento ou numa notícia boa (ex.: \"Pronto, montei o seu carrinho ✅\").\n  - Sem emoji: no meio das frases, em erro, problema ou reclamação do cliente, em perguntas de confirmação, em respostas de uma linha e na pergunta \"Consegui te ajudar?\".\n- Listas: pedidos, pontos, movimentos do extrato e várias opções saem em lista, um item por bloco, com uma linha em branco entre eles. Exemplo de pedido:\n  📦 CLWNFC66ME, Vulto\n  Meia Cano Alto, bege, tamanho U\n  ⏳ Pago, em preparação para retirar na Vulto Pinheiros\n  💰 R$ 149,90\n  Exemplo de pontos:\n  ⭐ Casa Lorenzi: 699 pontos (R$ 34,95), categoria Bronze\n  📅 Vencem em 28/10/2027\n- Para mostrar peças que vieram de buscar_pecas, escreva cada peça num bloco próprio: uma frase curta com nome, marca, cores, tamanhos e preço, terminando com o marcador [[peca:ID]] (ID = id_produto). Exemplo:\n  Bolsa de Couro, Casa Lorenzi, caramelo, tamanho U, a partir de R$ 349,90 [[peca:23]]\n- Cada bloco com marcador vira um cartão com foto e botões; por isso nunca escreva URL de foto nem link do site (o do carrinho sai pelo [[carrinho]]).\n- Use o marcador só para peças que buscar_pecas trouxe nesta resposta, no máximo 3 por marca; para mostrar de novo o cartão de uma peça de antes, chame buscar_pecas de novo, ou cite pelo nome, sem marcador.\n- Quando o cliente mandar \"Tamanhos e estoque da peça ID\" (clique no botão), é a peça desse id_produto: se tiver mais de uma cor ou tamanho, pergunte qual; com cor e tamanho, chame ver_estoque.",
+          "returnIntermediateSteps": true
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        3760,
+        0
+      ],
+      "id": "f706b8d7-058e-4259-b669-c75303d17168",
+      "name": "AI Agent",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-sonnet-5-5",
+          "mode": "list",
+          "cachedResultName": "Claude Sonnet 5.5"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.6,
+      "position": [
+        3696,
+        272
+      ],
+      "id": "93a51ffa-314e-4d51-afdc-942d7e660aaf",
+      "name": "Anthropic Chat Model",
+      "credentials": {
+        "anthropicApi": {
+          "id": "7ny7WqhYG9v0DkuT",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// formato único do resto do fluxo: { canal, id_externo, tipo, texto, id_clique, comando, avaliacao } e, quando vem\n// foto ou documento, o arquivo (arquivo_id, arquivo_mime, arquivo_tamanho, legenda, grupo_midia)\n// mensagem chega em message; clique de botão em callback_query (o texto do botão vem em data)\nconst clique = $json.callback_query;\nconst msg = clique ? clique.message : $json.message;\nlet texto = String(clique ? (clique.data ?? '') : (msg?.text ?? ''));\n// 👍/👎 (botão da avaliação ou escrito sozinho): vai para o resumo da conversa, sem IA\nconst AVALIACOES = { '👍': 'positiva', '👎': 'negativa' };\nconst avaliacao = AVALIACOES[texto.trim()] ?? null;\n// botões do resumo do chamado: abrem o chamado ou devolvem o resumo para a IA, sem IA\nconst BOTOES_DO_CHAMADO = { '✅ Enviar para a equipe': 'enviar_chamado', '✏️ Corrigir o resumo': 'corrigir_chamado' };\n// botões do lembrete de pontos: guardam o aceite ou a recusa, sem IA\nconst BOTOES_DO_LEMBRETE = { '🔔 Sim, me avise': 'lembrete_sim', 'Não quero o lembrete': 'lembrete_nao' };\n// o botão Iniciar do Telegram manda /start: vira a mensagem de boas-vindas, sem IA\nlet comando = texto.startsWith('/start') ? 'inicio' : null;\nif (comando) texto = 'oi';\nif (avaliacao) comando = 'avaliacao';\nif (clique && BOTOES_DO_CHAMADO[texto]) comando = BOTOES_DO_CHAMADO[texto];\nif (clique && BOTOES_DO_LEMBRETE[texto]) comando = BOTOES_DO_LEMBRETE[texto];\n\n// foto ou documento do cliente (nunca do clique, que traz a mensagem do próprio bot): com chamado aberto, o\n// Atalhos - Auxiliar manda o arquivo para ele. Foto chega em vários tamanhos; a última é a maior, sempre JPG\nconst foto = !clique && Array.isArray(msg?.photo) && msg.photo.length ? msg.photo[msg.photo.length - 1] : null;\nconst documento = !clique ? msg?.document ?? null : null;\nconst arquivo = foto\n  ? { id: foto.file_id, mime: 'image/jpeg', tamanho: foto.file_size ?? 0 }\n  : documento ? { id: documento.file_id, mime: documento.mime_type ?? '', tamanho: documento.file_size ?? 0 } : null;\n\nreturn {\n  json: {\n    canal: 'telegram',\n    id_externo: String(msg?.chat?.id ?? ''),\n    tipo: texto.trim() ? 'texto' : 'outro', // áudio, foto e figurinha chegam sem text\n    texto: texto.slice(0, 1000),\n    id_clique: clique?.id ?? null, // para responder o clique (senão o botão fica girando)\n    comando,\n    avaliacao,\n    arquivo_id: arquivo?.id ?? '',\n    arquivo_mime: arquivo?.mime ?? '',\n    arquivo_tamanho: arquivo?.tamanho ?? 0,\n    legenda: String((!clique && msg?.caption) || '').slice(0, 1000),\n    grupo_midia: (!clique && msg?.media_group_id) || '', // álbum: várias fotos, um aviso só\n  },\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "id": "93df9658-b12d-46f0-91d6-8cdb1ef3ca10",
+      "name": "Normalizador"
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message",
+          "callback_query"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        0,
+        0
+      ],
+      "id": "964441a7-98e9-461b-a1b5-4e17c01bd761",
+      "name": "Telegram Trigger",
+      "webhookId": "38b1ac4c-a594-427b-9d63-3bdc0ae4bc4c",
+      "credentials": {
+        "telegramApi": {
+          "id": "vF6T9gEvIO7bSYE5",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r2",
+              "name": "resposta",
+              "type": "string",
+              "value": "Estou com uma instabilidade agora e não consegui te atender. Pode tentar de novo em alguns instantes?"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "54f9168a-f553-4b60-953d-3f4259cff417",
+      "name": "Texto: instabilidade",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        800,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "limite",
+              "leftValue": "={{ $('Registra a mensagem').item.json.dados.limite_atingido }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              }
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "8379050f-8754-4d77-bb22-fd797a48559f",
+      "name": "Limite atingido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1040,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "avisar",
+              "leftValue": "={{ $('Registra a mensagem').item.json.dados.avisar_limite }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "359c5cf7-ea8c-439e-b9cc-ec98e7d008e0",
+      "name": "Avisa o limite?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1280,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r3",
+              "name": "resposta",
+              "type": "string",
+              "value": "Chegamos ao limite de mensagens de hoje; amanhã volto a responder."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ff94531e-b02c-4b45-afed-78293eaa9f81",
+      "name": "Texto: limite do dia",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1520,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "nova",
+              "leftValue": "={{ $('Registra a mensagem').item.json.dados.conversa_nova }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              }
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "15feee2c-e4dd-4ad2-a322-06c12e0d8f71",
+      "name": "Conversa nova?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1280,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "delete",
+        "deleteMode": "all"
+      },
+      "id": "7a318479-449c-4656-b356-ddab571bdad0",
+      "name": "Apaga a memória",
+      "type": "@n8n/n8n-nodes-langchain.memoryManager",
+      "typeVersion": 1.1,
+      "position": [
+        1520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "combinator": "or",
+                "conditions": [
+                  {
+                    "id": "cpf",
+                    "leftValue": "={{ $('Registra a mensagem').first().json.dados.etapa }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "esperando_cpf"
+                  },
+                  {
+                    "id": "codigo",
+                    "leftValue": "={{ $('Registra a mensagem').first().json.dados.etapa }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "esperando_codigo"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                }
+              },
+              "renameOutput": true,
+              "outputKey": "verificação"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "enviar chamado",
+                    "leftValue": "={{ $('Normalizador').first().json.comando }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "enviar_chamado"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                }
+              },
+              "renameOutput": true,
+              "outputKey": "enviar chamado"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "corrigir chamado",
+                    "leftValue": "={{ $('Normalizador').first().json.comando }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "corrigir_chamado"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                }
+              },
+              "renameOutput": true,
+              "outputKey": "corrigir chamado"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "IA"
+        }
+      },
+      "id": "2d1b7660-2a26-4b8b-92c9-75a60ed59903",
+      "name": "Pela etapa",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        3200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "Responder - Auxiliar",
+          "mode": "id",
+          "value": "EhUCQWivKSBefJ9U"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "canal",
+              "id": "canal",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_externo",
+              "id": "id_externo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "resposta",
+              "id": "resposta",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_clique",
+              "id": "id_clique",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "pecas",
+              "id": "pecas",
+              "required": false,
+              "type": "array"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "lojas",
+              "id": "lojas",
+              "required": false,
+              "type": "array"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "menu",
+              "id": "menu",
+              "required": false,
+              "type": "boolean"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "confirmar_chamado",
+              "id": "confirmar_chamado",
+              "required": false,
+              "type": "boolean"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "carrinho",
+              "id": "carrinho",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "canal": "={{ $('Normalizador').first().json.canal }}",
+            "id_clique": "={{ $('Normalizador').first().json.id_clique ?? '' }}",
+            "id_externo": "={{ $('Normalizador').first().json.id_externo }}",
+            "resposta": "={{ $json.resposta }}",
+            "pecas": "={{ $json.pecas ?? [] }}",
+            "menu": "={{ $json.menu === true }}",
+            "lojas": "={{ $json.lojas ?? [] }}",
+            "confirmar_chamado": "={{ $json.confirmar_chamado === true }}",
+            "carrinho": "={{ $json.carrinho ?? '' }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "1c92307e-6d83-4015-a57e-756924ec8800",
+      "name": "Responder",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        6960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "description": "Procura peças da Casa Lorenzi e da Vulto a partir do que o cliente descreve (ex.: camisa azul de botão). Use as palavras do catálogo. Em dados vêm até 5 peças (id_produto, nome, marca, preço, cores, tamanhos, foto, link) e o campo resultado: exato, ou parecidas/novidades quando não achou exatamente o pedido (avise o cliente nesse caso).\n\nComo apresentar:\n- No máximo 3 opções por resposta, sem misturar categorias (pediu camisa, não ofereça calça), a não ser que o cliente aceite ampliar.\n- Para cada opção: nome, marca, cores, tamanhos e preço, terminando com o marcador [[peca:ID]]; nunca escreva a foto nem o link (o sistema monta o cartão com eles).\n- Depois das opções, termine com este convite num bloco próprio: Gostou de alguma? Me diz a cor e o tamanho que eu já monto o carrinho para você. Só na primeira vez que mostrar peças no assunto; se o cliente já escolheu, já pediu o carrinho ou o convite já apareceu na conversa, não repita.\n- Se nada servir, diga que não encontrou e faça uma pergunta para refinar; tente de novo com termos mais amplos no máximo 2 vezes.\n\nA resposta vem como { ok, status, dados, detail }: com ok falso, use o detail (já é um texto para o cliente) e não invente os dados.",
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "Backend - Auxiliar",
+          "mode": "id",
+          "value": "QexwlRDVY1CQUCme"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "operacao",
+              "id": "operacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "canal",
+              "id": "canal",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_externo",
+              "id": "id_externo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "descricao",
+              "id": "descricao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "cor",
+              "id": "cor",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "tamanho",
+              "id": "tamanho",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "marca",
+              "id": "marca",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "categoria",
+              "id": "categoria",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_produto",
+              "id": "id_produto",
+              "required": false,
+              "type": "number"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_variante",
+              "id": "id_variante",
+              "required": false,
+              "type": "number"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_pedido",
+              "id": "id_pedido",
+              "required": false,
+              "type": "number"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "etapa",
+              "id": "etapa",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "avaliacao",
+              "id": "avaliacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "fora_do_tema",
+              "id": "fora_do_tema",
+              "required": false,
+              "type": "boolean"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "cpf",
+              "id": "cpf",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "codigo",
+              "id": "codigo",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "canal": "={{ $('Normalizador').first().json.canal }}",
+            "categoria": "={{ $fromAI('categoria', 'Categoria do catálogo, se der para saber; senão vazio', 'string', '') }}",
+            "cor": "={{ $fromAI('cor', 'Cor pedida pelo cliente; vazio se ele não falou', 'string', '') }}",
+            "descricao": "={{ $fromAI('descricao', 'O que o cliente procura, em poucas palavras do catálogo (ex.: camisa de botão)', 'string') }}",
+            "id_externo": "={{ $('Normalizador').first().json.id_externo }}",
+            "marca": "={{ $fromAI('marca', 'lorenzi ou vulto, só se o cliente falou a marca; senão vazio', 'string', '') }}",
+            "operacao": "buscar_pecas",
+            "tamanho": "={{ $fromAI('tamanho', 'Tamanho pedido (P, M, G, GG, U, 38...); vazio se ele não falou', 'string', '') }}"
+          }
+        }
+      },
+      "id": "18ef46ac-a240-4d9c-b7e9-cb87b421d639",
+      "name": "buscar_pecas",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        4016,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "description": "Diz se uma peça já identificada por buscar_pecas tem no site e em quais lojas, numa cor e num tamanho. Não invente o id_produto; se faltar a cor ou o tamanho, pergunte ao cliente. Em dados vêm o id_variante (para link_carrinho), site.tem, site.quantidade (só quando está acabando: diga que está acabando) e as lojas. Se a peça não existir nessa cor ou tamanho, o detail traz as opções que existem.\n\nA resposta vem como { ok, status, dados, detail }: com ok falso, use o detail (já é um texto para o cliente) e não invente os dados.",
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "Backend - Auxiliar",
+          "mode": "id",
+          "value": "QexwlRDVY1CQUCme"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "operacao",
+              "id": "operacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "canal",
+              "id": "canal",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_externo",
+              "id": "id_externo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "descricao",
+              "id": "descricao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "cor",
+              "id": "cor",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "tamanho",
+              "id": "tamanho",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "marca",
+              "id": "marca",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "categoria",
+              "id": "categoria",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_produto",
+              "id": "id_produto",
+              "required": false,
+              "type": "number"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_variante",
+              "id": "id_variante",
+              "required": false,
+              "type": "number"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_pedido",
+              "id": "id_pedido",
+              "required": false,
+              "type": "number"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "etapa",
+              "id": "etapa",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "avaliacao",
+              "id": "avaliacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "fora_do_tema",
+              "id": "fora_do_tema",
+              "required": false,
+              "type": "boolean"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "cpf",
+              "id": "cpf",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "codigo",
+              "id": "codigo",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "canal": "={{ $('Normalizador').first().json.canal }}",
+            "cor": "={{ $fromAI('cor', 'Cor exata da variante, como aparece nas cores da peça', 'string') }}",
+            "id_externo": "={{ $('Normalizador').first().json.id_externo }}",
+            "id_produto": "={{ $fromAI('id_produto', 'id_produto da peça, como veio de buscar_pecas', 'number') }}",
+            "operacao": "ver_estoque",
+            "tamanho": "={{ $fromAI('tamanho', 'Tamanho exato pedido, como M, G ou U', 'string') }}"
+          }
+        }
+      },
+      "id": "2ce9efca-7b3c-4756-a58c-7f6e198e75ad",
+      "name": "ver_estoque",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        4176,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "description": "Gera o link que abre o site com as peças escolhidas já no carrinho. Use depois de ver_estoque, com o id_variante de cada peça (cor e tamanho) que o cliente escolheu: várias peças vão juntas num link só, até 10. Nunca escreva o link: na resposta, use o marcador [[carrinho]], que vira o botão que abre o carrinho. Em dados vêm o link, items (as peças que entraram) e fora_do_link (as que ficaram de fora, com o motivo: diga ao cliente). Se nenhuma tiver estoque no site, o detail diz em quais lojas tem: ofereça essas lojas.\n\nA resposta vem como { ok, status, dados, detail }: com ok falso, use o detail (já é um texto para o cliente) e não invente os dados.",
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "Backend - Auxiliar",
+          "mode": "id",
+          "value": "QexwlRDVY1CQUCme"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "operacao",
+              "id": "operacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "canal",
+              "id": "canal",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_externo",
+              "id": "id_externo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "descricao",
+              "id": "descricao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "cor",
+              "id": "cor",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "tamanho",
+              "id": "tamanho",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "marca",
+              "id": "marca",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "categoria",
+              "id": "categoria",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_produto",
+              "id": "id_produto",
+              "required": false,
+              "type": "number"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_variante",
+              "id": "id_variante",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_pedido",
+              "id": "id_pedido",
+              "required": false,
+              "type": "number"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "etapa",
+              "id": "etapa",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "avaliacao",
+              "id": "avaliacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "fora_do_tema",
+              "id": "fora_do_tema",
+              "required": false,
+              "type": "boolean"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "cpf",
+              "id": "cpf",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "codigo",
+              "id": "codigo",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "canal": "={{ $('Normalizador').first().json.canal }}",
+            "id_externo": "={{ $('Normalizador').first().json.id_externo }}",
+            "id_variante": "={{ $fromAI('id_variante', 'id_variante de cada peça escolhida, como vieram de ver_estoque, separados por vírgula (ex.: 101, 205)', 'string') }}",
+            "operacao": "link_carrinho"
+          }
+        }
+      },
+      "id": "05ca34ae-377a-46dd-b71f-8ed2cc02501a",
+      "name": "link_carrinho",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        4336,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "description": "Endereço e horário das lojas da Casa Lorenzi e da Vulto, agrupadas por marca. Para hoje, use hoje.texto (já vem pronto); para outro dia, proximos_dias (hoje e os 6 dias seguintes, com feriados e datas especiais). Quando houver aviso, repita que o horário pode mudar. Mais de 7 dias à frente: diga que só tem a próxima semana e sugira confirmar com a loja.\n\nA resposta vem como { ok, status, dados, detail }: com ok falso, use o detail (já é um texto para o cliente) e não invente os dados.",
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "Backend - Auxiliar",
+          "mode": "id",
+          "value": "QexwlRDVY1CQUCme"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "operacao",
+              "id": "operacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "canal",
+              "id": "canal",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_externo",
+              "id": "id_externo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "descricao",
+              "id": "descricao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "cor",
+              "id": "cor",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "tamanho",
+              "id": "tamanho",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "marca",
+              "id": "marca",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "categoria",
+              "id": "categoria",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_produto",
+              "id": "id_produto",
+              "required": false,
+              "type": "number"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_variante",
+              "id": "id_variante",
+              "required": false,
+              "type": "number"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_pedido",
+              "id": "id_pedido",
+              "required": false,
+              "type": "number"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "etapa",
+              "id": "etapa",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "avaliacao",
+              "id": "avaliacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "fora_do_tema",
+              "id": "fora_do_tema",
+              "required": false,
+              "type": "boolean"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "cpf",
+              "id": "cpf",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "codigo",
+              "id": "codigo",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "canal": "={{ $('Normalizador').first().json.canal }}",
+            "id_externo": "={{ $('Normalizador').first().json.id_externo }}",
+            "operacao": "lojas"
+          }
+        }
+      },
+      "id": "8389942e-a86d-40d0-acf5-55a2a9c7ac99",
+      "name": "lojas",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        4496,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "Backend - Auxiliar",
+          "mode": "id",
+          "value": "QexwlRDVY1CQUCme"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "operacao",
+              "id": "operacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "canal",
+              "id": "canal",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_externo",
+              "id": "id_externo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "descricao",
+              "id": "descricao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "cor",
+              "id": "cor",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "tamanho",
+              "id": "tamanho",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "marca",
+              "id": "marca",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "categoria",
+              "id": "categoria",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_produto",
+              "id": "id_produto",
+              "required": false,
+              "type": "number"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_variante",
+              "id": "id_variante",
+              "required": false,
+              "type": "number"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_pedido",
+              "id": "id_pedido",
+              "required": false,
+              "type": "number"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "etapa",
+              "id": "etapa",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "avaliacao",
+              "id": "avaliacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "fora_do_tema",
+              "id": "fora_do_tema",
+              "required": false,
+              "type": "boolean"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "cpf",
+              "id": "cpf",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "codigo",
+              "id": "codigo",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "canal": "={{ $('Normalizador').first().json.canal }}",
+            "id_externo": "={{ $('Normalizador').first().json.id_externo }}",
+            "operacao": "registrar_mensagem"
+          }
+        },
+        "options": {}
+      },
+      "id": "a6b448f6-36a8-405e-be4b-a349e81c7c08",
+      "name": "Registra a mensagem",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        560,
+        0
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ok",
+              "leftValue": "={{ $json.ok }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d844df4f-5863-4fef-ae02-76cc893ed2fb",
+      "name": "Registrou?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 1 · Entrada\nRecebe a mensagem ou o clique do Telegram. O **Normalizador** deixa tudo no formato único `{ canal, id_externo, tipo, texto, id_clique, comando, avaliacao }`, mais os dados do anexo (`arquivo_*`, `legenda`, `grupo_midia`); daqui para frente o fluxo só lê isso.\n\nClique de botão vira texto (como se o cliente escrevesse) ou comando: início, avaliação, Enviar/Corrigir do chamado, lembrete.",
+        "height": 960,
+        "width": 500,
+        "color": "#D68492"
+      },
+      "id": "cec9526a-64f6-4c6b-aa90-25185007bbf1",
+      "name": "Nota: Entrada",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -64,
+        -352
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 2 · Situação da conversa\n**Registra a mensagem** pergunta ao backend uma vez só, para toda mensagem (até áudio e foto); os nós seguintes só leem a resposta: backend respondeu? → passou de 100 hoje? (avisa uma vez, depois só guarda) → conversa nova (30 min parada)? apaga a memória.\n\nBackend fora do ar → **Texto: instabilidade**.",
+        "height": 1120,
+        "width": 1328,
+        "color": "#F3E1E1"
+      },
+      "id": "739b22f2-c4c8-40e0-981b-52859f454f2d",
+      "name": "Nota: Situação da conversa",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        496,
+        -352
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 6 · IA e ferramentas\n**Vocabulário** traz as categorias e cores do catálogo para o prompt. A IA usa as ferramentas (cada uma chama o Backend - Auxiliar com a operação fixa) e escreve marcadores ([[peca:ID]], [[loja:ID]], [[carrinho]], [[escolher_marca]], [[lembrete]], [[menu]]) que o Responder troca pelos dados do backend e pelos botões.\n\n**Resposta e peças** junta o texto com o que as ferramentas trouxeram. Ferramenta com login respondeu 401? **Precisa do CPF?** põe a conversa esperando o CPF e troca a resposta. [[fora_do_tema]] é anotado no resumo anônimo. Erro da IA (modelo fora do ar) → mensagem de instabilidade.",
+        "height": 960,
+        "width": 3140,
+        "color": "#E5B0B9"
+      },
+      "id": "4b991aed-42a5-42ab-bedc-21c55420a555",
+      "name": "Nota: IA e ferramentas",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        3424,
+        -352
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 7 · Saída\nToda resposta, da IA ou fixa, passa pela **Resposta final** e sai pelo **Responder** (Responder - Auxiliar).\n\n**Guarda o texto** manda a mensagem do cliente e a resposta ao backend (90 dias; CPF e código saem mascarados lá). No limite do dia sem aviso, **Guarda sem resposta** grava só a mensagem.",
+        "height": 960,
+        "width": 520,
+        "color": "#D68492"
+      },
+      "id": "f385f961-39ef-451b-97a0-dbdeef8382fa",
+      "name": "Nota: Saída",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        6656,
+        -352
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// junta o texto da IA com o que as ferramentas trouxeram nesta mensagem, para o Responder montar os\n// blocos de [[peca:ID]] e [[loja:ID]] com os dados do backend (foto, preço, endereço e links não vêm da IA).\n// meus_pontos, extrato_pontos, meus_pedidos, lembrete_pontos ou rascunhar_chamado com 401 (conta não confirmada):\n// pedir_cpf troca a resposta pelo pedido do CPF (texto_cpf, que o Texto: pedir CPF manda). Rascunho guardado: a resposta\n// vira o resumo do backend, com os botões Enviar e Corrigir. [[fora_do_tema]] sai do texto e vira fora_do_tema, anotado\n// no resumo anônimo da conversa. O link do carrinho vem do link_carrinho (o último que deu certo), nunca do texto da IA:\n// o Responder põe no botão do [[carrinho]]\n// Número na resposta que nenhuma ferramenta trouxe (nem o cliente escreveu), numa resposta com pontos, extrato ou\n// pedidos: a resposta vira o dados.texto do backend, que é a resposta pronta para quando a da IA não bate\nconst pecas = {};\nconst lojas = {};\nlet pedirCpf = false;\nlet rascunho = null;\nlet carrinho = null;\nconst COM_LOGIN = ['meus_pontos', 'extrato_pontos', 'meus_pedidos', 'lembrete_pontos', 'rascunhar_chamado'];\nconst COM_TEXTO_PRONTO = ['meus_pontos', 'extrato_pontos', 'meus_pedidos'];\nconst textosProntos = new Map(); // ferramenta -> dados (a última resposta que deu certo vale)\n\n// números soltos, sem os que fazem parte de uma palavra ou código (CLWNFC66ME); só os dígitos, para \"R$ 1.234,50\"\n// e \"1234,50\" valerem o mesmo. Um dígito só (\"2 peças\") não conta\nconst numeros = (texto) => (String(texto).match(/(?<![\\p{L}\\d])\\d+(?:[.,]\\d+)*(?![\\p{L}\\d])/gu) ?? [])\n  .map((n) => n.replace(/\\D/g, '')).filter((n) => n.length >= 2);\n// todos os valores de uma resposta; número do JSON (149.9) também com duas casas, como o texto mostra (149,90)\nconst valores = (x) => {\n  if (x === null || x === undefined) return [];\n  if (typeof x === 'object') return Object.values(x).flatMap(valores);\n  if (typeof x === 'number') return [String(x), x.toFixed(2)];\n  return [String(x)];\n};\nconst conhecidos = new Set(numeros($('Normalizador').first().json.texto ?? ''));\n\nfor (const passo of $json.intermediateSteps ?? []) {\n  const ferramenta = passo.action?.tool;\n  let observacao = passo.observation;\n  try {\n    if (typeof observacao === 'string') observacao = JSON.parse(observacao);\n  } catch {\n    continue;\n  }\n  for (const valor of valores(observacao)) for (const n of numeros(valor)) conhecidos.add(n);\n  if (!['buscar_pecas', 'lojas', 'link_carrinho', ...COM_LOGIN].includes(ferramenta)) continue;\n  for (const resposta of [].concat(observacao)) {\n    if (COM_LOGIN.includes(ferramenta)) {\n      if (resposta?.status === 401) pedirCpf = true;\n      if (COM_TEXTO_PRONTO.includes(ferramenta) && resposta?.ok && resposta.dados?.texto) textosProntos.set(ferramenta, resposta.dados);\n      // o último rascunho vale (a IA pode ter refeito o resumo na mesma resposta)\n      if (ferramenta === 'rascunhar_chamado' && resposta?.ok) rascunho = resposta.dados?.mensagem ?? null;\n      continue;\n    }\n    if (ferramenta === 'link_carrinho') {\n      if (resposta?.ok && resposta.dados?.link) carrinho = resposta.dados.link;\n      continue;\n    }\n    for (const item of resposta?.dados?.items ?? []) {\n      if (ferramenta === 'buscar_pecas') pecas[item.id_produto] = item;\n      // lojas vem agrupado por marca: cada loja leva a marca junto\n      else for (const loja of item.lojas ?? []) lojas[loja.id_unidade] = { ...loja, marca: item.marca };\n    }\n  }\n}\nconst FORA_DO_TEMA = /\\[\\[fora_do_tema\\]\\]/g;\nconst saida = String($json.output ?? '');\nlet resposta = rascunho ?? saida.replace(FORA_DO_TEMA, '').trim();\n\nconst inventados = numeros(saida).filter((n) => !conhecidos.has(n));\nconst trocouPeloTexto = !rascunho && !pedirCpf && textosProntos.size > 0 && inventados.length > 0;\nif (trocouPeloTexto) {\n  // um pedido ou movimento por linha no texto do backend: vira um bloco por item\n  const blocos = [...textosProntos.values()].map((dados) => String(dados.texto).split('\\n').join('\\n\\n'));\n  if (textosProntos.get('meus_pontos')?.oferecer_lembrete === true) {\n    blocos.push('Quer que eu te avise por e-mail antes de os seus pontos vencerem? [[lembrete]]');\n  }\n  resposta = blocos.join('\\n\\n');\n}\n\n// pedido do CPF. Quem já estava esperando o CPF e voltou a cair na confirmação (ex.: \"mas eu já mandei o CPF\") recebe\n// a resposta da IA ao que escreveu e, depois, como confirmar; senão a mesma mensagem sairia repetida, como se o\n// assistente não tivesse lido. A confirmação vence com a conversa (30 min parada), e o texto diz isso\nconst VALE_ENQUANTO = 'Por segurança, a confirmação vale só enquanto a conversa está ativa: depois de 30 minutos sem '\n  + 'mensagens, preciso confirmar de novo.';\nconst SE_PREFERIR = 'Se preferir deixar para depois, é só escrever cancelar.';\nconst jaEsperavaCpf = $('Registra a mensagem').first().json.dados?.etapa === 'esperando_cpf';\nconst falaDaIa = saida.replace(/\\[\\[[^\\]]*\\]\\]/g, '').trim();\nconst textoCpf = jaEsperavaCpf && falaDaIa\n  ? [falaDaIa, `${VALE_ENQUANTO} Se quiser ver agora, me manda o seu CPF que eu envio outro código para o e-mail do `\n    + 'seu cadastro.', SE_PREFERIR].join('\\n\\n')\n  : ['Antes, preciso confirmar que é você. 🔒', 'Me manda o seu CPF? Vou enviar um código para o e-mail do seu cadastro.',\n    VALE_ENQUANTO, SE_PREFERIR].join('\\n\\n');\n\nreturn {\n  json: {\n    resposta,\n    pecas: Object.values(pecas),\n    lojas: Object.values(lojas),\n    pedir_cpf: pedirCpf && !rascunho,\n    texto_cpf: pedirCpf && !rascunho ? textoCpf : null,\n    confirmar_chamado: Boolean(rascunho),\n    carrinho: rascunho ? null : carrinho,\n    fora_do_tema: FORA_DO_TEMA.test(saida),\n    // para conferir na execução quais números fizeram a resposta virar o texto pronto\n    numeros_sem_fonte: trocouPeloTexto ? inventados : [],\n  },\n};\n"
+      },
+      "id": "06d81291-d6ac-474b-8450-1eaf167e44a8",
+      "name": "Resposta e peças",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5680,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "Backend - Auxiliar",
+          "mode": "id",
+          "value": "QexwlRDVY1CQUCme"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "operacao",
+              "id": "operacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "canal",
+              "id": "canal",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_externo",
+              "id": "id_externo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "descricao",
+              "id": "descricao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "cor",
+              "id": "cor",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "tamanho",
+              "id": "tamanho",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "marca",
+              "id": "marca",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "categoria",
+              "id": "categoria",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_produto",
+              "id": "id_produto",
+              "required": false,
+              "type": "number"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_variante",
+              "id": "id_variante",
+              "required": false,
+              "type": "number"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_pedido",
+              "id": "id_pedido",
+              "required": false,
+              "type": "number"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "etapa",
+              "id": "etapa",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "avaliacao",
+              "id": "avaliacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "fora_do_tema",
+              "id": "fora_do_tema",
+              "required": false,
+              "type": "boolean"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "cpf",
+              "id": "cpf",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "codigo",
+              "id": "codigo",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "operacao": "vocabulario"
+          }
+        },
+        "options": {}
+      },
+      "id": "8aa6a0c9-d083-4c26-a958-a31a7df857f2",
+      "name": "Vocabulário",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3488,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "cpf",
+              "leftValue": "={{ $json.pedir_cpf }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              }
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "5014794f-8aed-4bbc-8adb-d847c0d158cf",
+      "name": "Precisa do CPF?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5920,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "Backend - Auxiliar",
+          "mode": "id",
+          "value": "QexwlRDVY1CQUCme"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "operacao",
+              "id": "operacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "canal",
+              "id": "canal",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_externo",
+              "id": "id_externo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "etapa",
+              "id": "etapa",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "canal": "={{ $('Normalizador').first().json.canal }}",
+            "etapa": "esperando_cpf",
+            "id_externo": "={{ $('Normalizador').first().json.id_externo }}",
+            "operacao": "mudar_etapa"
+          }
+        },
+        "options": {}
+      },
+      "id": "0bd8f141-84d0-4e85-9eab-58cee1a97b95",
+      "name": "Espera o CPF",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        6160,
+        192
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "pc1",
+              "name": "resposta",
+              "type": "string",
+              "value": "={{ $('Resposta e peças').first().json.texto_cpf }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0cdfddcd-89b7-4b46-85f7-e009b880e0b3",
+      "name": "Texto: pedir CPF",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        6400,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "description": "Pontos do cliente na Casa Lorenzi e na Vulto, por marca: saldo, valor em reais, categoria, vencimento e quanto falta para subir. Use quando o cliente pedir pontos, saldo, cashback ou categoria. Chame mesmo sem a conta confirmada: se faltar a confirmação, o sistema pede o CPF ao cliente sozinho. Em dados.texto vem a resposta pronta: use os números exatamente como vieram, por marca, nunca somados.\n\nA resposta vem como { ok, status, dados, detail }: com ok falso, use o detail (já é um texto para o cliente) e não invente os dados.",
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "Backend - Auxiliar",
+          "mode": "id",
+          "value": "QexwlRDVY1CQUCme"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "operacao",
+              "id": "operacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "canal",
+              "id": "canal",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_externo",
+              "id": "id_externo",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "canal": "={{ $('Normalizador').first().json.canal }}",
+            "id_externo": "={{ $('Normalizador').first().json.id_externo }}",
+            "operacao": "meus_pontos"
+          }
+        }
+      },
+      "id": "ab3d342e-9435-4aa9-8062-3cb68b43399b",
+      "name": "meus_pontos",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        4816,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "description": "Últimos 5 pedidos do cliente (ou um só): status, itens, valor, onde e até quando retirar ou pagar, até quando trocar ou devolver (troca_ate, só no pedido entregue), devolução (nenhuma, parcial ou total), motivo do cancelamento e os pagamentos e estornos. Use quando o cliente perguntar de pedido, compra, entrega, retirada, prazo de troca, cancelamento ou estorno. Chame mesmo sem a conta confirmada: se faltar a confirmação, o sistema pede o CPF ao cliente sozinho. Em dados.texto vem a resposta pronta: use datas, valores e status exatamente como vieram.\n\nA resposta vem como { ok, status, dados, detail }: com ok falso, use o detail (já é um texto para o cliente) e não invente os dados.",
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "Backend - Auxiliar",
+          "mode": "id",
+          "value": "QexwlRDVY1CQUCme"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "operacao",
+              "id": "operacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "canal",
+              "id": "canal",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_externo",
+              "id": "id_externo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_pedido",
+              "id": "id_pedido",
+              "required": false,
+              "type": "number"
+            }
+          ],
+          "value": {
+            "canal": "={{ $('Normalizador').first().json.canal }}",
+            "id_externo": "={{ $('Normalizador').first().json.id_externo }}",
+            "id_pedido": "={{ $fromAI('id_pedido', 'id_pedido de um pedido que veio antes de meus_pedidos, só quando o cliente quer aquele pedido; senão 0', 'number', 0) }}",
+            "operacao": "meus_pedidos"
+          }
+        }
+      },
+      "id": "68db26dc-ca45-455f-bbbd-76e7b129e202",
+      "name": "meus_pedidos",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        4976,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 4 · Confirmação por CPF e código (sem IA)\nEsperando o CPF ou o código, a **Confirmação por CPF** chama o sub-workflow **Confirmação - Auxiliar**. O CPF e o código nunca passam pela IA nem pela memória.\n\nVolta { resposta, menu } e vai para a **Resposta final**, ou { seguir: true } quando o cliente desistiu (frase sem número) e a mensagem vai para a IA.\n\nO pedido do CPF (quando uma ferramenta volta 401) continua no Principal, na parte 6: **Precisa do CPF?** → **Espera o CPF** → **Texto: pedir CPF**.",
+        "height": 416,
+        "width": 1028,
+        "color": "#F3E1E1"
+      },
+      "id": "6364c25c-acc6-4fdb-8a09-293e3d1387a4",
+      "name": "Nota: Confirmação",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        3424,
+        656
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 3 · Atalhos sem IA\nO **Atalhos sem IA** chama o sub-workflow **Atalhos - Auxiliar**: /start (boas-vindas com o menu), mensagem sem texto (com chamado aberto, foto ou PDF vai como anexo; sem chamado pede texto), 👍/👎 (anota e agradece) e os botões do lembrete.\n\nVolta { resposta, menu } e vai para a **Resposta final**; { silencio: true } não responde (**Fica quieto?**); { seguir: true } segue: **Equipe conversando?** (resposta da equipe há menos de 30 min: só vai para o chamado, sem resposta) → **Chamado aberto?** (copia a mensagem para o chamado) → **Pela etapa**: verificação (4), Enviar/Corrigir do chamado (5) ou IA (6).",
+        "height": 1120,
+        "width": 1428,
+        "color": "#F3E1E1"
+      },
+      "id": "aa4c2cdc-f81e-490b-80a7-f5e82ea35c1b",
+      "name": "Nota: Atalhos sem IA",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1936,
+        -352
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "em_chamado",
+              "leftValue": "={{ $('Registra a mensagem').first().json.dados.etapa }}",
+              "operator": {
+                "operation": "equals",
+                "type": "string"
+              },
+              "rightValue": "em_chamado"
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "8f4766fe-f253-49e7-acc3-10eb38ee78ba",
+      "name": "Chamado aberto?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "Backend - Auxiliar",
+          "mode": "id",
+          "value": "QexwlRDVY1CQUCme"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "operacao",
+              "id": "operacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "canal",
+              "id": "canal",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_externo",
+              "id": "id_externo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "texto",
+              "id": "texto",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "canal": "={{ $('Normalizador').first().json.canal }}",
+            "id_externo": "={{ $('Normalizador').first().json.id_externo }}",
+            "operacao": "mensagem_no_chamado",
+            "texto": "={{ $('Normalizador').first().json.texto }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "4138e666-1739-4b56-a334-720447884751",
+      "name": "Manda ao chamado",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2960,
+        256
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "options": {
+          "groupMessages": true
+        }
+      },
+      "id": "5f271b04-27d7-463e-bf09-bfef650b4f67",
+      "name": "Lê a memória",
+      "type": "@n8n/n8n-nodes-langchain.memoryManager",
+      "typeVersion": 1.1,
+      "position": [
+        3488,
+        1312
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// a memória curta da IA (as últimas 20 trocas) no formato do chamado: { de, texto }, da mais antiga para a mais\n// nova, para o atendente saber o que o cliente já falou. Os marcadores ([[peca:ID]] e outros) saem do texto\nconst QUEM = { human: 'cliente', user: 'cliente', ai: 'assistente', assistant: 'assistente' };\nconst falas = [];\nfor (const item of $input.all()) {\n  for (const m of [].concat(item.json.messages ?? (Object.keys(item.json).length ? item.json : []))) {\n    let de = null;\n    let texto = null;\n    if (m.human !== undefined) [de, texto] = ['cliente', m.human];\n    else if (m.ai !== undefined) [de, texto] = ['assistente', m.ai];\n    else {\n      de = QUEM[m.type ?? m.role] ?? null;\n      texto = m.data?.content ?? m.kwargs?.content ?? m.content;\n    }\n    texto = typeof texto === 'string' ? texto.replace(/\\[\\[[^\\]]*\\]\\]/g, '').trim() : '';\n    if (de && texto) falas.push({ de, texto: texto.slice(0, 1000) });\n  }\n}\nreturn [{ json: { conversa: falas.slice(-40) } }];\n"
+      },
+      "id": "334b2d87-7822-40b7-89e0-1fbdc4165bd4",
+      "name": "Monta a conversa",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3808,
+        1312
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "Backend - Auxiliar",
+          "mode": "id",
+          "value": "QexwlRDVY1CQUCme"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "operacao",
+              "id": "operacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "canal",
+              "id": "canal",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_externo",
+              "id": "id_externo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "conversa",
+              "id": "conversa",
+              "required": false,
+              "type": "array"
+            }
+          ],
+          "value": {
+            "canal": "={{ $('Normalizador').first().json.canal }}",
+            "conversa": "={{ $json.conversa }}",
+            "id_externo": "={{ $('Normalizador').first().json.id_externo }}",
+            "operacao": "abrir_chamado"
+          }
+        },
+        "options": {}
+      },
+      "id": "ad886e34-2635-4557-a463-a6febf9575c0",
+      "name": "Abre o chamado",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        4048,
+        1312
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// resposta do abrir_chamado, já como texto para o cliente. A mensagem do backend diz o número do chamado e,\n// fora do horário, quando a equipe volta; erro de regra (sem resumo, chamado já aberto, sem conta) vem no detail\nconst r = $json;\nif (r.ok) return { json: { resposta: r.dados.mensagem } };\nif (!r.status || r.status >= 500) {\n  return { json: { resposta: 'Estou com uma instabilidade agora e não consegui enviar para a equipe. Pode tentar de novo em alguns instantes?' } };\n}\n// 401: a confirmação venceu junto com o resumo (30 min parado)\nif (r.status === 401) return { json: { resposta: 'Não encontrei o resumo para enviar. Pode me contar de novo o que aconteceu?' } };\nreturn { json: { resposta: r.detail } };\n"
+      },
+      "id": "e24108e0-9e7f-4df6-a0fa-0e446cd19183",
+      "name": "Texto do chamado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4288,
+        1312
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "Backend - Auxiliar",
+          "mode": "id",
+          "value": "QexwlRDVY1CQUCme"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "operacao",
+              "id": "operacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "canal",
+              "id": "canal",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_externo",
+              "id": "id_externo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "etapa",
+              "id": "etapa",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "canal": "={{ $('Normalizador').first().json.canal }}",
+            "etapa": "livre",
+            "id_externo": "={{ $('Normalizador').first().json.id_externo }}",
+            "operacao": "mudar_etapa"
+          }
+        },
+        "options": {}
+      },
+      "id": "02133017-9051-454c-8dc7-ee965e07bef1",
+      "name": "Desfaz o rascunho",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3488,
+        1680
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "corrigir",
+              "name": "resposta",
+              "type": "string",
+              "value": "Claro! Me conta o que você quer mudar no resumo."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8e7b29e7-6840-42aa-a289-a00023041164",
+      "name": "Texto: corrigir resumo",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3728,
+        1680
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 5 · Chamado: Enviar e Corrigir (sem IA)\nA IA chama **rascunhar_chamado** (6); o backend guarda o resumo, a conversa fica confirmando_chamado e o resumo sai com ✅ Enviar / ✏️ Corrigir.\n\n**Enviar**: lê a memória curta, manda a conversa no abrir_chamado e responde o texto do backend (fora do horário, diz quando a equipe volta).\n**Corrigir**: desfaz o rascunho (etapa livre) e pede a correção; a IA refaz o rascunho com o que guardou na memória.",
+        "height": 752,
+        "width": 1028,
+        "color": "#F3E1E1"
+      },
+      "id": "59f54193-a8bd-45a0-a61f-2cceec22214a",
+      "name": "Nota: Chamado pelo assistente",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        3424,
+        1120
+      ]
+    },
+    {
+      "parameters": {
+        "description": "Prepara o chamado para a equipe de atendimento: guarda categoria, assunto e resumo para o cliente conferir. Use quando ele quiser falar com uma pessoa ou trouxer um problema que as outras ferramentas não resolvem (troca, devolução, estorno, entrega atrasada ou errada, pagamento, reclamação). Chame mesmo com a conta não confirmada: o sistema confirma quem é o cliente. Chamar de novo troca o resumo.\n\nA resposta vem como { ok, status, dados, detail }: com ok falso, use o detail (já é um texto para o cliente) e não invente os dados.",
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "Backend - Auxiliar",
+          "mode": "id",
+          "value": "QexwlRDVY1CQUCme"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "operacao",
+              "id": "operacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "canal",
+              "id": "canal",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_externo",
+              "id": "id_externo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "categoria",
+              "id": "categoria",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "assunto",
+              "id": "assunto",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "resumo",
+              "id": "resumo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_pedido",
+              "id": "id_pedido",
+              "required": false,
+              "type": "number"
+            }
+          ],
+          "value": {
+            "assunto": "={{ $fromAI('assunto', 'Título curto do caso, de 3 a 200 caracteres (ex.: Pedido atrasado)', 'string') }}",
+            "canal": "={{ $('Normalizador').first().json.canal }}",
+            "categoria": "={{ $fromAI('categoria', 'Uma destas: entrega, troca_devolucao, estorno, duvida, pagamento ou outros', 'string') }}",
+            "id_externo": "={{ $('Normalizador').first().json.id_externo }}",
+            "id_pedido": "={{ $fromAI('id_pedido', 'id_pedido que veio de meus_pedidos, quando o caso é de um pedido do cliente; senão 0', 'number', 0) }}",
+            "operacao": "rascunhar_chamado",
+            "resumo": "={{ $fromAI('resumo', 'Para a equipe, em terceira pessoa: o que aconteceu, o código da venda se houver e o que o cliente quer. Sem CPF, e-mail ou telefone', 'string') }}"
+          }
+        }
+      },
+      "id": "3796bc15-1e0d-47ee-932a-9903c2a1405b",
+      "name": "rascunhar_chamado",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        5456,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "description": "Liga ou desliga o e-mail que avisa antes de os pontos vencerem. Use quando o cliente responder escrevendo à pergunta do lembrete, ou pedir para receber ou parar esse aviso. Chame mesmo sem a conta confirmada: se faltar a confirmação, o sistema pede o CPF ao cliente sozinho. Em dados.mensagem vem a resposta pronta.\n\nA resposta vem como { ok, status, dados, detail }: com ok falso, use o detail (já é um texto para o cliente) e não invente os dados.",
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "Backend - Auxiliar",
+          "mode": "id",
+          "value": "QexwlRDVY1CQUCme"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "operacao",
+              "id": "operacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "canal",
+              "id": "canal",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_externo",
+              "id": "id_externo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "aceita",
+              "id": "aceita",
+              "required": false,
+              "type": "boolean"
+            }
+          ],
+          "value": {
+            "aceita": "={{ $fromAI('aceita', 'true se o cliente quer o e-mail antes de os pontos vencerem; false se não quer ou pediu para parar', 'boolean') }}",
+            "canal": "={{ $('Normalizador').first().json.canal }}",
+            "id_externo": "={{ $('Normalizador').first().json.id_externo }}",
+            "operacao": "lembrete_pontos"
+          }
+        }
+      },
+      "id": "2333dd4a-8f02-4db2-bb13-6400d24058ff",
+      "name": "lembrete_pontos",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        5296,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "fora",
+              "leftValue": "={{ $json.fora_do_tema }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              }
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "f6e583a4-8b1f-47d5-9440-794f25471fb1",
+      "name": "Fora do tema?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5920,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "Backend - Auxiliar",
+          "mode": "id",
+          "value": "QexwlRDVY1CQUCme"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "operacao",
+              "id": "operacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "canal",
+              "id": "canal",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_externo",
+              "id": "id_externo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "fora_do_tema",
+              "id": "fora_do_tema",
+              "required": false,
+              "type": "boolean"
+            }
+          ],
+          "value": {
+            "canal": "={{ $('Normalizador').first().json.canal }}",
+            "fora_do_tema": true,
+            "id_externo": "={{ $('Normalizador').first().json.id_externo }}",
+            "operacao": "anotar_resumo"
+          }
+        },
+        "options": {}
+      },
+      "id": "1ceecb46-9b0d-4cb6-8e05-6184d5db6df2",
+      "name": "Anota fora do tema",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        6160,
+        416
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "92687318-66e1-42b5-95bb-3a8091c5f9ec",
+      "name": "Resposta final",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        6720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "Backend - Auxiliar",
+          "mode": "id",
+          "value": "QexwlRDVY1CQUCme"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "operacao",
+              "id": "operacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "canal",
+              "id": "canal",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_externo",
+              "id": "id_externo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "cliente",
+              "id": "cliente",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "assistente",
+              "id": "assistente",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "assistente": "={{ $json.resposta }}",
+            "canal": "={{ $('Normalizador').first().json.canal }}",
+            "cliente": "={{ $('Normalizador').first().json.tipo === 'texto' ? $('Normalizador').first().json.texto : '(mensagem sem texto: áudio, foto ou figurinha)' }}",
+            "id_externo": "={{ $('Normalizador').first().json.id_externo }}",
+            "operacao": "guardar_texto"
+          }
+        },
+        "options": {}
+      },
+      "id": "7a9a6acd-f09c-4716-83e5-ce4d7f2e9093",
+      "name": "Guarda o texto",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        6960,
+        192
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "Backend - Auxiliar",
+          "mode": "id",
+          "value": "QexwlRDVY1CQUCme"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "operacao",
+              "id": "operacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "canal",
+              "id": "canal",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_externo",
+              "id": "id_externo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "cliente",
+              "id": "cliente",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "assistente",
+              "id": "assistente",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "assistente": "",
+            "canal": "={{ $('Normalizador').first().json.canal }}",
+            "cliente": "={{ $('Normalizador').first().json.tipo === 'texto' ? $('Normalizador').first().json.texto : '(mensagem sem texto: áudio, foto ou figurinha)' }}",
+            "id_externo": "={{ $('Normalizador').first().json.id_externo }}",
+            "operacao": "guardar_texto"
+          }
+        },
+        "options": {}
+      },
+      "id": "05ee60a6-6aac-4d8d-95b4-b9593c98274a",
+      "name": "Guarda sem resposta",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1520,
+        576
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Normalizador').first().json.canal + ':' + $('Normalizador').first().json.id_externo }}",
+        "contextWindowLength": 20
+      },
+      "id": "9a23264c-9ca3-4554-9125-32151dc363d9",
+      "name": "Memória",
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.4,
+      "position": [
+        3856,
+        272
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "fdrqx495wL7wCaxw",
+          "name": "Supabase (memória)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Normalizador').first().json.canal + ':' + $('Normalizador').first().json.id_externo }}",
+        "contextWindowLength": 20
+      },
+      "id": "7ba708bc-6aa2-4449-97d3-55a218067aa0",
+      "name": "Memória (limpeza)",
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.4,
+      "position": [
+        1536,
+        224
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "fdrqx495wL7wCaxw",
+          "name": "Supabase (memória)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Normalizador').first().json.canal + ':' + $('Normalizador').first().json.id_externo }}",
+        "contextWindowLength": 20
+      },
+      "id": "9b877a4e-4742-4e64-8c90-186e5ab8250f",
+      "name": "Memória (leitura)",
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.4,
+      "position": [
+        3504,
+        1520
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "fdrqx495wL7wCaxw",
+          "name": "Supabase (memória)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "description": "Últimos 10 movimentos de pontos do cliente (ganhos, usados, estornados e vencidos), do mais novo para o mais antigo, com data, marca, código da venda e quando vencem. Use quando o cliente perguntar para onde foram os pontos, por que o saldo mudou, quais venceram ou pedir o histórico de pontos. Passe a marca só se o cliente falar uma. Chame mesmo sem a conta confirmada: se faltar a confirmação, o sistema pede o CPF ao cliente sozinho. Em dados.texto vem a resposta pronta: use datas e pontos exatamente como vieram, por marca, nunca somados.\n\nA resposta vem como { ok, status, dados, detail }: com ok falso, use o detail (já é um texto para o cliente) e não invente os dados.",
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "Backend - Auxiliar",
+          "mode": "id",
+          "value": "QexwlRDVY1CQUCme"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "operacao",
+              "id": "operacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "canal",
+              "id": "canal",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_externo",
+              "id": "id_externo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "marca",
+              "id": "marca",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "canal": "={{ $('Normalizador').first().json.canal }}",
+            "id_externo": "={{ $('Normalizador').first().json.id_externo }}",
+            "marca": "={{ $fromAI('marca', 'lorenzi ou vulto, só se o cliente falou a marca; senão vazio', 'string', '') }}",
+            "operacao": "extrato_pontos"
+          }
+        }
+      },
+      "id": "b588ff00-4547-413c-8bae-8ea17c50988c",
+      "name": "extrato_pontos",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        5136,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "description": "Regras da Casa Lorenzi e da Vulto em texto pronto: pontos de cada marca (valor do ponto, validade, categorias, resgate mínimo), entrega e retirada, troca e devolução, pagamento e conta. Use quando o cliente perguntar como funciona alguma dessas regras. Responda só com o que veio, na parte que ele perguntou; as regras de pontos são por marca, nunca misture as duas.\n\nA resposta vem como { ok, status, dados, detail }: com ok falso, use o detail (já é um texto para o cliente) e não invente os dados.",
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "Backend - Auxiliar",
+          "mode": "id",
+          "value": "QexwlRDVY1CQUCme"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "operacao",
+              "id": "operacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "canal",
+              "id": "canal",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_externo",
+              "id": "id_externo",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "canal": "={{ $('Normalizador').first().json.canal }}",
+            "id_externo": "={{ $('Normalizador').first().json.id_externo }}",
+            "operacao": "politicas"
+          }
+        }
+      },
+      "id": "0da784af-d0f2-464a-bdc3-c707c2dbf2d9",
+      "name": "politicas",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        4656,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "equipe_conversando",
+              "leftValue": "={{ $('Registra a mensagem').first().json.dados.equipe_conversando }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              }
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "954e327f-2edd-45c8-ac38-9832b3c6c3ff",
+      "name": "Equipe conversando?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "Backend - Auxiliar",
+          "mode": "id",
+          "value": "QexwlRDVY1CQUCme"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "operacao",
+              "id": "operacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "canal",
+              "id": "canal",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_externo",
+              "id": "id_externo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "texto",
+              "id": "texto",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "canal": "={{ $('Normalizador').first().json.canal }}",
+            "id_externo": "={{ $('Normalizador').first().json.id_externo }}",
+            "operacao": "mensagem_no_chamado",
+            "texto": "={{ $('Normalizador').first().json.texto }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "7b82468d-8bee-42c1-957b-8fad31070f2a",
+      "name": "Só para o chamado",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2720,
+        448
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "Backend - Auxiliar",
+          "mode": "id",
+          "value": "QexwlRDVY1CQUCme"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "operacao",
+              "id": "operacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "canal",
+              "id": "canal",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_externo",
+              "id": "id_externo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "cliente",
+              "id": "cliente",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "assistente",
+              "id": "assistente",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "assistente": "",
+            "canal": "={{ $('Normalizador').first().json.canal }}",
+            "cliente": "={{ $('Normalizador').first().json.texto }}",
+            "id_externo": "={{ $('Normalizador').first().json.id_externo }}",
+            "operacao": "guardar_texto"
+          }
+        },
+        "options": {}
+      },
+      "id": "1d15c16b-400c-4a28-b693-8946c0527bc2",
+      "name": "Guarda sem a IA",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2960,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "Atalhos - Auxiliar",
+          "mode": "id",
+          "value": "LKfeJeA0oUHEQsz1"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "canal",
+              "id": "canal",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_externo",
+              "id": "id_externo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "tipo",
+              "id": "tipo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "texto",
+              "id": "texto",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "comando",
+              "id": "comando",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "avaliacao",
+              "id": "avaliacao",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "etapa",
+              "id": "etapa",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_chamado",
+              "id": "id_chamado",
+              "required": false,
+              "type": "number"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "conversa_nova",
+              "id": "conversa_nova",
+              "required": false,
+              "type": "boolean"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "equipe_conversando",
+              "id": "equipe_conversando",
+              "required": false,
+              "type": "boolean"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "arquivo_id",
+              "id": "arquivo_id",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "arquivo_mime",
+              "id": "arquivo_mime",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "arquivo_tamanho",
+              "id": "arquivo_tamanho",
+              "required": false,
+              "type": "number"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "legenda",
+              "id": "legenda",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "grupo_midia",
+              "id": "grupo_midia",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "arquivo_id": "={{ $('Normalizador').first().json.arquivo_id ?? '' }}",
+            "arquivo_mime": "={{ $('Normalizador').first().json.arquivo_mime ?? '' }}",
+            "arquivo_tamanho": "={{ $('Normalizador').first().json.arquivo_tamanho ?? 0 }}",
+            "avaliacao": "={{ $('Normalizador').first().json.avaliacao ?? '' }}",
+            "canal": "={{ $('Normalizador').first().json.canal }}",
+            "comando": "={{ $('Normalizador').first().json.comando ?? '' }}",
+            "conversa_nova": "={{ $('Registra a mensagem').first().json.dados.conversa_nova }}",
+            "equipe_conversando": "={{ $('Registra a mensagem').first().json.dados.equipe_conversando === true }}",
+            "etapa": "={{ $('Registra a mensagem').first().json.dados.etapa }}",
+            "grupo_midia": "={{ $('Normalizador').first().json.grupo_midia ?? '' }}",
+            "id_chamado": "={{ $('Registra a mensagem').first().json.dados.id_chamado }}",
+            "id_externo": "={{ $('Normalizador').first().json.id_externo }}",
+            "legenda": "={{ $('Normalizador').first().json.legenda ?? '' }}",
+            "texto": "={{ $('Normalizador').first().json.texto }}",
+            "tipo": "={{ $('Normalizador').first().json.tipo }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "d850ad16-8e2d-4cba-b11a-9a0214e037e7",
+      "name": "Atalhos sem IA",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "seguir",
+              "leftValue": "={{ $json.seguir }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              }
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "6d55010c-ccc3-4523-9978-bf4a23075367",
+      "name": "Segue no fluxo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "Confirmação - Auxiliar",
+          "mode": "id",
+          "value": "iYLjmQAFKetA1pdn"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "canal",
+              "id": "canal",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "id_externo",
+              "id": "id_externo",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "etapa",
+              "id": "etapa",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "texto",
+              "id": "texto",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "canal": "={{ $('Normalizador').first().json.canal }}",
+            "etapa": "={{ $('Registra a mensagem').first().json.dados.etapa }}",
+            "id_externo": "={{ $('Normalizador').first().json.id_externo }}",
+            "texto": "={{ $('Normalizador').first().json.texto }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "8deec918-e278-4364-83b1-133bfeeec3e5",
+      "name": "Confirmação por CPF",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3488,
+        880
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "seguir",
+              "leftValue": "={{ $json.seguir }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              }
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "b790a14e-2f66-4ba8-a95c-fa3ba99eca29",
+      "name": "Vai para a IA?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3728,
+        880
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "silencio",
+              "leftValue": "={{ $json.silencio === true }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              }
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "f953e44c-07a9-4b87-b722-2ad3193bbd80",
+      "name": "Fica quieto?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2240,
+        256
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Anthropic Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Normalizador",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limite atingido?": {
+      "main": [
+        [
+          {
+            "node": "Avisa o limite?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Conversa nova?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Avisa o limite?": {
+      "main": [
+        [
+          {
+            "node": "Texto: limite do dia",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Guarda sem resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Conversa nova?": {
+      "main": [
+        [
+          {
+            "node": "Apaga a memória",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Atalhos sem IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "buscar_pecas": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ver_estoque": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "link_carrinho": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "lojas": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registra a mensagem": {
+      "main": [
+        [
+          {
+            "node": "Registrou?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Texto: instabilidade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrou?": {
+      "main": [
+        [
+          {
+            "node": "Limite atingido?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Texto: instabilidade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Resposta e peças",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Texto: instabilidade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pela etapa": {
+      "main": [
+        [
+          {
+            "node": "Confirmação por CPF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Lê a memória",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Desfaz o rascunho",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Vocabulário",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vocabulário": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resposta e peças": {
+      "main": [
+        [
+          {
+            "node": "Precisa do CPF?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fora do tema?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Precisa do CPF?": {
+      "main": [
+        [
+          {
+            "node": "Espera o CPF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resposta final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Espera o CPF": {
+      "main": [
+        [
+          {
+            "node": "Texto: pedir CPF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "meus_pontos": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "meus_pedidos": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chamado aberto?": {
+      "main": [
+        [
+          {
+            "node": "Manda ao chamado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pela etapa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manda ao chamado": {
+      "main": [
+        [
+          {
+            "node": "Pela etapa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lê a memória": {
+      "main": [
+        [
+          {
+            "node": "Monta a conversa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Monta a conversa": {
+      "main": [
+        [
+          {
+            "node": "Abre o chamado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Abre o chamado": {
+      "main": [
+        [
+          {
+            "node": "Texto do chamado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Desfaz o rascunho": {
+      "main": [
+        [
+          {
+            "node": "Texto: corrigir resumo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "rascunhar_chamado": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "lembrete_pontos": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fora do tema?": {
+      "main": [
+        [
+          {
+            "node": "Anota fora do tema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Texto: instabilidade": {
+      "main": [
+        [
+          {
+            "node": "Resposta final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Texto: limite do dia": {
+      "main": [
+        [
+          {
+            "node": "Resposta final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Texto: pedir CPF": {
+      "main": [
+        [
+          {
+            "node": "Resposta final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Texto do chamado": {
+      "main": [
+        [
+          {
+            "node": "Resposta final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Texto: corrigir resumo": {
+      "main": [
+        [
+          {
+            "node": "Resposta final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resposta final": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Guarda o texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizador": {
+      "main": [
+        [
+          {
+            "node": "Registra a mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memória": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memória (limpeza)": {
+      "ai_memory": [
+        [
+          {
+            "node": "Apaga a memória",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memória (leitura)": {
+      "ai_memory": [
+        [
+          {
+            "node": "Lê a memória",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "extrato_pontos": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "politicas": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Equipe conversando?": {
+      "main": [
+        [
+          {
+            "node": "Só para o chamado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Chamado aberto?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Só para o chamado": {
+      "main": [
+        [
+          {
+            "node": "Guarda sem a IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apaga a memória": {
+      "main": [
+        [
+          {
+            "node": "Atalhos sem IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atalhos sem IA": {
+      "main": [
+        [
+          {
+            "node": "Segue no fluxo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Segue no fluxo?": {
+      "main": [
+        [
+          {
+            "node": "Equipe conversando?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fica quieto?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirmação por CPF": {
+      "main": [
+        [
+          {
+            "node": "Vai para a IA?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vai para a IA?": {
+      "main": [
+        [
+          {
+            "node": "Vocabulário",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resposta final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fica quieto?": {
+      "main": [
+        null,
+        [
+          {
+            "node": "Resposta final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "2b40e184-bda2-4807-bd4d-618683bcbffa",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp",
+    "instanceId": "1619da3f57eb4f62f0fe7f3f28738109100972218a51eb8b81519f99a0682f7f"
+  },
+  "nodeGroups": [
+    {
+      "id": "402031dd-9671-41ab-9a5c-f348c51a0f34",
+      "name": "Saída",
+      "nodeIds": [
+        "92687318-66e1-42b5-95bb-3a8091c5f9ec",
+        "1c92307e-6d83-4015-a57e-756924ec8800",
+        "7a9a6acd-f09c-4716-83e5-ce4d7f2e9093"
+      ],
+      "description": "Resposta final, Responder e texto guardado"
+    },
+    {
+      "id": "e3301be9-49ac-4651-804c-fc9b40584d29",
+      "name": "IA e ferramentas",
+      "nodeIds": [
+        "f706b8d7-058e-4259-b669-c75303d17168",
+        "93a51ffa-314e-4d51-afdc-942d7e660aaf",
+        "9a23264c-9ca3-4554-9125-32151dc363d9",
+        "18ef46ac-a240-4d9c-b7e9-cb87b421d639",
+        "2ce9efca-7b3c-4756-a58c-7f6e198e75ad",
+        "05ca34ae-377a-46dd-b71f-8ed2cc02501a",
+        "8389942e-a86d-40d0-acf5-55a2a9c7ac99",
+        "ab3d342e-9435-4aa9-8062-3cb68b43399b",
+        "68db26dc-ca45-455f-bbbd-76e7b129e202",
+        "3796bc15-1e0d-47ee-932a-9903c2a1405b",
+        "2333dd4a-8f02-4db2-bb13-6400d24058ff",
+        "b588ff00-4547-413c-8bae-8ea17c50988c",
+        "0da784af-d0f2-464a-bdc3-c707c2dbf2d9"
+      ],
+      "description": "Agente com modelo, memória e ferramentas. Cada ferramenta chama o Backend - Auxiliar com a operação fixa."
+    }
+  ],
+  "id": "LaTeBmsvsug4Kz3t",
+  "tags": []
+}

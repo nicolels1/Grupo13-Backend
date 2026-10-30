@@ -6,6 +6,7 @@ API da plataforma de estoque, vendas, catálogo, atendimento e avaliações da C
 - **Documentação interativa:** [Swagger](https://grupo13-backend-megw.onrender.com/docs) e [ReDoc](https://grupo13-backend-megw.onrender.com/redoc)
 - **Saúde da API:** [/health](https://grupo13-backend-megw.onrender.com/health)
 - **Migração da Vulto (Entrega 3):** [README da migração](migracao_vulto/README.md), [os três números](migracao_vulto/numeros.md), [registro de decisões](migracao_vulto/registro_decisoes.md) e [validação](migracao_vulto/validacao.md)
+- **Assistente do cliente (Entrega 4):** [fluxos do n8n e como importar](n8n/README.md)
 
 > No plano gratuito do Render, a API dorme depois de 15 minutos sem uso. A primeira chamada depois disso leva cerca de 1 minuto; as seguintes respondem normalmente.
 
