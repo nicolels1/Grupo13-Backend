@@ -81,8 +81,9 @@ prioridade_que_vale = func.coalesce(Chamado.prioridade, Chamado.prioridade_suger
 # o cliente vê os mais novos primeiro. A fila da equipe põe os abertos antes dos concluídos e, entre os abertos, a
 # prioridade (a definida por quem assumiu ou, sem ela, a sugerida pela IA) e depois quem espera há mais tempo;
 # os concluídos seguem dos mais novos para os mais antigos
-def _ordem(lado: str) -> list:
-    if lado != "equipe":
+def _ordem(lado: str, ordem: str = "prioridade") -> list:
+    # "recentes": o que acabou de chegar primeiro (a fila padrão põe o mais antigo de cada prioridade na frente)
+    if lado != "equipe" or ordem == "recentes":
         return [Chamado.criado_em.desc(), Chamado.id_chamado.desc()]
     concluido = Chamado.status == "concluido"
     prioridade = case(ORDEM_DA_PRIORIDADE, value=prioridade_que_vale,
@@ -98,7 +99,7 @@ def _ordem(lado: str) -> list:
 def consulta_chamados(
     lado: str, id_chamado=None, id_cliente=None, id_cliente_sem_conta=None, status=None, categoria=None,
     prioridade=None, id_unidade=None, id_responsavel=None, sem_responsavel=None, com_mensagem_nova=None,
-    marca=None,
+    marca=None, aberto_pelo_assistente=None, ordem="prioridade",
 ) -> Select:
     nao_lidas = _nao_lidas_do_outro_lado(lado)
     # cliente com conta ou cliente sem conta da migração (P2); este sem nome aparece pelo e-mail. O migrado
@@ -112,13 +113,14 @@ def consulta_chamados(
         .outerjoin(Cliente, Cliente.id_usuario == Chamado.id_cliente)
         .outerjoin(ClienteSemConta, ClienteSemConta.id_cliente_sem_conta == Chamado.id_cliente_sem_conta)
         .outerjoin(Responsavel, Responsavel.id_usuario == Chamado.id_responsavel)
-        .order_by(*_ordem(lado))
+        .order_by(*_ordem(lado, ordem))
     )
     filtros = []
     for coluna, valor in [
         (Chamado.id_chamado, id_chamado), (Chamado.id_cliente, id_cliente),
         (Chamado.id_cliente_sem_conta, id_cliente_sem_conta), (Chamado.status, status),
         (Chamado.categoria, categoria), (Chamado.id_unidade, id_unidade), (Chamado.id_responsavel, id_responsavel),
+        (Chamado.aberto_pelo_assistente, aberto_pelo_assistente),
     ]:
         if valor is not None:
             filtros.append(coluna == valor)
