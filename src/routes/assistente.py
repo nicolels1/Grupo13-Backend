@@ -9,11 +9,12 @@ from src.entities.assistente import (
     AvisoPontosSaida, BuscaPecasSaida, ChamadoAbertoSaida, ChamadoDoAssistenteEntrada, CodigoEntrada, CodigoEnviado, ConfirmacaoSaida,
     ConversaEntrada, CpfEntrada, EstadoConversa, EstoqueSaida, EtapaEntrada, LembreteEntrada, LembreteSaida,
     LinkCarrinhoSaida, LojasDaMarca, MensagemNoChamadoEntrada, MeusPedidosSaida, MeusPontosSaida, PedidosEntrada,
-    RascunhoDoChamadoEntrada, RascunhoSaida, ResumoDoN8nEntrada, TextoDaConversaEntrada, VocabularioSaida,
+    PoliticasSaida, RascunhoDoChamadoEntrada, RascunhoSaida, ResumoDoN8nEntrada, TextoDaConversaEntrada,
+    VocabularioSaida,
 )
 from src.entities.atendimento import MensagemSaida
 from src.entities.comum import Lista, Marca
-from src.use_cases import assistente, assistente_conta, resumo_conversa
+from src.use_cases import assistente, assistente_conta, assistente_politicas, resumo_conversa
 from src.use_cases.horarios import BRASILIA
 
 # ferramentas do assistente do cliente, chamadas pelo n8n com a chave no cabeçalho X-Assistente-Chave.
@@ -101,6 +102,17 @@ def lojas(conversa: tuple = Depends(conversa_do_cabecalho), db: Session = Depend
 )
 def vocabulario(db: Session = Depends(get_db)):
     return assistente.vocabulario(db)
+
+
+# sem assunto no resumo anônimo: a lista de assuntos é fixa no banco e ainda não tem o de políticas
+@router.get(
+    "/politicas",
+    response_model=PoliticasSaida,
+    description="Regras por seção, em texto pronto: pontos de cada marca (regra vigente), entrega e retirada, troca "
+                "e devolução, pagamento e conta. Os números saem das mesmas constantes que as regras usam.",
+)
+def politicas(db: Session = Depends(get_db)):
+    return assistente_politicas.politicas(db)
 
 
 # ---------- conversa e confirmação por e-mail (fluxo fixo do n8n, sem IA) ----------

@@ -99,6 +99,29 @@ class VocabularioSaida(BaseModel):
     cores: list[str]
 
 
+class RegraDePontos(BaseModel):
+    marca: str
+    valor_ponto: Decimal = Field(description="Em R$, o do ponto ganho hoje; o ponto guarda o valor da época")
+    pontos_por_real: Decimal
+    multiplicador_online: Decimal = Field(description="Compras pelo site e pelo app")
+    bonus_ouro: Decimal = Field(description="0,5 = +50% nos pontos ganhos na categoria Ouro")
+    validade_meses: int | None = Field(description="Vazio: os pontos ganhos hoje ainda não têm prazo")
+    validade_meses_ouro: int | None
+    limite_prata: int = Field(description="Pontos ganhos no ano para chegar a Prata")
+    limite_ouro: int
+    resgate_minimo: int
+    texto: str
+
+
+# as regras que o cliente pergunta sem precisar de login, montadas das constantes e da regra vigente
+class PoliticasSaida(BaseModel):
+    pontos: list[RegraDePontos] = Field(description="Regra vigente de cada marca, nunca somadas")
+    entrega: str
+    troca_devolucao: str
+    pagamento: str
+    conta: str
+
+
 # ---------- conversa e ferramentas com login ----------
 
 # a conversa vem do canal (telefone do WhatsApp ou chat_id do Telegram), tirada pelo n8n;
