@@ -39,6 +39,7 @@ BLOQUEIO = timedelta(minutes=30)
 CODIGOS_POR_DIA = 3  # contra quem testa quais CPFs têm cadastro
 MENSAGENS_POR_DIA = 100
 PEDIDOS_NA_CONVERSA = 5
+MOVIMENTOS_NO_EXTRATO = 10
 DIAS_PARA_RETIRAR = 7  # depois disso o pg_cron cancela (migration 03aeb347f6cf)
 
 # a mesma resposta para CPF com e sem cadastro: não revela quem é cliente
@@ -667,6 +668,59 @@ def meus_pedidos(db: Session, canal: str, id_externo: str, id_pedido: int | None
     texto = "\n".join(p["texto"] for p in montados) or "Você ainda não tem pedidos."
     resultado = {"items": montados, "texto": texto}
     _afirmar(db, conversa, "meus_pedidos", resultado, momento)
+    return resultado
+
+
+# ---------- extrato de pontos ----------
+
+def _o_que_houve(movimento: dict) -> str:
+    compra = f" na compra {movimento['codigo_venda']}" if movimento["codigo_venda"] else ""
+    tipo, pontos = movimento["tipo"], movimento["pontos"]
+    if tipo == "credito":
+        return f"ganhos{compra}"
+    if tipo == "resgate":
+        return f"usados{compra}"
+    if tipo == "vencimento":
+        return "venceram"
+    if tipo == "estorno":
+        return f"devolvidos por estorno{compra}" if pontos > 0 else f"retirados por estorno{compra}"
+    if tipo == "saldo_inicial":
+        return "do saldo inicial do programa"
+    return "ajustados pela nossa equipe"
+
+
+def _texto_do_movimento(movimento: dict) -> str:
+    sinal = "+" if movimento["pontos"] > 0 else "-"
+    pontos = f"{sinal}{_pontos(abs(movimento['pontos']))}"
+    texto = f"{_data(movimento['data'])}, {movimento['marca'].capitalize()}: {pontos} {_o_que_houve(movimento)}"
+    if movimento["vence_em"]:
+        texto += f" (vencem em {_data(movimento['vence_em'])})"
+    return texto + "."
+
+
+# os últimos movimentos por marca, do mais novo para o mais antigo: responde "para onde foram meus pontos?",
+# inclusive os que venceram. O vencimento só aparece nos pontos que entraram e ainda têm sobra para vencer
+def extrato_pontos(db: Session, canal: str, id_externo: str, marca: str | None, momento: datetime) -> dict:
+    conversa = _conversa_confirmada(db, canal, id_externo, momento)
+    linhas, _ = fidelidade_repository.extrato(db, conversa.id_cliente, conversa.id_cliente_sem_conta, marca,
+                                              MOVIMENTOS_NO_EXTRATO, 0)
+    movimentos = []
+    for linha in linhas:
+        vence = linha["vence_em"] if linha["restante"] else None
+        movimento = {
+            "data": linha["criado_em"].astimezone(BRASILIA).date(),
+            "marca": linha["marca"],
+            "tipo": linha["tipo"],
+            "pontos": linha["pontos"],
+            "codigo_venda": linha["codigo_venda"],
+            "vence_em": vence.astimezone(BRASILIA).date() if vence else None,
+        }
+        movimento["texto"] = _texto_do_movimento(movimento)
+        movimentos.append(movimento)
+    onde = f" na {marca.capitalize()}" if marca else ""
+    texto = "\n".join(m["texto"] for m in movimentos) or f"Você ainda não tem movimentos de pontos{onde}."
+    resultado = {"items": movimentos, "texto": texto}
+    _afirmar(db, conversa, "extrato_pontos", resultado, momento)
     return resultado
 
 

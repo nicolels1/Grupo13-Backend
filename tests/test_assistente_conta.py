@@ -482,6 +482,82 @@ def test_cancelado_diz_o_motivo_e_o_estorno(banco, pedidos):
     assert montado["texto"].endswith("Estorno de R$ 129,90 (Pix): em andamento em 21/10/2026.")
 
 
+# ---------- extrato de pontos ----------
+
+def movimento(tipo, pontos, marca="lorenzi", codigo_venda=None, restante=0, vence_em=None):
+    return {"criado_em": datetime(2026, 10, 20, 12, 0, tzinfo=BRASILIA), "marca": marca, "tipo": tipo,
+            "pontos": pontos, "codigo_venda": codigo_venda, "restante": restante, "vence_em": vence_em}
+
+
+@pytest.fixture
+def extrato(banco, monkeypatch):
+    dados = SimpleNamespace(linhas=[], pedidos=[])
+
+    def buscar(db, id_cliente, id_sem_conta, marca, limit, offset):
+        dados.pedidos.append((id_cliente, id_sem_conta, marca, limit))
+        return dados.linhas, len(dados.linhas)
+
+    monkeypatch.setattr(fidelidade_repository, "extrato", buscar)
+    return dados
+
+
+def test_extrato_exige_a_conta_confirmada(banco, extrato):
+    mensagem(banco)
+    with pytest.raises(NaoAutenticado):
+        assistente_conta.extrato_pontos(banco.db, CANAL, TELEFONE, None, AGORA)
+
+
+def test_extrato_diz_o_que_entrou_saiu_e_venceu(banco, extrato):
+    vence = datetime(2027, 10, 20, 12, 0, tzinfo=BRASILIA)
+    extrato.linhas = [
+        movimento("credito", 120, codigo_venda="CL00000004", restante=120, vence_em=vence),
+        movimento("resgate", -100, codigo_venda="CL00000005"),
+        movimento("vencimento", -30, marca="vulto"),
+        movimento("estorno", -50, codigo_venda="CL00000006"),
+    ]
+    confirmar(banco)
+
+    resposta = assistente_conta.extrato_pontos(banco.db, CANAL, TELEFONE, None, AGORA)
+
+    assert resposta["items"][0]["vence_em"] == date(2027, 10, 20)
+    assert resposta["texto"].split("\n") == [
+        "20/10/2026, Lorenzi: +120 pontos ganhos na compra CL00000004 (vencem em 20/10/2027).",
+        "20/10/2026, Lorenzi: -100 pontos usados na compra CL00000005.",
+        "20/10/2026, Vulto: -30 pontos venceram.",
+        "20/10/2026, Lorenzi: -50 pontos retirados por estorno na compra CL00000006.",
+    ]
+
+
+# o lote já gasto (sem sobra) não vence mais: não promete um vencimento que não vai acontecer
+def test_ponto_ja_usado_nao_mostra_vencimento(banco, extrato):
+    extrato.linhas = [movimento("credito", 80, restante=0, vence_em=datetime(2027, 1, 1, tzinfo=BRASILIA))]
+    confirmar(banco)
+
+    [item] = assistente_conta.extrato_pontos(banco.db, CANAL, TELEFONE, None, AGORA)["items"]
+
+    assert item["vence_em"] is None and "vencem" not in item["texto"]
+
+
+def test_extrato_filtra_a_marca_e_e_do_cliente_confirmado(banco, extrato):
+    confirmar(banco)
+
+    resposta = assistente_conta.extrato_pontos(banco.db, CANAL, TELEFONE, "vulto", AGORA)
+
+    assert extrato.pedidos == [(ANA.id_usuario, None, "vulto", assistente_conta.MOVIMENTOS_NO_EXTRATO)]
+    assert resposta == {"items": [], "texto": "Você ainda não tem movimentos de pontos na Vulto."}
+
+
+def test_extrato_fica_registrado_para_auditoria(banco, extrato):
+    extrato.linhas = [movimento("credito", 120)]
+    confirmar(banco)
+
+    assistente_conta.extrato_pontos(banco.db, CANAL, TELEFONE, None, AGORA)
+
+    [afirmacao] = [o for o in banco.db.adicionados if isinstance(o, AfirmacaoAssistente)]
+    assert afirmacao.ferramenta == "extrato_pontos"
+    assert afirmacao.dados["items"][0]["pontos"] == 120
+
+
 # ---------- rotas ----------
 
 @pytest.fixture
@@ -524,6 +600,16 @@ def test_rota_de_pontos_sem_confirmar_responde_401(cliente):
     resposta = cliente.post("/assistente/meus-pontos", json={"canal": CANAL, "id_externo": TELEFONE}, headers=cabecalho)
 
     assert resposta.status_code == 401
+
+
+def test_rota_do_extrato_sem_confirmar_responde_401_e_recusa_marca_desconhecida(cliente):
+    cabecalho = {"X-Assistente-Chave": CHAVE}
+    conversa = {"canal": CANAL, "id_externo": TELEFONE}
+    cliente.post("/assistente/conversa", json=conversa, headers=cabecalho)
+
+    assert cliente.post("/assistente/extrato-pontos", json=conversa, headers=cabecalho).status_code == 401
+    resposta = cliente.post("/assistente/extrato-pontos", json=conversa | {"marca": "outra"}, headers=cabecalho)
+    assert resposta.status_code == 422
 
 
 # ---------- resumo anônimo da conversa ----------

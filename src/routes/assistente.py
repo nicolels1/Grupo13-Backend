@@ -7,10 +7,10 @@ from src.database.session import get_db
 from src.dependencies.assistente import conversa_do_cabecalho, exige_chave_assistente
 from src.entities.assistente import (
     AvisoPontosSaida, BuscaPecasSaida, ChamadoAbertoSaida, ChamadoDoAssistenteEntrada, CodigoEntrada, CodigoEnviado, ConfirmacaoSaida,
-    ConversaEntrada, CpfEntrada, EstadoConversa, EstoqueSaida, EtapaEntrada, LembreteEntrada, LembreteSaida,
-    LinkCarrinhoSaida, LojasDaMarca, MensagemNoChamadoEntrada, MeusPedidosSaida, MeusPontosSaida, PedidosEntrada,
-    PoliticasSaida, RascunhoDoChamadoEntrada, RascunhoSaida, ResumoDoN8nEntrada, TextoDaConversaEntrada,
-    VocabularioSaida,
+    ConversaEntrada, CpfEntrada, EstadoConversa, EstoqueSaida, EtapaEntrada, ExtratoEntrada, ExtratoPontosSaida,
+    LembreteEntrada, LembreteSaida, LinkCarrinhoSaida, LojasDaMarca, MensagemNoChamadoEntrada, MeusPedidosSaida,
+    MeusPontosSaida, PedidosEntrada, PoliticasSaida, RascunhoDoChamadoEntrada, RascunhoSaida, ResumoDoN8nEntrada,
+    TextoDaConversaEntrada, VocabularioSaida,
 )
 from src.entities.atendimento import MensagemSaida
 from src.entities.comum import Lista, Marca
@@ -250,6 +250,21 @@ def meus_pedidos(dados: PedidosEntrada, db: Session = Depends(get_db)):
         db, dados.canal, dados.id_externo, "pedidos",
         lambda: assistente_conta.meus_pedidos(db, dados.canal, dados.id_externo, dados.id_pedido,
                                               datetime.now(BRASILIA)),
+    )
+
+
+@router.post(
+    "/extrato-pontos",
+    response_model=ExtratoPontosSaida,
+    responses={401: {"description": "Conta não confirmada nesta conversa: pedir o CPF"}},
+    description="Últimos 10 movimentos de pontos (ganhos, usados, estornos, vencidos), por marca se o cliente falar "
+                "uma. Responde \"para onde foram meus pontos?\". Fica registrado o que foi entregue (auditoria).",
+)
+def extrato_pontos(dados: ExtratoEntrada, db: Session = Depends(get_db)):
+    return resumo_conversa.com_assunto(
+        db, dados.canal, dados.id_externo, "pontos",
+        lambda: assistente_conta.extrato_pontos(db, dados.canal, dados.id_externo, dados.marca,
+                                                datetime.now(BRASILIA)),
     )
 
 

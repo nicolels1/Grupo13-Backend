@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator
 
 from src.entities.atendimento import Categoria
-from src.entities.comum import sem_espacos
+from src.entities.comum import Marca, sem_espacos
 
 
 class PecaSaida(BaseModel):
@@ -147,6 +147,10 @@ class PedidosEntrada(ConversaEntrada):
     id_pedido: int | None = Field(default=None, description="Um pedido só; vazio traz os últimos 5")
 
 
+class ExtratoEntrada(ConversaEntrada):
+    marca: Marca | None = Field(default=None, description="Só quando o cliente falar a marca")
+
+
 # o que só o n8n sabe da conversa, para o resumo anônimo; os dois campos são opcionais
 class ResumoDoN8nEntrada(ConversaEntrada):
     avaliacao: Literal["positiva", "negativa"] | None = Field(default=None, description="👍 ou 👎 do cliente")
@@ -257,6 +261,21 @@ class MeusPontosSaida(BaseModel):
     marcas: list[PontosDaMarca]
     texto: str = Field(description="Resposta pronta, para quando a da IA não bater com os números")
     oferecer_lembrete: bool = Field(description="Oferecer o e-mail antes de os pontos vencerem (uma vez por conta)")
+
+
+class MovimentoDoExtrato(BaseModel):
+    data: date
+    marca: str
+    tipo: str = Field(description="saldo_inicial, credito, resgate, estorno, ajuste ou vencimento")
+    pontos: int = Field(description="Positivo entrou, negativo saiu")
+    codigo_venda: str | None
+    vence_em: date | None = Field(description="Só nos pontos que entraram e já têm data de vencimento")
+    texto: str
+
+
+class ExtratoPontosSaida(BaseModel):
+    items: list[MovimentoDoExtrato] = Field(description="Do mais novo para o mais antigo")
+    texto: str = Field(description="Resposta pronta, para quando a da IA não bater com os números")
 
 
 class ItemDoPedido(BaseModel):
