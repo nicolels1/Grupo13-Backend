@@ -295,10 +295,33 @@ def test_fila_filtra_pela_marca(api, banco):
     assert api(SessaoFalsa(), usuario=funcionario()).get("/atendimento/chamados", params={"marca": "x"}).status_code == 422
 
 
+def test_fila_pede_os_recentes_e_os_abertos_pelo_assistente(api, banco):
+    resposta = api(SessaoFalsa(), usuario=funcionario()).get(
+        "/atendimento/chamados", params={"ordem": "recentes", "aberto_pelo_assistente": "true"})
+
+    assert resposta.status_code == 200
+    assert banco.filtros[1]["ordem"] == "recentes" and banco.filtros[1]["aberto_pelo_assistente"] is True
+    assert api(SessaoFalsa(), usuario=funcionario()).get(
+        "/atendimento/chamados", params={"ordem": "x"}).status_code == 422
+
+
 # ---------- consultas ----------
 
 def sql(consulta):
     return str(consulta.compile(dialect=postgresql.dialect()))
+
+
+def test_fila_dos_recentes_poe_o_ultimo_chamado_primeiro():
+    padrao = sql(atendimento_repository.consulta_chamados("equipe"))
+    recentes = sql(atendimento_repository.consulta_chamados("equipe", ordem="recentes"))
+
+    assert "ORDER BY CASE WHEN (chamado.status = " in padrao
+    assert recentes.endswith("ORDER BY chamado.criado_em DESC, chamado.id_chamado DESC")
+
+
+def test_fila_filtra_os_abertos_pelo_assistente():
+    texto = sql(atendimento_repository.consulta_chamados("equipe", aberto_pelo_assistente=True))
+    assert "chamado.aberto_pelo_assistente = " in texto
 
 
 # fala do cliente: sem autor (atendimento migrado, P6) ou da conta dele; DISTINCT: no chamado de cliente

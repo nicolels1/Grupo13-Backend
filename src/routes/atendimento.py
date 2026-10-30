@@ -134,6 +134,13 @@ def fila(
     id_unidade: int | None = None,
     id_cliente: uuid.UUID | None = Query(None, description="Chamados de um cliente com conta"),
     id_cliente_sem_conta: int | None = Query(None, description="Chamados de um cliente da Vulto sem conta"),
+    aberto_pelo_assistente: bool | None = Query(
+        None, description="true: só os chamados que o assistente do cliente abriu (WhatsApp ou Telegram)"
+    ),
+    ordem: Literal["prioridade", "recentes"] = Query(
+        "prioridade", description="prioridade (padrão): abertos, prioridade e quem espera há mais tempo; "
+                                  "recentes: o que chegou por último primeiro"
+    ),
     marca: str | None = Depends(marca_permitida),
     paginacao: dict = Depends(_paginacao),
     usuario: Usuario = Depends(ATENDER),
@@ -143,6 +150,7 @@ def fila(
         db, usuario, **paginacao, meus=meus, status=status_chamado, sem_responsavel=sem_responsavel,
         com_mensagem_nova=com_mensagem_nova, categoria=categoria, prioridade=prioridade, id_unidade=id_unidade,
         id_cliente=id_cliente, id_cliente_sem_conta=id_cliente_sem_conta, marca=marca,
+        aberto_pelo_assistente=aberto_pelo_assistente, ordem=ordem,
     )
 
 
