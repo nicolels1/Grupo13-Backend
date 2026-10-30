@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from src.app import app
 from src.config import settings
-from src.database.session import get_db
+from src.database.session import engine, get_db
 from src.models.assistente import (
     AfirmacaoAssistente, AvisoPontosVencendo, CodigoVerificacao, ConversaCanal, MensagemConversa, ResumoConversa,
 )
@@ -694,6 +694,33 @@ def test_pedir_o_cpf_no_meio_da_confirmacao_desfaz_o_rascunho(banco, chamados):
 
     conversa = banco.conversas[(CANAL, TELEFONE)]
     assert (conversa.etapa, conversa.rascunho_chamado) == ("esperando_codigo", None)
+
+
+# a sessão falsa não passa pelo Postgres: confere o que o driver do projeto receberia (None é o NULL do SQL). Sem
+# none_as_null, None ia como JSON 'null' e o banco recusava (ck_conversa_canal_rascunho_so_confirmando)
+def rascunho_gravado(conversa):
+    tipo = ConversaCanal.__table__.c.rascunho_chamado.type.dialect_impl(engine.dialect)
+    return tipo.bind_processor(engine.dialect)(conversa.rascunho_chamado)
+
+
+def test_enviar_grava_o_rascunho_como_null_no_banco(banco, chamados):
+    confirmar(banco)
+
+    abrir(banco)
+
+    conversa = banco.conversas[(CANAL, TELEFONE)]
+    assert (conversa.etapa, rascunho_gravado(conversa)) == ("em_chamado", None)
+
+
+def test_corrigir_grava_o_rascunho_como_null_no_banco(banco, chamados):
+    confirmar(banco)
+    rascunhar(banco)
+    assert rascunho_gravado(banco.conversas[(CANAL, TELEFONE)]) is not None
+
+    assistente_conta.mudar_etapa(banco.db, CANAL, TELEFONE, "livre", AGORA)
+
+    conversa = banco.conversas[(CANAL, TELEFONE)]
+    assert (conversa.etapa, rascunho_gravado(conversa)) == ("livre", None)
 
 
 def test_rascunho_com_pedido_de_outra_pessoa(banco, chamados, monkeypatch):

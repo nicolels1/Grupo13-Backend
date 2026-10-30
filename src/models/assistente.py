@@ -61,7 +61,7 @@ class ConversaCanal(Base):
     etapa: Mapped[str] = mapped_column(String(30), default="livre", server_default="livre")
     # categoria, assunto, resumo e pedido que a IA montou, guardados até o cliente apertar [Enviar]:
     # o chamado abre só com o que ele viu. Só existe em confirmando_chamado
-    rascunho_chamado: Mapped[dict | None] = mapped_column(JSONB)
+    rascunho_chamado: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
     id_chamado: Mapped[int | None] = mapped_column(ForeignKey("chamado.id_chamado", ondelete="RESTRICT"))
     # resumo da conversa em andamento; trocado na conversa nova, então o número só fica ligado a ele
     # enquanto a conversa está aberta
